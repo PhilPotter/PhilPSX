@@ -1,0 +1,9 @@
+[package]
+name = "philpsx_core"
+version = "0.1.0"
+edition = "2021"
+authors = [
+    "Phillip Potter <phil@philpotter.co.uk>"
+]
+
+[dependencies]

@@ -1,0 +1,3 @@
+# Just include Cargo debug and target folders for now
+debug/
+target/
