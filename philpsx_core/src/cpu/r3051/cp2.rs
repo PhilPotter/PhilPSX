@@ -20,8 +20,7 @@ impl CP2 {
 
     /// Creates a new CP2 object with the correct initial state.
     pub fn new() -> Self {
-
-        let mut cp2 = CP2 {
+        CP2 {
             
             // Zero-out both register arrays.
             control_registers: [0; 32],
@@ -29,13 +28,7 @@ impl CP2 {
 
             // Set condition line to false.
             condition_line: false,
-        };
-
-        // Reset the CP2 object.
-        cp2.reset();
-
-        // Now return it.
-        cp2
+        }
     }
 
     /// This function just resets the condition line.

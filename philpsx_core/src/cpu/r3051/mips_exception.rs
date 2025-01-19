@@ -39,4 +39,13 @@ impl MIPSException {
             is_in_branch_delay_slot: false,
         }
     }
+
+    /// Resets a MIPSException object to its initial empty state.
+    pub fn reset(&mut self) {
+        self.exception_reason = MIPSExceptionReason::NULL;
+        self.program_counter_origin = 0;
+        self.bad_address = 0;
+        self.co_processor_num = 0;
+        self.is_in_branch_delay_slot = false;
+    }
 }
