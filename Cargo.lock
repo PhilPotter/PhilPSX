@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "philpsx_core"
 version = "0.1.0"
+dependencies = [
+ "philpsx_utility",
+]
+
+[[package]]
+name = "philpsx_utility"
+version = "0.1.0"

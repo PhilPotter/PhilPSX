@@ -2,4 +2,5 @@
 resolver = "2"
 members = [
     "philpsx_core",
+    "philpsx_utility",
 ]

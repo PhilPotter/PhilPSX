@@ -1,5 +1,5 @@
 [package]
-name = "philpsx_core"
+name = "philpsx_utility"
 version = "0.1.0"
 edition = "2021"
 authors = [
@@ -7,4 +7,3 @@ authors = [
 ]
 
 [dependencies]
-philpsx_utility = { path = "../philpsx_utility" }

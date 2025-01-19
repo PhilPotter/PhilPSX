@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 // cp0.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
+use philpsx_utility::as_i32;
+
 /// The CP0 structure models the System Control Co-Processor (CP0), which
 /// is responsible for mememory management and exceptions.
 pub struct CP0 {
@@ -42,10 +44,10 @@ impl CP0 {
         // Set BEV and TS bits of status register to 0 and 0 (BEV should be 1 but
         // PSX doesn't run this way, TS should be 1 but other emulators don't seem
         // to do this).
-        self.cop_registers[12] &= 0xFF9FFFFFu32 as i32;
+        self.cop_registers[12] &= as_i32(0xFF9FFFFFu32);
 
         // Set SWc, KUc and IEc bits of status register to 0.
-        self.cop_registers[12] &= 0xFFFDFFFCu32 as i32;
+        self.cop_registers[12] &= as_i32(0xFFFDFFFCu32);
 
         // Set condition line to false.
         self.condition_line = false;
@@ -53,6 +55,6 @@ impl CP0 {
 
     /// This function returns the reset exception vector's virtual address.
     pub fn get_reset_exception_vector(&self) -> i32 {
-        0xBFC00000u32 as i32
+        as_i32(0xBFC00000u32)
     }
 }
