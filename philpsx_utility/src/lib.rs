@@ -32,6 +32,7 @@ impl CustomInteger for CustomInt32 {
     type Output = i32;
 
     /// Logically shifts right by specified amount, returning `i32`.
+    #[inline(always)]
     fn logical_rshift(self, shift_by: i32) -> Self::Output {
         ((self as u32) >> shift_by) as Self::Output
     }
@@ -42,6 +43,7 @@ impl CustomInteger for CustomInt64 {
     type Output = i64;
 
     /// Logically shifts right by specified amount, returning `i64`.
+    #[inline(always)]
     fn logical_rshift(self, shift_by: i32) -> Self::Output {
         ((self as u64) >> shift_by) as Self::Output
     }
@@ -52,6 +54,7 @@ impl CustomInteger for CustomUInt32 {
     type Output = i32;
 
     /// Logically shifts right by specified amount, returning `i32`.
+    #[inline(always)]
     fn logical_rshift(self, shift_by: i32) -> Self::Output {
         (self >> shift_by) as Self::Output
     }
@@ -62,6 +65,7 @@ impl CustomInteger for CustomUInt64 {
     type Output = i64;
 
     /// Logically shifts right by specified amount, returning `i64`.
+    #[inline(always)]
     fn logical_rshift(self, shift_by: i32) -> Self::Output {
         (self >> shift_by) as Self::Output
     }
