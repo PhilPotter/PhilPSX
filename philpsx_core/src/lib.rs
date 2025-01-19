@@ -12,4 +12,5 @@
 // C source more closely.
 #![allow(clippy::upper_case_acronyms)]
 
+/// This module contains PlayStation CPU-related functionality.
 pub mod cpu;

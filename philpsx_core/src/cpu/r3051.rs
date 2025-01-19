@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 // r3051.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
+/// This module contains an implementation of the MIPS exceptions
+/// modelled from inside the R3051 processor.
 mod mips_exception;
+
+/// This module contains an implementation of the CP0 co-processor, also
+/// referred to as the System Control Co-processor.
 mod cp0;
+
+/// This module contains an implementation of the CP2 co-processor, also
+/// referred to as the Geometry Transformation Engine.
 mod cp2;
 
 use mips_exception::MIPSException;
