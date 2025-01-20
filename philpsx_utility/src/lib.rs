@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn logical_rshift_should_work_as_expected_for_i32() {
 
-        let input = 0xFFFFFFFFu32 as i32;
+        let input = 0xFFFFFFFF_u32 as i32;
         let output = input.logical_rshift(1);
 
         assert_eq!(output, 0x7FFFFFFF);
