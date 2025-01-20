@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 // cp0.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
+use philpsx_utility::CustomInteger;
+
 /// The CP0 structure models the System Control Co-Processor (CP0), which
 /// is responsible for mememory management and exceptions.
 pub struct CP0 {
@@ -51,11 +53,6 @@ impl CP0 {
         self.condition_line = false;
     }
 
-    /// This function returns the reset exception vector's virtual address.
-    pub fn get_reset_exception_vector(&self) -> i32 {
-        0xBFC00000_u32 as i32
-    }
-
     /// This function gets the state of the condition line.
     pub fn get_condition_line_status(&self) -> bool {
         self.condition_line
@@ -64,6 +61,21 @@ impl CP0 {
     /// This function sets the state of the condition line.
     pub fn set_condition_line_status(&mut self, status: bool) {
         self.condition_line = status;
+    }
+
+    /// This function executes the RFE CP0 instruction.
+    pub fn rfe(&mut self) {
+
+        // Shift KUo/IEo/KUp/IEp bits into place of KUp/IEp/KUc/IEc bits and write back.
+        let temp_reg = self.read_reg(12);
+        let new_bits = temp_reg.logical_rshift(2) & 0xF;
+
+        self.write_reg(12, (temp_reg & (0xFFFFFFF0_u32 as i32)) | new_bits, false);
+    }
+
+    /// This function returns the reset exception vector's virtual address.
+    pub fn get_reset_exception_vector(&self) -> i32 {
+        0xBFC00000_u32 as i32
     }
 
     /// This function reads from a given register.

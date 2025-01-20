@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0
+// tests.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
+
 use super::CP0;
 
 #[test]
@@ -124,4 +127,15 @@ fn arbitrary_register_write_without_override() {
     let output = cp0.cop_registers[1];
 
     assert_eq!(output, 0xFFFFFFFF_u32 as i32);
+}
+
+#[test]
+fn rfe_should_shift_status_bits_correctly() {
+
+    let mut cp0 = CP0::new();
+    cp0.cop_registers[12] = 0xF24BFF3C_u32 as i32;
+    cp0.rfe();
+    let output = cp0.cop_registers[12];
+
+    assert_eq!(output, 0xF24BFF3F_u32 as i32);
 }
