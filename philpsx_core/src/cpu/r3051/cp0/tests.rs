@@ -139,3 +139,23 @@ fn rfe_should_shift_status_bits_correctly() {
 
     assert_eq!(output, 0xF24BFF3F_u32 as i32);
 }
+
+#[test]
+fn general_exception_vector_correct_when_bev_set() {
+
+    let mut cp0 = CP0::new();
+    cp0.cop_registers[12] = 0x00400000;
+    let output = cp0.get_general_exception_vector();
+
+    assert_eq!(output, 0xBFC00180_u32 as i32);
+}
+
+#[test]
+fn general_exception_vector_correct_when_bev_unset() {
+
+    let mut cp0 = CP0::new();
+    cp0.cop_registers[12] = 0x00000000;
+    let output = cp0.get_general_exception_vector();
+
+    assert_eq!(output, 0x80000080_u32 as i32);
+}

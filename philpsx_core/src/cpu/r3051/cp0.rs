@@ -78,6 +78,19 @@ impl CP0 {
         0xBFC00000_u32 as i32
     }
 
+    /// This function returns the general exception vector's virtual address.
+    pub fn get_general_exception_vector(&self) -> i32 {
+
+        // Isolate BEV bit and return accordingly.
+        let bev = (self.cop_registers[12] & 0x00400000).logical_rshift(22) != 0;
+
+        if bev {
+            0xBFC00180_u32 as i32
+        } else {
+            0x80000080_u32 as i32
+        }
+    }
+
     /// This function reads from a given register.
     pub fn read_reg(&self, reg: i32) -> i32 {
 
