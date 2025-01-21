@@ -159,3 +159,77 @@ fn general_exception_vector_correct_when_bev_unset() {
 
     assert_eq!(output, 0x80000080_u32 as i32);
 }
+
+#[test]
+fn setting_cache_miss_works() {
+
+    let mut cp0 = CP0::new();
+    cp0.cop_registers[12] = 0x00000000;
+    cp0.set_cache_miss(true);
+    let output = cp0.cop_registers[12];
+
+    assert_eq!(output, 0x00080000);
+}
+
+#[test]
+fn unsetting_cache_miss_works() {
+
+    let mut cp0 = CP0::new();
+    cp0.cop_registers[12] = 0x00080000;
+    cp0.set_cache_miss(false);
+    let output = cp0.cop_registers[12];
+
+    assert_eq!(output, 0x00000000);
+}
+
+#[test]
+fn virtual_to_physical_gives_expected_addresses() {
+
+    let cp0 = CP0::new();
+    let input1 = 0x00000000;
+    let input2 = 0x7FFFFFFF;
+    let input3 = 0x80000000_u32 as i32;
+    let input4 = 0x9FFFFFFF_u32 as i32;
+    let input5 = 0xA0000000_u32 as i32;
+    let input6 = 0xBFFFFFFF_u32 as i32;
+    let input7 = 0xC0000000_u32 as i32;
+    let input8 = 0xFFFFFFFF_u32 as i32;
+
+    let output1 = cp0.virtual_to_physical(input1);
+    let output2 = cp0.virtual_to_physical(input2);
+    let output3 = cp0.virtual_to_physical(input3);
+    let output4 = cp0.virtual_to_physical(input4);
+    let output5 = cp0.virtual_to_physical(input5);
+    let output6 = cp0.virtual_to_physical(input6);
+    let output7 = cp0.virtual_to_physical(input7);
+    let output8 = cp0.virtual_to_physical(input8);
+
+    assert_eq!(output1, 0x00000000);
+    assert_eq!(output2, 0x7FFFFFFF);
+    assert_eq!(output3, 0x00000000);
+    assert_eq!(output4, 0x1FFFFFFF);
+    assert_eq!(output5, 0x00000000);
+    assert_eq!(output6, 0x1FFFFFFF);
+    assert_eq!(output7, 0xC0000000_u32 as i32);
+    assert_eq!(output8, 0xFFFFFFFF_u32 as i32);
+}
+
+#[test]
+fn is_cacheable_gives_expected_results() {
+
+    let cp0 = CP0::new();
+    let input1 = 0x00000000;
+    let input2 = 0x9FFFFFFFu32 as i32;
+    let input3 = 0xA0000000_u32 as i32;
+    let input4 = 0xFFFFFFFF_u32 as i32;
+
+    let output1 = cp0.is_cacheable(input1);
+    let output2 = cp0.is_cacheable(input2);
+    let output3 = cp0.is_cacheable(input3);
+    let output4 = cp0.is_cacheable(input4);
+
+    assert!(output1);
+    assert!(output2);
+    assert!(!output3);
+    assert!(!output4);
+}

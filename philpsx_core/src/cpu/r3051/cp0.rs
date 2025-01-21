@@ -177,6 +177,59 @@ impl CP0 {
             }
         }
     }
+
+    /// This function sets or resets the cache miss flag.
+    pub fn set_cache_miss(&mut self, value: bool) {
+
+        // Determine value to merge in.
+        let cm_flag = if value {
+            0x00080000
+        } else {
+            0
+        };
+
+        // Merge flag into status register and write it back.
+        let status_reg = (self.cop_registers[12] & (0xFFF7FFFF_u32 as i32)) | cm_flag;
+        self.write_reg(12, status_reg, true);
+    }
+
+    /// This function transforms a virtual address into a physical one.
+    /// It is designed for the base model of the processor which has no TLB.
+    pub fn virtual_to_physical(&self, virtual_address: i32) -> i32 {
+
+        // Declare temporary i64 variable to hold new address and mask the
+        // top 32 bits so we always get an unsigned value.
+        let mut physical_address = (virtual_address as i64) & 0xFFFFFFFF_i64;
+
+        // Make correct modifications to address.
+        match physical_address {
+
+            // Address ranges (exclusive of end address):
+            // kuseg address: 0x00000000 to 0x80000000 (do nothing).
+            // kseg0 address: 0x80000000 to 0xA0000000 (subtract 0x80000000).
+            // kseg1 address: 0xA0000000 to 0xC0000000 (subtract 0xA0000000).
+            // kseg2 address: 0xC0000000 to end (do nothing - only includes cache control on PSX).
+            0x80000000..0xA0000000 => {
+                physical_address -= 0x80000000;
+            },
+            0xA0000000..0xC0000000 => {
+                physical_address -= 0xA0000000;
+            },
+            _ => (),
+        }
+
+        physical_address as i32
+    }
+
+    /// This function determines whetheer the supplied virtual address is cacheable.
+    pub fn is_cacheable(&self, virtual_address: i32) -> bool {
+
+        // Declare temporary i64 variable to hold new address and mask the
+        // top 32 bits so we always get an unsigned value.
+        let temp_address = (virtual_address as i64) & 0xFFFFFFFF_i64;
+
+        (0x00000000..0xA0000000).contains(&temp_address)
+    }
 }
 
 #[cfg(test)]
