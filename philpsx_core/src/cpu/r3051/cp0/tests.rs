@@ -7,7 +7,7 @@ use super::CP0;
 fn status_register_read_should_work() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[12] = 0xFFFFFFFF_u32 as i32;
     let output = cp0.read_reg(12);
 
     assert_eq!(output, 0xF27FFF3F_u32 as i32);
@@ -17,7 +17,7 @@ fn status_register_read_should_work() {
 fn cause_register_read_should_work() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[13] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[13] = 0xFFFFFFFF_u32 as i32;
     let output = cp0.read_reg(13);
 
     assert_eq!(output, 0xB000FF7C_u32 as i32);
@@ -36,9 +36,9 @@ fn prid_register_read_should_work() {
 fn registers_1_8_and_14_reads_should_return_as_is() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[1] = 1;
-    cp0.cop_registers[8] = 8;
-    cp0.cop_registers[14] = 14;
+    cp0.cp_registers[1] = 1;
+    cp0.cp_registers[8] = 8;
+    cp0.cp_registers[14] = 14;
     let output1 = cp0.read_reg(1);
     let output2 = cp0.read_reg(8);
     let output3 = cp0.read_reg(14);
@@ -52,7 +52,7 @@ fn registers_1_8_and_14_reads_should_return_as_is() {
 fn any_other_register_read_should_return_0() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[2] = 1;
+    cp0.cp_registers[2] = 1;
     let output = cp0.read_reg(2);
 
     assert_eq!(output, 0);
@@ -62,12 +62,12 @@ fn any_other_register_read_should_return_0() {
 fn status_and_cause_registers_write_with_override() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0xFFFFFFFF_u32 as i32;
-    cp0.cop_registers[13] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[12] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[13] = 0xFFFFFFFF_u32 as i32;
     cp0.write_reg(12, 0, true);
     cp0.write_reg(13, 0, true);
-    let output1 = cp0.cop_registers[12];
-    let output2 = cp0.cop_registers[13];
+    let output1 = cp0.cp_registers[12];
+    let output2 = cp0.cp_registers[13];
 
     assert_eq!(output1, 0);
     assert_eq!(output2, 0);
@@ -77,12 +77,12 @@ fn status_and_cause_registers_write_with_override() {
 fn status_and_cause_registers_write_without_override() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0xFFFFFFFF_u32 as i32;
-    cp0.cop_registers[13] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[12] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[13] = 0xFFFFFFFF_u32 as i32;
     cp0.write_reg(12, 0, false);
     cp0.write_reg(13, 0, false);
-    let output1 = cp0.cop_registers[12];
-    let output2 = cp0.cop_registers[13];
+    let output1 = cp0.cp_registers[12];
+    let output2 = cp0.cp_registers[13];
 
     assert_eq!(output1, 0x0DB400C0);
     assert_eq!(output2, 0xFFFFFCFF_u32 as i32);
@@ -92,12 +92,12 @@ fn status_and_cause_registers_write_without_override() {
 fn status_and_cause_registers_write_merge() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0x0DB400C0;
-    cp0.cop_registers[13] = 0xFFFFFCFF_u32 as i32;
+    cp0.cp_registers[12] = 0x0DB400C0;
+    cp0.cp_registers[13] = 0xFFFFFCFF_u32 as i32;
     cp0.write_reg(12, 0xF24BFF3F_u32 as i32, false);
     cp0.write_reg(13, 0x00000300, false);
-    let output1 = cp0.cop_registers[12];
-    let output2 = cp0.cop_registers[13];
+    let output1 = cp0.cp_registers[12];
+    let output2 = cp0.cp_registers[13];
 
     assert_eq!(output1, 0xFFFFFFFF_u32 as i32);
     assert_eq!(output2, 0xFFFFFFFF_u32 as i32);
@@ -107,12 +107,12 @@ fn status_and_cause_registers_write_merge() {
 fn status_and_cause_registers_write_only_writable_bits() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0x00000000;
-    cp0.cop_registers[13] = 0x00000000;
+    cp0.cp_registers[12] = 0x00000000;
+    cp0.cp_registers[13] = 0x00000000;
     cp0.write_reg(12, 0xFF000000_u32 as i32, false);
     cp0.write_reg(13, 0x0000FF00, false);
-    let output1 = cp0.cop_registers[12];
-    let output2 = cp0.cop_registers[13];
+    let output1 = cp0.cp_registers[12];
+    let output2 = cp0.cp_registers[13];
 
     assert_eq!(output1, 0xF2000000_u32 as i32);
     assert_eq!(output2, 0x00000300);
@@ -122,9 +122,9 @@ fn status_and_cause_registers_write_only_writable_bits() {
 fn arbitrary_register_write_without_override() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[1] = 0x00000000;
+    cp0.cp_registers[1] = 0x00000000;
     cp0.write_reg(1, 0xFFFFFFFF_u32 as i32, false);
-    let output = cp0.cop_registers[1];
+    let output = cp0.cp_registers[1];
 
     assert_eq!(output, 0xFFFFFFFF_u32 as i32);
 }
@@ -133,9 +133,9 @@ fn arbitrary_register_write_without_override() {
 fn rfe_should_shift_status_bits_correctly() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0xF24BFF3C_u32 as i32;
+    cp0.cp_registers[12] = 0xF24BFF3C_u32 as i32;
     cp0.rfe();
-    let output = cp0.cop_registers[12];
+    let output = cp0.cp_registers[12];
 
     assert_eq!(output, 0xF24BFF3F_u32 as i32);
 }
@@ -144,7 +144,7 @@ fn rfe_should_shift_status_bits_correctly() {
 fn general_exception_vector_correct_when_bev_set() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0x00400000;
+    cp0.cp_registers[12] = 0x00400000;
     let output = cp0.get_general_exception_vector();
 
     assert_eq!(output, 0xBFC00180_u32 as i32);
@@ -154,7 +154,7 @@ fn general_exception_vector_correct_when_bev_set() {
 fn general_exception_vector_correct_when_bev_unset() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0x00000000;
+    cp0.cp_registers[12] = 0x00000000;
     let output = cp0.get_general_exception_vector();
 
     assert_eq!(output, 0x80000080_u32 as i32);
@@ -164,9 +164,9 @@ fn general_exception_vector_correct_when_bev_unset() {
 fn setting_cache_miss_works() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0x00000000;
+    cp0.cp_registers[12] = 0x00000000;
     cp0.set_cache_miss(true);
-    let output = cp0.cop_registers[12];
+    let output = cp0.cp_registers[12];
 
     assert_eq!(output, 0x00080000);
 }
@@ -175,9 +175,9 @@ fn setting_cache_miss_works() {
 fn unsetting_cache_miss_works() {
 
     let mut cp0 = CP0::new();
-    cp0.cop_registers[12] = 0x00080000;
+    cp0.cp_registers[12] = 0x00080000;
     cp0.set_cache_miss(false);
-    let output = cp0.cop_registers[12];
+    let output = cp0.cp_registers[12];
 
     assert_eq!(output, 0x00000000);
 }
@@ -239,7 +239,7 @@ fn kernel_mode_properly_detected() {
 
     let mut cp0 = CP0::new();
     let output1 = cp0.are_we_in_kernel_mode();
-    cp0.cop_registers[12] |= 0x2;
+    cp0.cp_registers[12] |= 0x2;
     let output2 = cp0.are_we_in_kernel_mode();
 
     assert!(output1);
@@ -251,7 +251,7 @@ fn user_mode_opposite_byte_ordering_properly_detected() {
 
     let mut cp0 = CP0::new();
     let output1 = cp0.user_mode_opposite_byte_ordering();
-    cp0.cop_registers[12] |= 0x02000000;
+    cp0.cp_registers[12] |= 0x02000000;
     let output2 = cp0.user_mode_opposite_byte_ordering();
 
     assert!(!output1);
@@ -263,7 +263,7 @@ fn allowed_addresses_properly_detected() {
 
     let mut cp0 = CP0::new();
     let output1 = cp0.is_address_allowed(0xFFFFFFFF_u32 as i32);
-    cp0.cop_registers[12] |= 0x2;
+    cp0.cp_registers[12] |= 0x2;
     let output2 = cp0.is_address_allowed(0xFFFFFFFF_u32 as i32);
 
     assert!(output1);
@@ -275,7 +275,7 @@ fn data_cache_isolation_properly_detected() {
 
     let mut cp0 = CP0::new();
     let output1 = cp0.is_data_cache_isolated();
-    cp0.cop_registers[12] |= 0x00010000;
+    cp0.cp_registers[12] |= 0x00010000;
     let output2 = cp0.is_data_cache_isolated();
 
     assert!(!output1);
@@ -291,7 +291,7 @@ fn co_processor_usability_properly_detected() {
     let output3 = cp0.is_co_processor_usable(2);
     let output4 = cp0.is_co_processor_usable(3);
 
-    cp0.cop_registers[12] |= 0xF0000000_u32 as i32;
+    cp0.cp_registers[12] |= 0xF0000000_u32 as i32;
     let output5 = cp0.is_co_processor_usable(0);
     let output6 = cp0.is_co_processor_usable(1);
     let output7 = cp0.is_co_processor_usable(2);

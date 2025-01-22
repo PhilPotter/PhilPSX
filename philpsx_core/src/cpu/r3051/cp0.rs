@@ -8,7 +8,7 @@ use philpsx_utility::CustomInteger;
 pub struct CP0 {
 
     // Register definitions.
-    cop_registers: [i32; 32],
+    cp_registers: [i32; 32],
 
     // Condition line.
     condition_line: bool,
@@ -22,7 +22,7 @@ impl CP0 {
         let mut cp0 = CP0 {
             
             // Zero out all registers.
-            cop_registers: [0; 32],
+            cp_registers: [0; 32],
 
             // Set condition line to false.
             condition_line: false,
@@ -39,15 +39,15 @@ impl CP0 {
     fn reset(&mut self) {
 
         // Set random register to 63.
-        self.cop_registers[1] = 63 << 8;
+        self.cp_registers[1] = 63 << 8;
 
         // Set BEV and TS bits of status register to 0 and 0 (BEV should be 1 but
         // PSX doesn't run this way, TS should be 1 but other emulators don't seem
         // to do this).
-        self.cop_registers[12] &= 0xFF9FFFFF_u32 as i32;
+        self.cp_registers[12] &= 0xFF9FFFFF_u32 as i32;
 
         // Set SWc, KUc and IEc bits of status register to 0.
-        self.cop_registers[12] &= 0xFFFDFFFC_u32 as i32;
+        self.cp_registers[12] &= 0xFFFDFFFC_u32 as i32;
 
         // Set condition line to false.
         self.condition_line = false;
@@ -82,7 +82,7 @@ impl CP0 {
     pub fn get_general_exception_vector(&self) -> i32 {
 
         // Isolate BEV bit and return accordingly.
-        let bev = (self.cop_registers[12] & 0x00400000).logical_rshift(22) != 0;
+        let bev = (self.cp_registers[12] & 0x00400000).logical_rshift(22) != 0;
 
         if bev {
             0xBFC00180_u32 as i32
@@ -101,17 +101,17 @@ impl CP0 {
             // Status register.
             12 => {
                 // Mask out 0-read bits.
-                self.cop_registers[array_index] & (0xF27FFF3F_u32 as i32)
+                self.cp_registers[array_index] & (0xF27FFF3F_u32 as i32)
 
                 // We could also merge in TS bit (commented out to copy observed
                 // behaviour of other emulators).
-                //(self.cop_registers[array_index] & 0xF27FFF3F) | 0x00200000
+                //(self.cp_registers[array_index] & 0xF27FFF3F) | 0x00200000
             },
 
             // Cause register.
             13 => {
                 // Mask out 0-read bits.
-                self.cop_registers[array_index] & (0xB000FF7Cu32 as i32)
+                self.cp_registers[array_index] & (0xB000FF7Cu32 as i32)
             },
 
             // PrId register.
@@ -126,7 +126,7 @@ impl CP0 {
             // 1:  Random register.
             // 8:  Bad virtual address register.
             // 14: Exception PC register.
-            1 | 8 | 14 => self.cop_registers[array_index],
+            1 | 8 | 14 => self.cp_registers[array_index],
 
             // Return 0 for all other registers.
             _ => 0,
@@ -143,7 +143,7 @@ impl CP0 {
 
             // Override was specified, just write register directly.
             true => {
-                self.cop_registers[array_index] = value;
+                self.cp_registers[array_index] = value;
             },
 
             false => {
@@ -152,26 +152,26 @@ impl CP0 {
                     // Status register.
                     12 => {
                         // Mask out writable bits in existing register value.
-                        let temp_val = self.cop_registers[array_index] & 0x0DB400C0;
+                        let temp_val = self.cp_registers[array_index] & 0x0DB400C0;
 
                         // Mask out read-only bits in supplied value, merge with previously
                         // masked contents, and store back.
-                        self.cop_registers[array_index] = (value & (0xF24BFF3F_u32 as i32)) | temp_val;
+                        self.cp_registers[array_index] = (value & (0xF24BFF3F_u32 as i32)) | temp_val;
                     },
 
                     // Cause register.
                     13 => {
                         // Mask out writable bits in existing register value.
-                        let temp_val = self.cop_registers[array_index] & (0xFFFFFCFF_u32 as i32);
+                        let temp_val = self.cp_registers[array_index] & (0xFFFFFCFF_u32 as i32);
 
                         // Mask out read-only bits in supplied value, merg with previously
                         // masked contents, and store back.
-                        self.cop_registers[array_index] = (value & 0x00000300) | temp_val;
+                        self.cp_registers[array_index] = (value & 0x00000300) | temp_val;
                     },
 
                     // For all other registers, just write the value back as-is.
                     _ => {
-                        self.cop_registers[array_index] = value;
+                        self.cp_registers[array_index] = value;
                     },
                 }
             }
@@ -189,7 +189,7 @@ impl CP0 {
         };
 
         // Merge flag into status register and write it back.
-        let status_reg = (self.cop_registers[12] & (0xFFF7FFFF_u32 as i32)) | cm_flag;
+        let status_reg = (self.cp_registers[12] & (0xFFF7FFFF_u32 as i32)) | cm_flag;
         self.write_reg(12, status_reg, true);
     }
 
@@ -233,12 +233,12 @@ impl CP0 {
 
     /// This function determines whether or not we are in kernel mode.
     pub fn are_we_in_kernel_mode(&self) -> bool {
-        (self.cop_registers[12] & 0x02) == 0
+        (self.cp_registers[12] & 0x02) == 0
     }
 
     /// This function tells us if opposite byte ordering is in effect in user mode.
     pub fn user_mode_opposite_byte_ordering(&self) -> bool {
-        (self.cop_registers[12] & 0x02000000) == 0x02000000
+        (self.cp_registers[12] & 0x02000000) == 0x02000000
     }
 
     /// This function allows us to check if a virtual address is allowed to be accessed.
@@ -253,20 +253,20 @@ impl CP0 {
     pub fn are_caches_swapped(&self) -> bool {
 
         // Commented out (cache swapping hardcoded off)
-        //self.cop_registers[12] & 0x00020000 == 0x00020000
+        //self.cp_registers[12] & 0x00020000 == 0x00020000
 
         false
     }
 
     /// This function tells us if the data cache is isolated.
     pub fn is_data_cache_isolated(&self) -> bool {
-        self.cop_registers[12] & 0x00010000 == 0x00010000
+        self.cp_registers[12] & 0x00010000 == 0x00010000
     }
 
     /// This function tells us if a co-processor is usable.
     pub fn is_co_processor_usable(&self, co_processor_num: i32) -> bool {
 
-        let usable_flags = self.cop_registers[12].logical_rshift(28);
+        let usable_flags = self.cp_registers[12].logical_rshift(28);
         usable_flags.logical_rshift(co_processor_num) & 0x1 == 1
     }
 }
