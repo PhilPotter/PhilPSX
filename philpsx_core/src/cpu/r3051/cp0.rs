@@ -3,7 +3,7 @@
 
 use philpsx_utility::CustomInteger;
 
-/// The CP0 structure models the System Control Co-Processor (CP0), which
+/// The CP0 structure models the System Control Co-processor (CP0), which
 /// is responsible for mememory management and exceptions.
 pub struct CP0 {
 

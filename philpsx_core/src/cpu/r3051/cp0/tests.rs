@@ -3,6 +3,8 @@
 
 use super::CP0;
 
+// Tests for the CP0 / System Control Co-processor (CP0).
+
 #[test]
 fn status_register_read_should_work() {
 

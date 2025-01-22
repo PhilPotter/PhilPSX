@@ -8,7 +8,7 @@ Please note that this is my own code, and there is no association or endorsement
 
 ## Implemented features
 
-So far, nothing.
+* The CP0 co-processor, aka System Control Co-processor.
 
 ## Not yet implemented/stubbed out
 
