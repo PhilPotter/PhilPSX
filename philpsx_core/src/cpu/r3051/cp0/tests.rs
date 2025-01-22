@@ -233,3 +233,76 @@ fn is_cacheable_gives_expected_results() {
     assert!(!output3);
     assert!(!output4);
 }
+
+#[test]
+fn kernel_mode_properly_detected() {
+
+    let mut cp0 = CP0::new();
+    let output1 = cp0.are_we_in_kernel_mode();
+    cp0.cop_registers[12] |= 0x2;
+    let output2 = cp0.are_we_in_kernel_mode();
+
+    assert!(output1);
+    assert!(!output2);
+}
+
+#[test]
+fn user_mode_opposite_byte_ordering_properly_detected() {
+
+    let mut cp0 = CP0::new();
+    let output1 = cp0.user_mode_opposite_byte_ordering();
+    cp0.cop_registers[12] |= 0x02000000;
+    let output2 = cp0.user_mode_opposite_byte_ordering();
+
+    assert!(!output1);
+    assert!(output2);
+}
+
+#[test]
+fn allowed_addresses_properly_detected() {
+
+    let mut cp0 = CP0::new();
+    let output1 = cp0.is_address_allowed(0xFFFFFFFF_u32 as i32);
+    cp0.cop_registers[12] |= 0x2;
+    let output2 = cp0.is_address_allowed(0xFFFFFFFF_u32 as i32);
+
+    assert!(output1);
+    assert!(!output2);
+}
+
+#[test]
+fn data_cache_isolation_properly_detected() {
+
+    let mut cp0 = CP0::new();
+    let output1 = cp0.is_data_cache_isolated();
+    cp0.cop_registers[12] |= 0x00010000;
+    let output2 = cp0.is_data_cache_isolated();
+
+    assert!(!output1);
+    assert!(output2);
+}
+
+#[test]
+fn co_processor_usability_properly_detected() {
+
+    let mut cp0 = CP0::new();
+    let output1 = cp0.is_co_processor_usable(0);
+    let output2 = cp0.is_co_processor_usable(1);
+    let output3 = cp0.is_co_processor_usable(2);
+    let output4 = cp0.is_co_processor_usable(3);
+
+    cp0.cop_registers[12] |= 0xF0000000_u32 as i32;
+    let output5 = cp0.is_co_processor_usable(0);
+    let output6 = cp0.is_co_processor_usable(1);
+    let output7 = cp0.is_co_processor_usable(2);
+    let output8 = cp0.is_co_processor_usable(3);
+
+    assert!(!output1);
+    assert!(!output2);
+    assert!(!output3);
+    assert!(!output4);
+    assert!(output5);
+    assert!(output6);
+    assert!(output7);
+    assert!(output8);
+}

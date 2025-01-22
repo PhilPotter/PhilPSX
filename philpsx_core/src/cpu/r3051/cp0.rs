@@ -230,6 +230,45 @@ impl CP0 {
 
         (0x00000000..0xA0000000).contains(&temp_address)
     }
+
+    /// This function determines whether or not we are in kernel mode.
+    pub fn are_we_in_kernel_mode(&self) -> bool {
+        (self.cop_registers[12] & 0x02) == 0
+    }
+
+    /// This function tells us if opposite byte ordering is in effect in user mode.
+    pub fn user_mode_opposite_byte_ordering(&self) -> bool {
+        (self.cop_registers[12] & 0x02000000) == 0x02000000
+    }
+
+    /// This function allows us to check if a virtual address is allowed to be accessed.
+    /// It is useful for checking if we are attempting to access a prohibited address
+    /// whilst in user mode.
+    pub fn is_address_allowed(&self, virtual_address: i32) -> bool {
+        (virtual_address & (0x80000000_u32 as i32)) == 0 || self.are_we_in_kernel_mode()
+    }
+
+    /// This function tells us if the caches have been swapped. It is currently hardcoded
+    /// to false.
+    pub fn are_caches_swapped(&self) -> bool {
+
+        // Commented out (cache swapping hardcoded off)
+        //self.cop_registers[12] & 0x00020000 == 0x00020000
+
+        false
+    }
+
+    /// This function tells us if the data cache is isolated.
+    pub fn is_data_cache_isolated(&self) -> bool {
+        self.cop_registers[12] & 0x00010000 == 0x00010000
+    }
+
+    /// This function tells us if a co-processor is usable.
+    pub fn is_co_processor_usable(&self, co_processor_num: i32) -> bool {
+
+        let usable_flags = self.cop_registers[12].logical_rshift(28);
+        usable_flags.logical_rshift(co_processor_num) & 0x1 == 1
+    }
 }
 
 #[cfg(test)]
