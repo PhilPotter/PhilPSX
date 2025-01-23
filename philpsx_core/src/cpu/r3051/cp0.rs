@@ -238,7 +238,7 @@ impl CP0 {
 
     /// This function tells us if opposite byte ordering is in effect in user mode.
     pub fn user_mode_opposite_byte_ordering(&self) -> bool {
-        (self.cp_registers[12] & 0x02000000) == 0x02000000
+        (self.cp_registers[12] & 0x02000000) != 0
     }
 
     /// This function allows us to check if a virtual address is allowed to be accessed.
@@ -253,21 +253,21 @@ impl CP0 {
     pub fn are_caches_swapped(&self) -> bool {
 
         // Commented out (cache swapping hardcoded off)
-        //self.cp_registers[12] & 0x00020000 == 0x00020000
+        //self.cp_registers[12] & 0x00020000 != 0
 
         false
     }
 
     /// This function tells us if the data cache is isolated.
     pub fn is_data_cache_isolated(&self) -> bool {
-        self.cp_registers[12] & 0x00010000 == 0x00010000
+        self.cp_registers[12] & 0x00010000 != 0
     }
 
     /// This function tells us if a co-processor is usable.
     pub fn is_co_processor_usable(&self, co_processor_num: i32) -> bool {
 
         let usable_flags = self.cp_registers[12].logical_rshift(28);
-        usable_flags.logical_rshift(co_processor_num) & 0x1 == 1
+        usable_flags.logical_rshift(co_processor_num) & 0x1 != 0
     }
 }
 

@@ -75,8 +75,25 @@ impl CustomInteger for CustomUInt64 {
 /// here in the same way they are for the C macro versions.
 pub use std::cmp::min;
 
+/// This function is intended for use with 16-bit values stored within an i32.
+/// It will sign-extend them as necessary. It is useful due to using signed
+/// i32 everywhere - this is a holdover from the original C version, which likewise
+/// used this because I originally ported it from the even older Java version that
+/// I wrote for my university degree.
+#[inline(always)]
+pub fn sign_extend(value: i32) -> i32 {
+    if value & 0x8000 != 0 {
+        value | 0xFFFF0000u32 as i32
+    } else {
+        value
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
+
+    use super::sign_extend;
 
     use super::CustomInteger;
 
@@ -114,5 +131,23 @@ mod tests {
         let output = input.logical_rshift(1);
 
         assert_eq!(output, 0x7FFFFFFFFFFFFFFF);
+    }
+
+    #[test]
+    fn sign_extend_should_extend_16_bit_value_if_bit_15_is_set() {
+
+        let input = 0x8000;
+        let output = sign_extend(input);
+
+        assert_eq!(output, 0xFFFF8000_u32 as i32);
+    }
+
+    #[test]
+    fn sign_extend_should_leave_16_bit_value_if_bit_15_is_unset() {
+
+        let input = 0x7000;
+        let output = sign_extend(input);
+
+        assert_eq!(output, 0x7000);
     }
 }
