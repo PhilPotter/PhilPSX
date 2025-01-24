@@ -75,4 +75,63 @@ fn write_control_reg_should_work() {
         let output = cp2.control_registers[i as usize];
         assert_eq!(output, 0x8000);
     }
+
+    let mut cp2 = CP2::new();
+    for i in 0..32 {
+        cp2.write_control_reg(i, 0x8000, true);
+        let output = cp2.control_registers[i as usize];
+        assert_eq!(output, 0x8000);
+    }
+}
+
+#[test]
+fn write_data_reg_should_work() {
+
+    let mut cp2 = CP2::new();
+    for i in 0..32 {
+        cp2.write_data_reg(i, 0x8000, true);
+        let output = cp2.data_registers[i as usize];
+        assert_eq!(output, 0x8000);
+    }
+
+    cp2 = CP2::new();
+    for i in [7, 23, 29, 31] {
+        cp2.write_data_reg(i, 0x8000, false);
+        let output = cp2.data_registers[i as usize];
+        assert_eq!(output, 0);
+    }
+
+    cp2 = CP2::new();
+    cp2.write_data_reg(14, 0x8000, false);
+    let output = cp2.data_registers[14];
+    assert_eq!(output, 0x8000);
+    let output = cp2.data_registers[15];
+    assert_eq!(output, 0x8000);
+
+    cp2 = CP2::new();
+    cp2.data_registers[14] = 2;
+    cp2.data_registers[13] = 1;
+    cp2.write_data_reg(15, 0x8000, false);
+    let output = cp2.data_registers[15];
+    assert_eq!(output, 0x8000);
+    let output = cp2.data_registers[14];
+    assert_eq!(output, 0x8000);
+    let output = cp2.data_registers[13];
+    assert_eq!(output, 2);
+    let output = cp2.data_registers[12];
+    assert_eq!(output, 1);
+
+    cp2 = CP2::new();
+    cp2.write_data_reg(28, 0x7FFF, false);
+    let output = cp2.data_registers[9];
+    assert_eq!(output, 0xF80);
+    let output = cp2.data_registers[10];
+    assert_eq!(output, 0xF80);
+    let output = cp2.data_registers[11];
+    assert_eq!(output, 0xF80);
+
+    cp2 = CP2::new();
+    cp2.write_data_reg(8, 0x8000, false);
+    let output = cp2.data_registers[8];
+    assert_eq!(output, 0x8000);
 }

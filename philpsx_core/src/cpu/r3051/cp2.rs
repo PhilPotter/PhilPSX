@@ -139,6 +139,63 @@ impl CP2 {
         // For now, ignore override and just write to anywhere requested.
         self.control_registers[reg as usize] = value;
     }
+
+    /// This function writes to the specified data register.
+    pub fn write_data_reg(&mut self, reg: i32, value: i32, write_override: bool) {
+
+        // Determine which register we are writing.
+        let array_index = reg as usize;
+        match write_override {
+
+            // Override was specified, just write register directly.
+            true => {
+                self.data_registers[array_index] = value;
+            },
+
+            false => {
+                match array_index {
+
+                    // For these registers, do nothing.
+                    7 | 23 | 29 | 31 => {},
+
+                    // SXY2 - mirror of SXYP.
+                    14 => {
+
+                        // Set SXY2 and SXYP.
+                        self.data_registers[14] = value; // SXY2
+                        self.data_registers[15] = value; // SXYP
+                    },
+
+                    // SXYP - mirror of SXY2 but causes SXY1 to move to SXY0,
+                    // and SXY2 to move to SXY1.
+                    15 => {
+
+                        // Move SXY1 to SXY0.
+                        self.data_registers[12] = self.data_registers[13];
+
+                        // Move SXY2 to SXY1.
+                        self.data_registers[13] = self.data_registers[14];
+
+                        // Set SXY2 and SXYP.
+                        self.data_registers[14] = value; // SXY2
+                        self.data_registers[15] = value; // SXYP
+                    },
+
+                    // IRGB
+                    28 => {
+                        self.data_registers[9] = (0x1F & value) << 7;                 // IR1
+                        self.data_registers[10] = (0x3E0 & value) << 2;               // IR2
+                        self.data_registers[11] = (0x7C00 & value).logical_rshift(3); // IR3
+                    },
+
+                    // For all other registers, just write the value back as-is.
+                    _ => {
+                        self.data_registers[array_index] = value;
+                    },
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
