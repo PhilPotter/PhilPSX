@@ -196,6 +196,242 @@ impl CP2 {
             }
         }
     }
+
+    /// This function deals with GTE functions that are invoked on CP2 from the CPU.
+    /// It calls the correct private function and determines the number of cycles it
+    /// should take.
+    pub fn gte_function(&mut self, opcode: i32) -> i32 {
+
+        // Match on the correct function and call it, returning the
+        // correct number of cycles.
+        match opcode & 0x3F {
+
+            0x01 => {
+                self.handle_rtps(opcode);
+                15
+            },
+
+            0x06 => {
+                self.handle_nclip(opcode);
+                8
+            },
+
+            0x0C => {
+                self.handle_op(opcode);
+                6
+            },
+
+            0x10 => {
+                self.handle_dpcs(opcode);
+                8
+            },
+
+            0x11 => {
+                self.handle_intpl(opcode);
+                8
+            },
+
+            0x12 => {
+                self.handle_mvmva(opcode);
+                8
+            },
+
+            0x13 => {
+                self.handle_ncds(opcode);
+                19
+            },
+
+            0x14 => {
+                self.handle_cdp(opcode);
+                13
+            },
+
+            0x16 => {
+                self.handle_ncdt(opcode);
+                44
+            },
+
+            0x1B => {
+                self.handle_nccs(opcode);
+                17
+            },
+
+            0x1C => {
+                self.handle_cc(opcode);
+                11
+            },
+
+            0x1E => {
+                self.handle_ncs(opcode);
+                14
+            },
+
+            0x20 => {
+                self.handle_nct(opcode);
+                30
+            },
+
+            0x28 => {
+                self.handle_sqr(opcode);
+                5
+            },
+
+            0x29 => {
+                self.handle_dcpl(opcode);
+                8
+            },
+
+            0x2A => {
+                self.handle_dpct(opcode);
+                17
+            },
+
+            0x2D => {
+                self.handle_avsz3(opcode);
+                5
+            },
+
+            0x2E => {
+                self.handle_avsz4(opcode);
+                6
+            },
+
+            0x30 => {
+                self.handle_rtpt(opcode);
+                23
+            },
+
+            0x3D => {
+                self.handle_gpf(opcode);
+                5
+            },
+
+            0x3E => {
+                self.handle_gpl(opcode);
+                5
+            },
+
+            0x3F => {
+                self.handle_ncct(opcode);
+                39
+            },
+
+
+            // Do nothing and return 0 cycles.
+            _ => 0
+        }
+    }
+
+    /// This function handles the RTPS GTE function.
+    fn handle_rtps(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the NCLIP GTE function.
+    fn handle_nclip(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the OP GTE function.
+    fn handle_op(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the DPCS GTE function.
+    fn handle_dpcs(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the INTPL GTE function.
+    fn handle_intpl(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the MVMVA GTE function.
+    fn handle_mvmva(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the NCDS GTE function.
+    fn handle_ncds(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the CDP GTE function.
+    fn handle_cdp(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the NCDT GTE function.
+    fn handle_ncdt(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the NCCS GTE function.
+    fn handle_nccs(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the CC GTE function.
+    fn handle_cc(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the NCS GTE function.
+    fn handle_ncs(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the NCT GTE function.
+    fn handle_nct(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the SQR GTE function.
+    fn handle_sqr(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the DCPL GTE function.
+    fn handle_dcpl(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the DPCT GTE function.
+    fn handle_dpct(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the AVSZ3 GTE function.
+    fn handle_avsz3(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the AVSZ4 GTE function.
+    fn handle_avsz4(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the RTPT GTE function.
+    fn handle_rtpt(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the GPF GTE function.
+    fn handle_gpf(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the GPL GTE function.
+    fn handle_gpl(&mut self, opcode: i32) {
+
+    }
+
+    /// This function handles the NCCT GTE function.
+    fn handle_ncct(&mut self, opcode: i32) {
+
+    }
+
 }
 
 #[cfg(test)]

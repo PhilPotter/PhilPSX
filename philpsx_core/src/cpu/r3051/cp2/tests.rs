@@ -135,3 +135,78 @@ fn write_data_reg_should_work() {
     let output = cp2.data_registers[8];
     assert_eq!(output, 0x8000);
 }
+
+#[test]
+fn all_gte_functions_should_give_proper_cycle_count() {
+
+    let mut cp2 = CP2::new();
+
+    let cycles = cp2.gte_function(0x01);
+    assert_eq!(cycles, 15);
+
+    let cycles = cp2.gte_function(0x06);
+    assert_eq!(cycles, 8);
+
+    let cycles = cp2.gte_function(0x0C);
+    assert_eq!(cycles, 6);
+
+    let cycles = cp2.gte_function(0x10);
+    assert_eq!(cycles, 8);
+
+    let cycles = cp2.gte_function(0x11);
+    assert_eq!(cycles, 8);
+
+    let cycles = cp2.gte_function(0x12);
+    assert_eq!(cycles, 8);
+
+    let cycles = cp2.gte_function(0x13);
+    assert_eq!(cycles, 19);
+
+    let cycles = cp2.gte_function(0x14);
+    assert_eq!(cycles, 13);
+
+    let cycles = cp2.gte_function(0x16);
+    assert_eq!(cycles, 44);
+
+    let cycles = cp2.gte_function(0x1B);
+    assert_eq!(cycles, 17);
+
+    let cycles = cp2.gte_function(0x1C);
+    assert_eq!(cycles, 11);
+
+    let cycles = cp2.gte_function(0x1E);
+    assert_eq!(cycles, 14);
+
+    let cycles = cp2.gte_function(0x20);
+    assert_eq!(cycles, 30);
+
+    let cycles = cp2.gte_function(0x28);
+    assert_eq!(cycles, 5);
+
+    let cycles = cp2.gte_function(0x29);
+    assert_eq!(cycles, 8);
+
+    let cycles = cp2.gte_function(0x2A);
+    assert_eq!(cycles, 17);
+
+    let cycles = cp2.gte_function(0x2D);
+    assert_eq!(cycles, 5);
+
+    let cycles = cp2.gte_function(0x2E);
+    assert_eq!(cycles, 6);
+
+    let cycles = cp2.gte_function(0x30);
+    assert_eq!(cycles, 23);
+
+    let cycles = cp2.gte_function(0x3D);
+    assert_eq!(cycles, 5);
+
+    let cycles = cp2.gte_function(0x3E);
+    assert_eq!(cycles, 5);
+
+    let cycles = cp2.gte_function(0x3F);
+    assert_eq!(cycles, 39);
+
+    let cycles = cp2.gte_function(0);
+    assert_eq!(cycles, 0);
+}
