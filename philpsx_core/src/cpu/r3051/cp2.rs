@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // cp2.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
-use philpsx_utility::{CustomInteger, sign_extend};
+use philpsx_utility::CustomInteger;
 
 // Unsigned Newton-Raphson algorithm array - values taken from NOPSX
 // documentation to mimic NOPSX results (but with my own code of course).
@@ -81,7 +81,7 @@ impl CP2 {
             // also sign extend if necessary. Register 26 should
             // actually be unsigned, but due to a hardware bug it
             // isn't, so we should preserve this behaviour here.
-            26..=30 => sign_extend(self.control_registers[array_index]),
+            26..=30 => self.control_registers[array_index].sign_extend(15),
 
             // Return actual value.
             _ => self.control_registers[array_index]
@@ -97,7 +97,7 @@ impl CP2 {
 
             // Read and sign extend if necessary.
             1 | 3 | 5 | 8 | 9 | 10 | 11 =>
-                sign_extend(self.data_registers[array_index]),
+                self.data_registers[array_index].sign_extend(15),
 
             // Return 0 for these.
             23 | 28 => 0,
