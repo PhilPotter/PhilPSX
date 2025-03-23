@@ -2,6 +2,7 @@
 // cp2.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
 use philpsx_utility::CustomInteger;
+use math::{CP2Matrix, CP2Vector};
 
 // Unsigned Newton-Raphson algorithm array - values taken from NOPSX
 // documentation to mimic NOPSX results (but with my own code of course).
@@ -325,6 +326,70 @@ impl CP2 {
     /// This function handles the RTPS GTE function.
     fn handle_rtps(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Filter out sf bit.
+        let sf = opcode.bit_value(19);
+
+        // Setup vector V0, sign-extending values as needed.
+        let v0 = CP2Vector::new(
+            ((self.data_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // VX0
+            ((self.data_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY0
+            ((self.data_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // VZ0
+        );
+
+        // Setup translation vector - no sign-extension necessary as we are treating these
+        // values as full-width 32-bit values anyway, so sign-extension will happen automatically
+        // upon conversion from i32 to i64.
+        //
+        // In addition, multiply each element by 0x1000.
+        let translation_vector = CP2Vector::new(
+            (self.control_registers[5] as i64) * 0x1000, // TRX
+            (self.control_registers[6] as i64) * 0x1000, // TRY
+            (self.control_registers[7] as i64) * 0x1000  // TRZ
+        );
+
+        // Setup rotation matrix, sign-extending values as needed.
+        let rotation_matrix = CP2Matrix::new(
+
+            // Top row:
+            [
+                ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15), // RT11
+                ((self.control_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT12
+                ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15) // RT13
+            ],
+
+            // Middle row:
+            [
+                ((self.control_registers[1].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT21
+                ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22
+                ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // RT23
+            ],
+
+            // Bottom row:
+            [
+                ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15), // RT31
+                ((self.control_registers[3].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT32
+                ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15) // RT33
+            ]
+        );
+
+        // Rotate vector and translate it too. Then, right shift all result values (with shadowing)
+        // by 12 bits (depending on value of sf bit), while also preserving sign bits.
+        let mac_results = rotation_matrix * v0 + translation_vector;
+        let mac_results = CP2Vector::new(
+            mac_results.top() >> (sf * 12),
+            mac_results.middle() >> (sf * 12),
+            mac_results.bottom() >> (sf * 12)
+        );
+
+        // Setup offset and distance values - again only sign-extending when needed.
+        let ofx = self.control_registers[24] as i64;
+        let ofy = self.control_registers[25] as i64;
+        let h = (self.control_registers[26] & 0xFFFF) as i64; // Explicitly avoid sign-extension here.
+        let dqa = ((self.control_registers[27] & 0xFFFF) as i64).sign_extend(15);
+        let dqb = self.control_registers[28] as i64;
     }
 
     /// This function handles the NCLIP GTE function.
@@ -436,3 +501,4 @@ impl CP2 {
 
 #[cfg(test)]
 mod tests;
+mod math;

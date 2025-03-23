@@ -23,6 +23,9 @@ pub trait CustomInteger {
     /// on extension from the n-th most significant bit as specified. It can be used
     /// for arbitrary widths within the type (for example 16-bit values).
     fn sign_extend(self, from_bit: i32) -> Self::Output;
+
+    /// This returns 1 if the specified bit is set, and 0 otherwise.
+    fn bit_value(self, from_bit: i32) -> i32;
 }
 
 impl CustomInteger for CustomInt32 {
@@ -47,6 +50,19 @@ impl CustomInteger for CustomInt32 {
             self
         } else {
             self | extension_pattern
+        }
+    }
+
+    /// Return 1 if the specified bit is set, and 0 otherwise.
+    #[inline(always)]
+    fn bit_value(self, from_bit: i32) -> i32 {
+
+        let bit_pattern_to_test = 0x1_i32 << from_bit;
+
+        if self & bit_pattern_to_test == 0 {
+            0
+        } else {
+            1
         }
     }
 }
@@ -75,6 +91,19 @@ impl CustomInteger for CustomInt64 {
             self | extension_pattern
         }
     }
+
+    /// Return 1 if the specified bit is set, and 0 otherwise.
+    #[inline(always)]
+    fn bit_value(self, from_bit: i32) -> i32 {
+
+        let bit_pattern_to_test = 0x1_i64 << from_bit;
+
+        if self & bit_pattern_to_test == 0 {
+            0
+        } else {
+            1
+        }
+    }
 }
 
 /// Re-exported stdlib `min` function, to keep all our utility functions together
@@ -99,10 +128,28 @@ mod tests {
     #[test]
     fn logical_rshift_should_work_as_expected_for_i64() {
 
-        let input = 0xFFFFFFFFFFFFFFFFu64 as i64;
+        let input = 0xFFFFFFFF_FFFFFFFFu64 as i64;
         let output = input.logical_rshift(1);
 
-        assert_eq!(output, 0x7FFFFFFFFFFFFFFF);
+        assert_eq!(output, 0x7FFFFFFF_FFFFFFFF);
+    }
+
+    #[test]
+    fn clarify_arithmetic_rshift_for_i32() {
+
+        let input = 0xFFFFFFFF_u32 as i32;
+        let output = input >> 1;
+
+        assert_eq!(output, 0xFFFFFFFF_u32 as i32);
+    }
+
+    #[test]
+    fn clarify_arithmetic_rshift_for_i64() {
+
+        let input = 0xFFFFFFFF_FFFFFFFFu64 as i64;
+        let output = input >> 1;
+
+        assert_eq!(output, 0xFFFFFFFF_FFFFFFFF_u64 as i64);
     }
 
     #[test]
@@ -193,5 +240,41 @@ mod tests {
         let output = input.sign_extend(31);
 
         assert_eq!(output, 0x70000000_i64);
+    }
+
+    #[test]
+    fn bit_value_for_set_i32() {
+
+        let input = 0x80000;
+        let output = input.bit_value(19);
+
+        assert_eq!(output, 1);
+    }
+
+    #[test]
+    fn bit_value_for_unset_i32() {
+
+        let input = 0;
+        let output = input.bit_value(19);
+
+        assert_eq!(output, 0);
+    }
+
+    #[test]
+    fn bit_value_for_set_i64() {
+
+        let input = 0x80000_i64;
+        let output = input.bit_value(19);
+
+        assert_eq!(output, 1);
+    }
+
+    #[test]
+    fn bit_value_for_unset_i64() {
+
+        let input = 0_i64;
+        let output = input.bit_value(19);
+
+        assert_eq!(output, 0);
     }
 }
