@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // cp2.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
-use philpsx_utility::CustomInteger;
+use philpsx_utility::{CustomInteger, min};
 use math::{CP2Matrix, CP2Vector};
 
 // Unsigned Newton-Raphson algorithm array - values taken from NOPSX
@@ -377,8 +377,8 @@ impl CP2 {
 
         // Rotate vector and translate it too. Then, right shift all result values (with shadowing)
         // by 12 bits (depending on value of sf bit), while also preserving sign bits.
-        let mac_results = rotation_matrix * v0 + translation_vector;
-        let mac_results = CP2Vector::new(
+        let mut mac_results = rotation_matrix * v0 + translation_vector;
+        mac_results = CP2Vector::new(
             mac_results.top() >> (sf * 12),
             mac_results.middle() >> (sf * 12),
             mac_results.bottom() >> (sf * 12)
@@ -421,7 +421,7 @@ impl CP2 {
         }
 
         // Set IR1, IR2 and IR3 - dealing with flags too,
-	    // saturation should be -0x8000..0x7FFF, regardless of lm bit.
+        // saturation should be -0x8000..0x7FFF, regardless of lm bit.
 
         // IR1.
         let ir1 = if mac1 < -0x8000 {
@@ -497,12 +497,12 @@ impl CP2 {
 
         // Calculate SZ3 and move FIFO along, also setting SZ3 flag if needed.
         self.data_registers[16] = self.data_registers[17]; // SZ1 to SZ0.
-	    self.data_registers[17] = self.data_registers[18]; // SZ2 to SZ1.
-	    self.data_registers[18] = self.data_registers[19]; // SZ3 to SZ2.
+        self.data_registers[17] = self.data_registers[18]; // SZ2 to SZ1.
+        self.data_registers[18] = self.data_registers[19]; // SZ3 to SZ2.
 
         let shift_by = (1 - sf) * 12;
-        let temp_sz3 = mac3 >> shift_by;
-        let temp_sz3 = if temp_sz3 < 0 {
+        let mut temp_sz3 = mac3 >> shift_by;
+        temp_sz3 = if temp_sz3 < 0 {
             self.control_registers[31] |= 0x40000;
             0
         }
@@ -516,15 +516,112 @@ impl CP2 {
         self.data_registers[19] = temp_sz3 as i32;
 
         // Begin second phase of calculations - use Unsigned Newton-Raphson
-	    // division algorithm from NOPSX documentation.
-        /*let division_result = if h < temp_sz3 * 2 {
+        // division algorithm from NOPSX documentation.
+        let division_result = if h < temp_sz3 * 2 {
 
-            // Count
+            // Count leading zeroes in SZ3, from bit 15
+            // as it's saturated to 16-bit value.
+            let z = temp_sz3.leading_zeroes(15);
+
+            let mut division_result = h << z;
+            let mut d = temp_sz3 << z;
+            let u = UNR_RESULTS[((d as i32) - 0x7FC0).logical_rshift(7) as usize] + 0x101;
+            d = (0x2000080 - (d * (u as i64))).logical_rshift(8);
+            d = (0x80 + (d * (u as i64))).logical_rshift(8);
+            division_result = min(
+                0x1FFFF,
+                ((division_result * d) + 0x8000).logical_rshift(16)
+            );
+
+            division_result
         }
         else {
             self.control_registers[31] |= 0x20000;
             0x1FFFF
-        }*/
+        };
+
+        // Use division result and set MAC0 flag if needed.
+        let mut mac0 = division_result * ir1 + ofx;
+        if mac0 > 0x80000000 {
+            self.control_registers[31] |= 0x10000;
+        }
+        else if mac0 < -0x80000000 {
+            self.control_registers[31] |= 0x8000;
+        }
+        mac0 &= 0xFFFFFFFF;
+        mac0 = mac0.sign_extend(31);
+
+        let mut sx2 = mac0 / 0x10000;
+        mac0 = division_result * ir2 + ofy;
+        if mac0 > 0x80000000 {
+            self.control_registers[31] |= 0x10000;
+        }
+        else if mac0 < -0x80000000 {
+            self.control_registers[31] |= 0x8000;
+        }
+        mac0 &= 0xFFFFFFFF;
+        mac0 = mac0.sign_extend(31);
+
+        let mut sy2 = mac0 / 0x10000;
+        mac0 = division_result * dqa + dqb;
+        if mac0 > 0x80000000 {
+            self.control_registers[31] |= 0x10000;
+        }
+        else if mac0 < -0x80000000 {
+            self.control_registers[31] |= 0x8000;
+        }
+        mac0 &= 0xFFFFFFFF;
+        mac0.sign_extend(31);
+
+        let mut ir0 = mac0 / 0x1000;
+
+        // Adjust results for saturation and set flags if needed.
+        if sx2 > 0x3FF {
+            sx2 = 0x3FF;
+            self.control_registers[31] |= 0x4000;
+        }
+        else if sx2 < -0x400 {
+            sx2 = -0x400;
+            self.control_registers[31] |= 0x4000;
+        }
+
+        if sy2 > 0x3FF {
+            sy2 = 0x3FF;
+            self.control_registers[31] |= 0x2000;
+        }
+        else if sy2 < -0x400 {
+            sy2 = -0x400;
+            self.control_registers[31] |= 0x2000;
+        }
+
+        if ir0 < 0 {
+            ir0 = 0;
+            self.control_registers[31] |= 0x1000;
+        }
+        else if ir0 > 0x1000 {
+            ir0 = 0x1000;
+            self.control_registers[31] |= 0x1000;
+        }
+
+        // Store values back to correct registers.
+
+        // SXY FIFO registers.
+        self.data_registers[12] = self.data_registers[13]; // SXY1 to SXY0.
+        self.data_registers[13] = self.data_registers[14]; // SXY2 to SXY1.
+        self.data_registers[14] =
+            (((sy2 as i32) & 0xFFFF) << 16) | ((sx2 as i32) & 0xFFFF); // SXY2.
+        self.data_registers[15] = self.data_registers[14]; // SXYP mirror of SXY2.
+
+        // MAC0.
+        self.data_registers[24] = mac0 as i32;
+
+        // IR0.
+        self.data_registers[8] = ir0 as i32;
+
+        // Calculate bit 31 of flag register.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
     }
 
     /// This function handles the NCLIP GTE function.

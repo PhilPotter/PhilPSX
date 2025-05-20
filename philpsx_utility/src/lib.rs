@@ -30,6 +30,13 @@ pub trait CustomInteger {
     /// This function should count the number of binary leading 0s from the specified
     /// bit onwards, and return this value.
     fn leading_zeroes(self, from_bit: i32) -> i32;
+
+    /// This returns true if the specified bit is set, and false otherwise.
+    fn bit_is_set(self, from_bit: i32) -> bool
+    where Self: Sized
+    {
+        self.bit_value(from_bit) == 1
+    }
 }
 
 impl CustomInteger for CustomInt32 {
@@ -376,5 +383,41 @@ mod tests {
         let output = input.leading_zeroes(15);
 
         assert_eq!(output, 8);
+    }
+
+    #[test]
+    fn bit_is_set_bit_30_i32() {
+
+        let input = 0x40000000_i32;
+        let output = input.bit_is_set(30);
+
+        assert!(output);
+    }
+
+    #[test]
+    fn bit_is_not_set_bit_30_i32() {
+
+        let input = 0_i32;
+        let output = input.bit_is_set(30);
+
+        assert!(!output);
+    }
+
+    #[test]
+    fn bit_is_set_bit_30_i64() {
+
+        let input = 0x40000000_i64;
+        let output = input.bit_is_set(30);
+
+        assert!(output);
+    }
+
+    #[test]
+    fn bit_is_not_set_bit_30_i64() {
+
+        let input = 0_i64;
+        let output = input.bit_is_set(30);
+
+        assert!(!output);
     }
 }
