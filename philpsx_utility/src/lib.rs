@@ -26,6 +26,10 @@ pub trait CustomInteger {
 
     /// This returns 1 if the specified bit is set, and 0 otherwise.
     fn bit_value(self, from_bit: i32) -> i32;
+
+    /// This function should count the number of binary leading 0s from the specified
+    /// bit onwards, and return this value.
+    fn leading_zeroes(self, from_bit: i32) -> i32;
 }
 
 impl CustomInteger for CustomInt32 {
@@ -65,6 +69,27 @@ impl CustomInteger for CustomInt32 {
             1
         }
     }
+
+    /// Return the number of leading zeroes from the specified bit onwards.
+    #[inline(always)]
+    fn leading_zeroes(self, from_bit: i32) -> i32 {
+
+        let bit_pattern_to_test = 0x1_i32 << from_bit;
+
+        let mut temp = self;
+        let mut zero_count = 0;
+
+        for _ in 0..=from_bit {
+            if temp & bit_pattern_to_test == 0 {
+                zero_count += 1;
+                temp <<= 1;
+            } else {
+                break;
+            }
+        }
+
+        zero_count
+    }
 }
 
 impl CustomInteger for CustomInt64 {
@@ -103,6 +128,27 @@ impl CustomInteger for CustomInt64 {
         } else {
             1
         }
+    }
+
+    /// Return the number of leading zeroes from the specified bit onwards.
+    #[inline(always)]
+    fn leading_zeroes(self, from_bit: i32) -> i32 {
+
+        let bit_pattern_to_test = 0x1_i64 << from_bit;
+
+        let mut temp = self;
+        let mut zero_count = 0;
+
+        for _ in 0..=from_bit {
+            if temp & bit_pattern_to_test == 0 {
+                zero_count += 1;
+                temp <<= 1;
+            } else {
+                break;
+            }
+        }
+
+        zero_count
     }
 }
 
@@ -276,5 +322,59 @@ mod tests {
         let output = input.bit_value(19);
 
         assert_eq!(output, 0);
+    }
+
+    #[test]
+    fn leading_zeroes_all_zeroes_16_bit_i32() {
+
+        let input = 0_i32;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 16);
+    }
+
+    #[test]
+    fn leading_zeroes_least_bit_set_16_bit_i32() {
+
+        let input = 1_i32;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 15);
+    }
+
+    #[test]
+    fn leading_zeroes_bit_7_set_16_bit_i32() {
+
+        let input = 0b10000000_i32;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 8);
+    }
+
+    #[test]
+    fn leading_zeroes_all_zeroes_16_bit_i64() {
+
+        let input = 0_i64;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 16);
+    }
+
+    #[test]
+    fn leading_zeroes_least_bit_set_16_bit_i64() {
+
+        let input = 1_i64;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 15);
+    }
+
+    #[test]
+    fn leading_zeroes_bit_7_set_16_bit_i64() {
+
+        let input = 0b10000000_i64;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 8);
     }
 }

@@ -47,7 +47,7 @@ impl CP2Matrix {
     }
 
     /// Access the top-left element.
-    pub fn top(&self) -> i64 {
+    pub fn top_left(&self) -> i64 {
         self.top_row[0]
     }
 

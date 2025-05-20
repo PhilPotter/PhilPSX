@@ -390,6 +390,141 @@ impl CP2 {
         let h = (self.control_registers[26] & 0xFFFF) as i64; // Explicitly avoid sign-extension here.
         let dqa = ((self.control_registers[27] & 0xFFFF) as i64).sign_extend(15);
         let dqb = self.control_registers[28] as i64;
+
+        // Set MAC1, MAC2 and MAC3 flags accordingly.
+        let mac1 = mac_results.top();
+        let mac2 = mac_results.middle();
+        let mac3 = mac_results.bottom();
+
+        // MAC1.
+        if mac1 > 0x80000000000_i64 {
+            self.control_registers[31] |= 0x40000000;
+        }
+        else if mac1 < -0x80000000000_i64 {
+            self.control_registers[31] |= 0x8000000;
+        }
+
+        // MAC2.
+        if mac2 > 0x80000000000_i64 {
+            self.control_registers[31] |= 0x20000000;
+        }
+        else if mac2 < -0x80000000000_i64 {
+            self.control_registers[31] |= 0x4000000;
+        }
+
+        // MAC3.
+        if mac3 > 0x80000000000_i64 {
+            self.control_registers[31] |= 0x10000000;
+        }
+        else if mac3 < -0x80000000000_i64 {
+            self.control_registers[31] |= 0x2000000;
+        }
+
+        // Set IR1, IR2 and IR3 - dealing with flags too,
+	    // saturation should be -0x8000..0x7FFF, regardless of lm bit.
+
+        // IR1.
+        let ir1 = if mac1 < -0x8000 {
+            self.control_registers[31] |= 0x1000000;
+            -0x8000
+        }
+        else if mac1 > 0x7FFF {
+            self.control_registers[31] |= 0x1000000;
+            0x7FFF
+        }
+        else {
+            mac1
+        };
+
+        // IR2.
+        let ir2 = if mac2 < -0x8000 {
+            self.control_registers[31] |= 0x800000;
+            -0x8000
+        }
+        else if mac2 > 0x7FFF {
+            self.control_registers[31] |= 0x800000;
+            0x7FFF
+        }
+        else {
+            mac2
+        };
+
+        // IR3.
+        let ir3 = if mac3 < -0x8000 {
+
+            // Deal with quirk in IR3 flag handling.
+            if sf == 0 {
+
+                // Shift MAC3 (a 64-bit signed value) right by 12 bits,
+                // preserving sign automatically.
+                let temp = mac3 >> 12;
+                if !(-0x8000..0x7FFF).contains(&temp) {
+                    self.control_registers[31] |= 0x400000;
+                }
+            } else {
+                self.control_registers[31] |= 0x400000;
+            }
+
+            -0x8000
+        }
+        else if mac3 > 0x7FFF {
+
+            // Deal with quirk in IR3 flag handling.
+            if sf == 0 {
+
+                // Shift MAC3 (a 64-bit signed value) right by 12 bits.
+                let temp = mac3 >> 12;
+                if !(-0x8000..0x7FFF).contains(&temp) {
+                    self.control_registers[31] |= 0x400000;
+                }
+            } else {
+                self.control_registers[31] |= 0x400000;
+            }
+
+            0x7FFF
+        }
+        else {
+            mac3
+        };
+
+        // Write back to real registers.
+        self.data_registers[25] = mac1 as i32; // MAC1.
+        self.data_registers[26] = mac2 as i32; // MAC2.
+        self.data_registers[27] = mac3 as i32; // MAC3.
+        self.data_registers[9] = ir1 as i32;   // IR1.
+        self.data_registers[10] = ir2 as i32;  // IR2.
+        self.data_registers[11] = ir3 as i32;  // IR3.
+
+        // Calculate SZ3 and move FIFO along, also setting SZ3 flag if needed.
+        self.data_registers[16] = self.data_registers[17]; // SZ1 to SZ0.
+	    self.data_registers[17] = self.data_registers[18]; // SZ2 to SZ1.
+	    self.data_registers[18] = self.data_registers[19]; // SZ3 to SZ2.
+
+        let shift_by = (1 - sf) * 12;
+        let temp_sz3 = mac3 >> shift_by;
+        let temp_sz3 = if temp_sz3 < 0 {
+            self.control_registers[31] |= 0x40000;
+            0
+        }
+        else if temp_sz3 > 0xFFFF {
+            self.control_registers[31] |= 0x40000;
+            0xFFFF
+        }
+        else {
+            temp_sz3
+        };
+        self.data_registers[19] = temp_sz3 as i32;
+
+        // Begin second phase of calculations - use Unsigned Newton-Raphson
+	    // division algorithm from NOPSX documentation.
+        /*let division_result = if h < temp_sz3 * 2 {
+
+            // Count
+        }
+        else {
+            self.control_registers[31] |= 0x20000;
+            0x1FFFF
+        }*/
     }
 
     /// This function handles the NCLIP GTE function.
