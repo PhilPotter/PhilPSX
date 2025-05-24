@@ -716,6 +716,50 @@ impl CP2 {
     /// This function handles the SQR GTE function.
     fn handle_sqr(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Filter out sf bit.
+        let sf = opcode.bit_value(19);
+
+        // Fetch IR1, IR2 and IR3, sign extending if needed.
+        let mut ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15); // IR1.
+        let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15); // IR2.
+        let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15); // IR3.
+
+        // Perform calculations.
+        ir1 *= ir1;
+        ir2 *= ir2;
+        ir3 *= ir3;
+
+        // Shift if specified.
+        ir1 = ir1.logical_rshift(12 * sf);
+        ir2 = ir2.logical_rshift(12 * sf);
+        ir3 = ir3.logical_rshift(12 * sf);
+
+        // Set MAC1, MAC2 and MAC3 registers.
+        self.data_registers[25] = ir1 as i32; // MAC1.
+        self.data_registers[26] = ir2 as i32; // MAC2.
+        self.data_registers[27] = ir3 as i32; // MAC3.
+
+        // Set IR1, IR2 and IR3 registers.
+        self.data_registers[9] = if ir1 > 0x7FFF { 0x7FFF } else { ir1 as i32 }; // IR1.
+        self.data_registers[10] = if ir2 > 0x7FFF { 0x7FFF } else { ir2 as i32 }; // IR2.
+        self.data_registers[11] = if ir3 > 0x7FFF { 0x7FFF } else { ir3 as i32 }; // IR3.
+
+        // Set flags.
+        if ir1 > 0x7FFF {
+            self.control_registers[31] |= 0x1000000;
+        }
+        if ir2 > 0x7FFF {
+            self.control_registers[31] |= 0x800000;
+        }
+        if ir3 > 0x7FFF {
+            self.control_registers[31] |= 0x400000;
+        }
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
     }
 
     /// This function handles the DCPL GTE function.
