@@ -355,23 +355,23 @@ impl CP2 {
 
             // Top row:
             [
-                ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15), // RT11
-                ((self.control_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT12
-                ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15) // RT13
+                ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15), // RT11.
+                ((self.control_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT12.
+                ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15) // RT13.
             ],
 
             // Middle row:
             [
-                ((self.control_registers[1].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT21
-                ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22
-                ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // RT23
+                ((self.control_registers[1].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT21.
+                ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22.
+                ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // RT23.
             ],
 
             // Bottom row:
             [
-                ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15), // RT31
-                ((self.control_registers[3].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT32
-                ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15) // RT33
+                ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15), // RT31.
+                ((self.control_registers[3].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT32.
+                ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15) // RT33.
             ]
         );
 
@@ -627,6 +627,35 @@ impl CP2 {
     /// This function handles the NCLIP GTE function.
     fn handle_nclip(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Retrieve SXY values, sign extending if necessary.
+        let sx0 = ((self.data_registers[12] & 0xFFFF) as i64).sign_extend(15); // SX0.
+        let sy0 = ((self.data_registers[12].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15); // SY0.
+        let sx1 = ((self.data_registers[13] & 0xFFFF) as i64).sign_extend(15); // SX1.
+        let sy1 = ((self.data_registers[13].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15); // SY1.
+        let sx2 = ((self.data_registers[14] & 0xFFFF) as i64).sign_extend(15); // SX2.
+        let sy2 = ((self.data_registers[14].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15); // SY2.
+
+        // Perform calculation.
+        let mac0 = sx0 * sy1 + sx1 * sy2 + sx2 * sy0 - sx0 * sy2 - sx1 * sy0 - sx2 * sy1;
+
+        // Check and set flags if needed.
+        if mac0 > 0x80000000 {
+            self.control_registers[31] |= 0x10000;
+        }
+        else if mac0 < -0x80000000 {
+            self.control_registers[31] |= 0x8000;
+        }
+
+        // Calculate flag bit 31.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
+
+        // Store MAC0 result back to register.
+        self.data_registers[24] = mac0 as i32;
     }
 
     /// This function handles the OP GTE function.
