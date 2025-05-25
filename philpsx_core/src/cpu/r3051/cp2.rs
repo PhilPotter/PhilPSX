@@ -383,7 +383,6 @@ impl CP2 {
                 ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15), // VZ.
             );
 
-
             // Rotate vector and translate it too. Then, right shift all result values
             // by 12 bits (depending on value of sf bit), while also preserving sign bits.
             let mut mac_results = rotation_matrix * v_any + translation_vector;
@@ -638,6 +637,109 @@ impl CP2 {
     /// This function handles the OP GTE function.
     fn handle_op(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Filter out sf bit.
+        let sf = opcode.bit_value(19);
+
+        // Get lm bit status.
+        let lm = opcode.bit_is_set(10);
+
+        // Fetch IR values, sign extending as necessary.
+        let ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15); // IR1.
+        let ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15); // IR2.
+        let ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15); // IR3.
+
+        // Fetch RT11, RT22, RT33 values, sign extending as necessary.
+        let d1 = ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15); // RT11.
+        let d2 = ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15); // RT22.
+        let d3 = ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15); // RT33.
+
+        // Perform calculation, and shift result right by (sf * 12), preserving sign bit.
+        let temp1 = (ir3 * d2 - ir2 * d3) >> (sf * 12);
+        let temp2 = (ir1 * d3 - ir3 * d1) >> (sf * 12);
+        let temp3 = (ir2 * d1 - ir1 * d2) >> (sf * 12);
+
+        // Store results in MAC1, MAC2 and MAC3 registers.
+        self.data_registers[25] = temp1 as i32; // MAC1.
+        self.data_registers[26] = temp2 as i32; // MAC2.
+        self.data_registers[27] = temp3 as i32; // MAC3.
+
+        // Set relevant MAC1, MAC2 and MAC3 flag bits.
+
+        // MAC1.
+        if temp1 > 0x80000000000 {
+            self.control_registers[31] |= 0x40000000;
+        }
+        else if temp1 < -0x80000000000 {
+            self.control_registers[31] |= 0x8000000;
+        }
+
+        // MAC2.
+        if temp2 > 0x80000000000 {
+            self.control_registers[31] |= 0x20000000;
+        }
+        else if temp2 < -0x80000000000 {
+            self.control_registers[31] |= 0x4000000;
+        }
+
+        // MAC3.
+        if temp3 > 0x80000000000 {
+            self.control_registers[31] |= 0x10000000;
+        }
+        else if temp3 < -0x80000000000 {
+            self.control_registers[31] |= 0x2000000;
+        }
+
+        // Set IR1, IR2 and IR3 registers and saturation flag bits.
+        // Determine the lower saturation bound using lm bit status.
+        // Upper bound is always 0x7FFF.
+        let lower_bound = if lm { 0 } else { -0x8000 };
+
+        // IR1.
+        if temp1 < lower_bound {
+            self.data_registers[9] = lower_bound as i32;
+            self.control_registers[31] |= 0x1000000;
+        }
+        else if temp1 > 0x7FFF {
+            self.data_registers[9] = 0x7FFF;
+            self.control_registers[31] |= 0x1000000;
+        }
+        else {
+            self.data_registers[9] = temp1 as i32;
+        }
+
+        // IR2.
+        if temp2 < lower_bound {
+            self.data_registers[10] = lower_bound as i32;
+            self.control_registers[31] |= 0x800000;
+        }
+        else if temp2 > 0x7FFF {
+            self.data_registers[10] = 0x7FFF;
+            self.control_registers[31] |= 0x800000;
+        }
+        else {
+            self.data_registers[10] = temp2 as i32;
+        }
+
+        // IR3.
+        if temp3 < lower_bound {
+            self.data_registers[11] = lower_bound as i32;
+            self.control_registers[31] |= 0x400000;
+        }
+        else if temp3 > 0x7FFF {
+            self.data_registers[11] = 0x7FFF;
+            self.control_registers[31] |= 0x400000;
+        }
+        else {
+            self.data_registers[11] = temp3 as i32;
+        }
+
+        // Calculate bit 31 of flag register.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
     }
 
     /// This function handles the DPCS GTE function.
