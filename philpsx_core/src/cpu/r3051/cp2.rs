@@ -208,7 +208,7 @@ impl CP2 {
         match opcode & 0x3F {
 
             0x01 => {
-                self.handle_rtps(opcode);
+                self.handle_common_rtp(opcode, 1);
                 15
             },
 
@@ -298,7 +298,7 @@ impl CP2 {
             },
 
             0x30 => {
-                self.handle_rtpt(opcode);
+                self.handle_common_rtp(opcode, 3);
                 23
             },
 
@@ -323,21 +323,12 @@ impl CP2 {
         }
     }
 
-    /// This function handles the RTPS GTE function.
-    fn handle_rtps(&mut self, opcode: i32) {
-
-        // Clear flag register.
-        self.control_registers[31] = 0;
+    /// This function implements the functionality for the RTPS and RTPT instructions.
+    /// Figured I'm porting/re-writing from C anyway and these are largely identical.
+    fn handle_common_rtp(&mut self, opcode: i32, iterations: usize) {
 
         // Filter out sf bit.
         let sf = opcode.bit_value(19);
-
-        // Setup vector V0, sign-extending values as needed.
-        let v0 = CP2Vector::new(
-            ((self.data_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // VX0
-            ((self.data_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY0
-            ((self.data_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // VZ0
-        );
 
         // Setup translation vector - no sign-extension necessary as we are treating these
         // values as full-width 32-bit values anyway, so sign-extension will happen automatically
@@ -375,15 +366,6 @@ impl CP2 {
             ]
         );
 
-        // Rotate vector and translate it too. Then, right shift all result values (with shadowing)
-        // by 12 bits (depending on value of sf bit), while also preserving sign bits.
-        let mut mac_results = rotation_matrix * v0 + translation_vector;
-        mac_results = CP2Vector::new(
-            mac_results.top() >> (sf * 12),
-            mac_results.middle() >> (sf * 12),
-            mac_results.bottom() >> (sf * 12)
-        );
-
         // Setup offset and distance values - again only sign-extending when needed.
         let ofx = self.control_registers[24] as i64;
         let ofy = self.control_registers[25] as i64;
@@ -391,232 +373,227 @@ impl CP2 {
         let dqa = ((self.control_registers[27] & 0xFFFF) as i64).sign_extend(15);
         let dqb = self.control_registers[28] as i64;
 
-        // Set MAC1, MAC2 and MAC3 flags accordingly.
-        let mac1 = mac_results.top();
-        let mac2 = mac_results.middle();
-        let mac3 = mac_results.bottom();
+        // Now, we perform the remaining tasks based on the specified number of iterations.
+        for i in 0..iterations {
 
-        // MAC1.
-        if mac1 > 0x80000000000_i64 {
-            self.control_registers[31] |= 0x40000000;
-        }
-        else if mac1 < -0x80000000000_i64 {
-            self.control_registers[31] |= 0x8000000;
-        }
-
-        // MAC2.
-        if mac2 > 0x80000000000_i64 {
-            self.control_registers[31] |= 0x20000000;
-        }
-        else if mac2 < -0x80000000000_i64 {
-            self.control_registers[31] |= 0x4000000;
-        }
-
-        // MAC3.
-        if mac3 > 0x80000000000_i64 {
-            self.control_registers[31] |= 0x10000000;
-        }
-        else if mac3 < -0x80000000000_i64 {
-            self.control_registers[31] |= 0x2000000;
-        }
-
-        // Set IR1, IR2 and IR3 - dealing with flags too,
-        // saturation should be -0x8000..0x7FFF, regardless of lm bit.
-
-        // IR1.
-        let ir1 = if mac1 < -0x8000 {
-            self.control_registers[31] |= 0x1000000;
-            -0x8000
-        }
-        else if mac1 > 0x7FFF {
-            self.control_registers[31] |= 0x1000000;
-            0x7FFF
-        }
-        else {
-            mac1
-        };
-
-        // IR2.
-        let ir2 = if mac2 < -0x8000 {
-            self.control_registers[31] |= 0x800000;
-            -0x8000
-        }
-        else if mac2 > 0x7FFF {
-            self.control_registers[31] |= 0x800000;
-            0x7FFF
-        }
-        else {
-            mac2
-        };
-
-        // IR3.
-        let ir3 = if mac3 < -0x8000 {
-
-            // Deal with quirk in IR3 flag handling.
-            if sf == 0 {
-
-                // Shift MAC3 (a 64-bit signed value) right by 12 bits,
-                // preserving sign automatically.
-                let temp = mac3 >> 12;
-                if !(-0x8000..0x7FFF).contains(&temp) {
-                    self.control_registers[31] |= 0x400000;
-                }
-            } else {
-                self.control_registers[31] |= 0x400000;
-            }
-
-            -0x8000
-        }
-        else if mac3 > 0x7FFF {
-
-            // Deal with quirk in IR3 flag handling.
-            if sf == 0 {
-
-                // Shift MAC3 (a 64-bit signed value) right by 12 bits.
-                let temp = mac3 >> 12;
-                if !(-0x8000..0x7FFF).contains(&temp) {
-                    self.control_registers[31] |= 0x400000;
-                }
-            } else {
-                self.control_registers[31] |= 0x400000;
-            }
-
-            0x7FFF
-        }
-        else {
-            mac3
-        };
-
-        // Write back to real registers.
-        self.data_registers[25] = mac1 as i32; // MAC1.
-        self.data_registers[26] = mac2 as i32; // MAC2.
-        self.data_registers[27] = mac3 as i32; // MAC3.
-        self.data_registers[9] = ir1 as i32;   // IR1.
-        self.data_registers[10] = ir2 as i32;  // IR2.
-        self.data_registers[11] = ir3 as i32;  // IR3.
-
-        // Calculate SZ3 and move FIFO along, also setting SZ3 flag if needed.
-        self.data_registers[16] = self.data_registers[17]; // SZ1 to SZ0.
-        self.data_registers[17] = self.data_registers[18]; // SZ2 to SZ1.
-        self.data_registers[18] = self.data_registers[19]; // SZ3 to SZ2.
-
-        let shift_by = (1 - sf) * 12;
-        let mut temp_sz3 = mac3 >> shift_by;
-        temp_sz3 = if temp_sz3 < 0 {
-            self.control_registers[31] |= 0x40000;
-            0
-        }
-        else if temp_sz3 > 0xFFFF {
-            self.control_registers[31] |= 0x40000;
-            0xFFFF
-        }
-        else {
-            temp_sz3
-        };
-        self.data_registers[19] = temp_sz3 as i32;
-
-        // Begin second phase of calculations - use Unsigned Newton-Raphson
-        // division algorithm from NOPSX documentation.
-        let division_result = if h < temp_sz3 * 2 {
-
-            // Count leading zeroes in SZ3, from bit 15
-            // as it's saturated to 16-bit value.
-            let z = temp_sz3.leading_zeroes(15);
-
-            let mut division_result = h << z;
-            let mut d = temp_sz3 << z;
-            let u = UNR_RESULTS[((d as i32) - 0x7FC0).logical_rshift(7) as usize] + 0x101;
-            d = (0x2000080 - (d * (u as i64))).logical_rshift(8);
-            d = (0x80 + (d * (u as i64))).logical_rshift(8);
-            division_result = min(
-                0x1FFFF,
-                ((division_result * d) + 0x8000).logical_rshift(16)
+            // Setup vector with one of V0, V1 or V2, sign-extending values as needed.
+            let v_any = CP2Vector::new(
+                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15), // VX.
+                ((self.data_registers[i * 2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY.
+                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15), // VZ.
             );
 
-            division_result
-        }
-        else {
-            self.control_registers[31] |= 0x20000;
-            0x1FFFF
-        };
 
-        // Use division result and set MAC0 flag if needed.
-        let mut mac0 = division_result * ir1 + ofx;
-        if mac0 > 0x80000000 {
-            self.control_registers[31] |= 0x10000;
-        }
-        else if mac0 < -0x80000000 {
-            self.control_registers[31] |= 0x8000;
-        }
-        mac0 &= 0xFFFFFFFF;
-        mac0 = mac0.sign_extend(31);
+            // Rotate vector and translate it too. Then, right shift all result values
+            // by 12 bits (depending on value of sf bit), while also preserving sign bits.
+            let mut mac_results = rotation_matrix * v_any + translation_vector;
+            mac_results = CP2Vector::new(
+                mac_results.top() >> (sf * 12),
+                mac_results.middle() >> (sf * 12),
+                mac_results.bottom() >> (sf * 12)
+            );
 
-        let mut sx2 = mac0 / 0x10000;
-        mac0 = division_result * ir2 + ofy;
-        if mac0 > 0x80000000 {
-            self.control_registers[31] |= 0x10000;
-        }
-        else if mac0 < -0x80000000 {
-            self.control_registers[31] |= 0x8000;
-        }
-        mac0 &= 0xFFFFFFFF;
-        mac0 = mac0.sign_extend(31);
+            // Set MAC1, MAC2 and MAC3 flags accordingly.
+            let mac1 = mac_results.top();
+            let mac2 = mac_results.middle();
+            let mac3 = mac_results.bottom();
 
-        let mut sy2 = mac0 / 0x10000;
-        mac0 = division_result * dqa + dqb;
-        if mac0 > 0x80000000 {
-            self.control_registers[31] |= 0x10000;
-        }
-        else if mac0 < -0x80000000 {
-            self.control_registers[31] |= 0x8000;
-        }
-        mac0 &= 0xFFFFFFFF;
-        mac0.sign_extend(31);
+            // MAC1.
+            if mac1 > 0x80000000000 {
+                self.control_registers[31] |= 0x40000000;
+            } else if mac1 < -0x80000000000 {
+                self.control_registers[31] |= 0x8000000;
+            }
 
-        let mut ir0 = mac0 / 0x1000;
+            // MAC2.
+            if mac2 > 0x80000000000 {
+                self.control_registers[31] |= 0x20000000;
+            } else if mac2 < -0x80000000000 {
+                self.control_registers[31] |= 0x4000000;
+            }
 
-        // Adjust results for saturation and set flags if needed.
-        if sx2 > 0x3FF {
-            sx2 = 0x3FF;
-            self.control_registers[31] |= 0x4000;
+            // MAC3.
+            if mac3 > 0x80000000000 {
+                self.control_registers[31] |= 0x10000000;
+            } else if mac3 < -0x80000000000 {
+                self.control_registers[31] |= 0x2000000;
+            }
+
+            // Set IR1, IR2 and IR3 - dealing with flags too,
+            // saturation should be -0x8000..0x7FFF, regardless of lm bit.
+
+            // IR1.
+            let ir1 = if mac1 < -0x8000 {
+                self.control_registers[31] |= 0x1000000;
+                -0x8000
+            } else if mac1 > 0x7FFF {
+                self.control_registers[31] |= 0x1000000;
+                0x7FFF
+            } else {
+                mac1
+            };
+
+            // IR2.
+            let ir2 = if mac2 < -0x8000 {
+                self.control_registers[31] |= 0x800000;
+                -0x8000
+            } else if mac2 > 0x7FFF {
+                self.control_registers[31] |= 0x800000;
+                0x7FFF
+            } else {
+                mac2
+            };
+
+            // IR3.
+            let ir3 = if mac3 < -0x8000 {
+                // Deal with quirk in IR3 flag handling.
+                if sf == 0 {
+                    // Shift MAC3 (a 64-bit signed value) right by 12 bits,
+                    // preserving sign automatically.
+                    let temp = mac3 >> 12;
+                    if !(-0x8000..0x7FFF).contains(&temp) {
+                        self.control_registers[31] |= 0x400000;
+                    }
+                } else {
+                    self.control_registers[31] |= 0x400000;
+                }
+
+                -0x8000
+            } else if mac3 > 0x7FFF {
+                // Deal with quirk in IR3 flag handling.
+                if sf == 0 {
+                    // Shift MAC3 (a 64-bit signed value) right by 12 bits,
+                    // preserving sign automatically.
+                    let temp = mac3 >> 12;
+                    if !(-0x8000..0x7FFF).contains(&temp) {
+                        self.control_registers[31] |= 0x400000;
+                    }
+                } else {
+                    self.control_registers[31] |= 0x400000;
+                }
+
+                0x7FFF
+            } else {
+                mac3
+            };
+
+            // Write back to real registers.
+            self.data_registers[25] = mac1 as i32; // MAC1.
+            self.data_registers[26] = mac2 as i32; // MAC2.
+            self.data_registers[27] = mac3 as i32; // MAC3.
+            self.data_registers[9] = ir1 as i32; // IR1.
+            self.data_registers[10] = ir2 as i32; // IR2.
+            self.data_registers[11] = ir3 as i32; // IR3.
+
+            // Calculate SZ3 and move FIFO along, also setting SZ3 flag if needed.
+            self.data_registers[16] = self.data_registers[17]; // SZ1 to SZ0.
+            self.data_registers[17] = self.data_registers[18]; // SZ2 to SZ1.
+            self.data_registers[18] = self.data_registers[19]; // SZ3 to SZ2.
+
+            let shift_by = (1 - sf) * 12;
+            let mut temp_sz3 = mac3 >> shift_by;
+            temp_sz3 = if temp_sz3 < 0 {
+                self.control_registers[31] |= 0x40000;
+                0
+            } else if temp_sz3 > 0xFFFF {
+                self.control_registers[31] |= 0x40000;
+                0xFFFF
+            } else {
+                temp_sz3
+            };
+            self.data_registers[19] = temp_sz3 as i32;
+
+            // Begin second phase of calculations - use Unsigned Newton-Raphson
+            // division algorithm from NOPSX documentation.
+            let division_result = if h < temp_sz3 * 2 {
+                // Count leading zeroes in SZ3, from bit 15
+                // as it's saturated to 16-bit value.
+                let z = temp_sz3.leading_zeroes(15);
+
+                let mut division_result = h << z;
+                let mut d = temp_sz3 << z;
+                let u = UNR_RESULTS[((d as i32) - 0x7FC0).logical_rshift(7) as usize] + 0x101;
+                d = (0x2000080 - (d * (u as i64))).logical_rshift(8);
+                d = (0x80 + (d * (u as i64))).logical_rshift(8);
+                division_result = min(0x1FFFF, ((division_result * d) + 0x8000).logical_rshift(16));
+
+                division_result
+            } else {
+                self.control_registers[31] |= 0x20000;
+                0x1FFFF
+            };
+
+            // Use division result and set MAC0 flag if needed.
+            let mut mac0 = division_result * ir1 + ofx;
+            if mac0 > 0x80000000 {
+                self.control_registers[31] |= 0x10000;
+            } else if mac0 < -0x80000000 {
+                self.control_registers[31] |= 0x8000;
+            }
+            mac0 &= 0xFFFFFFFF;
+            mac0 = mac0.sign_extend(31);
+
+            let mut sx2 = mac0 / 0x10000;
+            mac0 = division_result * ir2 + ofy;
+            if mac0 > 0x80000000 {
+                self.control_registers[31] |= 0x10000;
+            } else if mac0 < -0x80000000 {
+                self.control_registers[31] |= 0x8000;
+            }
+            mac0 &= 0xFFFFFFFF;
+            mac0 = mac0.sign_extend(31);
+
+            let mut sy2 = mac0 / 0x10000;
+            mac0 = division_result * dqa + dqb;
+            if mac0 > 0x80000000 {
+                self.control_registers[31] |= 0x10000;
+            } else if mac0 < -0x80000000 {
+                self.control_registers[31] |= 0x8000;
+            }
+            mac0 &= 0xFFFFFFFF;
+            mac0.sign_extend(31);
+
+            let mut ir0 = mac0 / 0x1000;
+
+            // Adjust results for saturation and set flags if needed.
+            if sx2 > 0x3FF {
+                sx2 = 0x3FF;
+                self.control_registers[31] |= 0x4000;
+            } else if sx2 < -0x400 {
+                sx2 = -0x400;
+                self.control_registers[31] |= 0x4000;
+            }
+
+            if sy2 > 0x3FF {
+                sy2 = 0x3FF;
+                self.control_registers[31] |= 0x2000;
+            } else if sy2 < -0x400 {
+                sy2 = -0x400;
+                self.control_registers[31] |= 0x2000;
+            }
+
+            if ir0 < 0 {
+                ir0 = 0;
+                self.control_registers[31] |= 0x1000;
+            } else if ir0 > 0x1000 {
+                ir0 = 0x1000;
+                self.control_registers[31] |= 0x1000;
+            }
+
+            // Store values back to correct registers.
+
+            // SXY FIFO registers.
+            self.data_registers[12] = self.data_registers[13]; // SXY1 to SXY0.
+            self.data_registers[13] = self.data_registers[14]; // SXY2 to SXY1.
+            self.data_registers[14] = (((sy2 as i32) & 0xFFFF) << 16) | ((sx2 as i32) & 0xFFFF); // SXY2.
+            self.data_registers[15] = self.data_registers[14]; // SXYP mirror of SXY2.
+
+            // MAC0.
+            self.data_registers[24] = mac0 as i32;
+
+            // IR0.
+            self.data_registers[8] = ir0 as i32;
         }
-        else if sx2 < -0x400 {
-            sx2 = -0x400;
-            self.control_registers[31] |= 0x4000;
-        }
-
-        if sy2 > 0x3FF {
-            sy2 = 0x3FF;
-            self.control_registers[31] |= 0x2000;
-        }
-        else if sy2 < -0x400 {
-            sy2 = -0x400;
-            self.control_registers[31] |= 0x2000;
-        }
-
-        if ir0 < 0 {
-            ir0 = 0;
-            self.control_registers[31] |= 0x1000;
-        }
-        else if ir0 > 0x1000 {
-            ir0 = 0x1000;
-            self.control_registers[31] |= 0x1000;
-        }
-
-        // Store values back to correct registers.
-
-        // SXY FIFO registers.
-        self.data_registers[12] = self.data_registers[13]; // SXY1 to SXY0.
-        self.data_registers[13] = self.data_registers[14]; // SXY2 to SXY1.
-        self.data_registers[14] =
-            (((sy2 as i32) & 0xFFFF) << 16) | ((sx2 as i32) & 0xFFFF); // SXY2.
-        self.data_registers[15] = self.data_registers[14]; // SXYP mirror of SXY2.
-
-        // MAC0.
-        self.data_registers[24] = mac0 as i32;
-
-        // IR0.
-        self.data_registers[8] = ir0 as i32;
 
         // Calculate bit 31 of flag register.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
@@ -861,11 +838,6 @@ impl CP2 {
         self.data_registers[7] = otz as i32;
     }
 
-    /// This function handles the RTPT GTE function.
-    fn handle_rtpt(&mut self, opcode: i32) {
-
-    }
-
     /// This function handles the GPF GTE function.
     fn handle_gpf(&mut self, opcode: i32) {
 
@@ -880,7 +852,6 @@ impl CP2 {
     fn handle_ncct(&mut self, opcode: i32) {
 
     }
-
 }
 
 #[cfg(test)]
