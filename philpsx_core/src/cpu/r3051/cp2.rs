@@ -775,11 +775,90 @@ impl CP2 {
     /// This function handles the AVSZ3 GTE function.
     fn handle_avsz3(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Retrieve ZSF3, SZ1, SZ2 and SZ3, also sign extending
+        // ZSF3 if needed.
+        let zsf3 = ((self.control_registers[29] & 0xFFFF) as i64).sign_extend(15); // ZSF3.
+        let sz1 = (self.data_registers[17] & 0xFFFF) as i64; // SZ1.
+        let sz2 = (self.data_registers[18] & 0xFFFF) as i64; // SZ2.
+        let sz3 = (self.data_registers[19] & 0xFFFF) as i64; // SZ3.
+
+        // Perform calculation.
+        let mac0 = zsf3 * (sz1 + sz2 + sz3);
+        let mut otz = mac0 / 0x1000;
+
+        // Set flags where needed, and apply saturation to OTZ if needed.
+        if mac0 > 0x80000000 {
+            self.control_registers[31] |= 0x10000;
+        }
+        else if mac0 < -0x80000000 {
+            self.control_registers[31] |= 0x8000;
+        }
+
+        if otz < 0 {
+            otz = 0;
+            self.control_registers[31] |= 0x40000;
+        }
+        else if otz > 0xFFFF {
+            otz = 0xFFFF;
+            self.control_registers[31] |= 0x40000;
+        }
+
+        // Calculate flag bit 31.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
+
+        // Store results back to registers.
+        self.data_registers[24] = mac0 as i32;
+        self.data_registers[7] = otz as i32;
     }
 
     /// This function handles the AVSZ4 GTE function.
     fn handle_avsz4(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Retrieve ZSF4, SZ0, SZ1, SZ2 and SZ3, also sign extending
+        // ZSF4 if needed.
+        let zsf4 = ((self.control_registers[30] & 0xFFFF) as i64).sign_extend(15); // ZSF4.
+        let sz0 = (self.data_registers[16] & 0xFFFF) as i64; // SZ0.
+        let sz1 = (self.data_registers[17] & 0xFFFF) as i64; // SZ1.
+        let sz2 = (self.data_registers[18] & 0xFFFF) as i64; // SZ2.
+        let sz3 = (self.data_registers[19] & 0xFFFF) as i64; // SZ3.
+
+        // Perform calculation.
+        let mac0 = zsf4 * (sz0 + sz1 + sz2 + sz3);
+        let mut otz = mac0 / 0x1000;
+
+        // Set flags where needed, and apply saturation to OTZ if needed.
+        if mac0 > 0x80000000 {
+            self.control_registers[31] |= 0x10000;
+        }
+        else if mac0 < -0x80000000 {
+            self.control_registers[31] |= 0x8000;
+        }
+
+        if otz < 0 {
+            otz = 0;
+            self.control_registers[31] |= 0x40000;
+        }
+        else if otz > 0xFFFF {
+            otz = 0xFFFF;
+            self.control_registers[31] |= 0x40000;
+        }
+
+        // Calculate flag bit 31.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
+
+        // Store results back to registers.
+        self.data_registers[24] = mac0 as i32;
+        self.data_registers[7] = otz as i32;
     }
 
     /// This function handles the RTPT GTE function.
