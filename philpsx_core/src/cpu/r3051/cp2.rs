@@ -38,6 +38,16 @@ enum InstructionVariant {
     Triple,
 }
 
+/// This enum repesents flag register fields that are larger or smaller than some
+/// given boundary, and should trigger a flag register field to be set in such a case.
+/// These particular fields to not lead to saturation of a given value, purely flag setting.
+enum UnsaturatedFlagRegisterField {
+    MAC0,
+    MAC1,
+    MAC2,
+    MAC3,
+}
+
 /// The CP2 structure models the Geometry Transformation Engine, which is a
 /// co-processor in the PlayStation responsible for matrix calculations amongst
 /// other things.
@@ -386,6 +396,9 @@ impl CP2 {
             InstructionVariant::Triple => 3,
         };
         for i in 0..iterations {
+
+            // Clear flag register.
+            self.control_registers[31] = 0;
 
             // Setup vector with one of V0, V1 or V2, sign-extending values as needed.
             let v_any = CP2Vector::new(
@@ -855,6 +868,11 @@ impl CP2 {
                 ir3 = -0x8000;
                 self.control_registers[31] |= 0x400000;
             }
+
+            // Continue first common stage of calculation.
+            mac1 = ir1 * ir0 + mac1;
+            mac2 = ir2 * ir0 + mac2;
+            mac3 = ir3 * ir0 + mac3;
 
 
         }
