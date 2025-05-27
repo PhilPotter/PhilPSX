@@ -31,6 +31,13 @@ const UNR_RESULTS: [i32; 257] = [
     0x01, 0x01, 0x00, 0x00, 0x00
 ];
 
+/// This enum tells various common functions whether the single or triple variant
+/// should be executed.
+enum InstructionVariant {
+    Single,
+    Triple,
+}
+
 /// The CP2 structure models the Geometry Transformation Engine, which is a
 /// co-processor in the PlayStation responsible for matrix calculations amongst
 /// other things.
@@ -208,7 +215,7 @@ impl CP2 {
         match opcode & 0x3F {
 
             0x01 => {
-                self.handle_common_rtp(opcode, 1);
+                self.handle_common_rtp(opcode, InstructionVariant::Single);
                 15
             },
 
@@ -223,7 +230,7 @@ impl CP2 {
             },
 
             0x10 => {
-                self.handle_dpcs(opcode);
+                self.handle_common_dpc(opcode, InstructionVariant::Single);
                 8
             },
 
@@ -283,7 +290,7 @@ impl CP2 {
             },
 
             0x2A => {
-                self.handle_dpct(opcode);
+                self.handle_common_dpc(opcode, InstructionVariant::Triple);
                 17
             },
 
@@ -298,7 +305,7 @@ impl CP2 {
             },
 
             0x30 => {
-                self.handle_common_rtp(opcode, 3);
+                self.handle_common_rtp(opcode, InstructionVariant::Triple);
                 23
             },
 
@@ -325,7 +332,7 @@ impl CP2 {
 
     /// This function implements the functionality for the RTPS and RTPT instructions.
     /// Figured I'm porting/re-writing from C anyway and these are largely identical.
-    fn handle_common_rtp(&mut self, opcode: i32, iterations: usize) {
+    fn handle_common_rtp(&mut self, opcode: i32, variant: InstructionVariant) {
 
         // Filter out sf bit.
         let sf = opcode.bit_value(19);
@@ -374,6 +381,10 @@ impl CP2 {
         let dqb = self.control_registers[28] as i64;
 
         // Now, we perform the remaining tasks based on the specified number of iterations.
+        let iterations = match variant {
+            InstructionVariant::Single => 1,
+            InstructionVariant::Triple => 3,
+        };
         for i in 0..iterations {
 
             // Setup vector with one of V0, V1 or V2, sign-extending values as needed.
@@ -742,9 +753,111 @@ impl CP2 {
         }
     }
 
-    /// This function handles the DPCS GTE function.
-    fn handle_dpcs(&mut self, opcode: i32) {
+    /// This function implements the functionality for the DCPS and DCPT instructions.
+    /// Figured I'm porting/re-writing from C anyway and these are largely identical.
+    fn handle_common_dpc(&mut self, opcode: i32, variant: InstructionVariant) {
 
+        // Filter out sf bit.
+        let sf = opcode.bit_value(19);
+
+        // Get lm bit status.
+        let lm = opcode.bit_is_set(10);
+
+        // Retrieve IR0 value, sign extending as needed.
+        let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15); // IR0.
+
+        // Retrieve far colour values - let natural sign extension happen.
+        let rfc = self.control_registers[21] as i64;
+        let gfc = self.control_registers[22] as i64;
+        let bfc = self.control_registers[23] as i64;
+
+        // Now, we perform the remaining tasks based on the specified number of iterations.
+        let iterations = match variant {
+            InstructionVariant::Single => 1,
+            InstructionVariant::Triple => 3,
+        };
+        for i in 0..iterations {
+
+            // Clear flag register.
+            self.control_registers[31] = 0;
+
+            // Retrieve RGB values from either RGBC (single) or RGB0 (triple) register,
+            // depending on variant passed to common function.
+            // Also retrieve CODE value, but always from RGBC.
+            let colour_register_index = match variant {
+                InstructionVariant::Single => 6,
+                InstructionVariant::Triple => 20,
+            };
+            let (r, g, b, code) = (
+                (self.data_registers[colour_register_index] & 0xFF) as i64, // R or R0.
+                ((self.data_registers[colour_register_index].logical_rshift(8) & 0xFF) as i64), // G or G0.
+                ((self.data_registers[colour_register_index].logical_rshift(16) & 0xFF) as i64), // B or B0.
+                ((self.data_registers[colour_register_index].logical_rshift(24) & 0xFF) as i64) // CODE.
+            );
+
+            // This left-shifting should happen for both DPCS and DPCT,
+            // my comment was misleading in the original version.
+            let mut mac1 = r << 16;
+            let mut mac2 = g << 16;
+            let mut mac3 = b << 16;
+
+            // Check for and set MAC1, MAC2 and MAC3 flags if needed.
+            if mac1 > 0x80000000000 {
+                self.control_registers[31] |= 0x40000000;
+            }
+            else if mac1 < -0x80000000000 {
+                self.control_registers[31] |= 0x8000000;
+            }
+
+            if mac2 > 0x80000000000 {
+                self.control_registers[31] |= 0x20000000;
+            }
+            else if mac2 < -0x80000000000 {
+                self.control_registers[31] |= 0x4000000;
+            }
+
+            if mac3 > 0x80000000000 {
+                self.control_registers[31] |= 0x10000000;
+            }
+            else if mac3 < -0x80000000000 {
+                self.control_registers[31] |= 0x2000000;
+            }
+
+            // Perform first common stage of calculation.
+            let mut ir1 = ((rfc << 12) - mac1) >> (sf * 12);
+            let mut ir2 = ((gfc << 12) - mac2) >> (sf * 12);
+            let mut ir3 = ((bfc << 12) - mac3) >> (sf * 12);
+
+            // Saturate IR1, IR2 and IR3 results, setting flags as needed.
+            if ir1 > 0x7FFF {
+                ir1 = 0x7FFF;
+                self.control_registers[31] |= 0x1000000;
+            }
+            else if ir1 < -0x8000 {
+                ir1 = -0x8000;
+                self.control_registers[31] |= 0x1000000;
+            }
+
+            if ir2 > 0x7FFF {
+                ir2 = 0x7FFF;
+                self.control_registers[31] |= 0x800000;
+            }
+            else if ir2 < -0x8000 {
+                ir2 = -0x8000;
+                self.control_registers[31] |= 0x800000;
+            }
+
+            if ir3 > 0x7FFF {
+                ir3 = 0x7FFF;
+                self.control_registers[31] |= 0x400000;
+            }
+            else if ir3 < -0x8000 {
+                ir3 = -0x8000;
+                self.control_registers[31] |= 0x400000;
+            }
+
+
+        }
     }
 
     /// This function handles the INTPL GTE function.
@@ -843,11 +956,6 @@ impl CP2 {
 
     /// This function handles the DCPL GTE function.
     fn handle_dcpl(&mut self, opcode: i32) {
-
-    }
-
-    /// This function handles the DPCT GTE function.
-    fn handle_dpct(&mut self, opcode: i32) {
 
     }
 
