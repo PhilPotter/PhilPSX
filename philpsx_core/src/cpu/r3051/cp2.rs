@@ -47,6 +47,7 @@ enum UnsaturatedFlagRegisterField {
     MAC2,
     MAC3,
 }
+use UnsaturatedFlagRegisterField::*;
 
 /// The CP2 structure models the Geometry Transformation Engine, which is a
 /// co-processor in the PlayStation responsible for matrix calculations amongst
@@ -421,26 +422,10 @@ impl CP2 {
             let mac2 = mac_results.middle();
             let mac3 = mac_results.bottom();
 
-            // MAC1.
-            if mac1 > 0x80000000000 {
-                self.control_registers[31] |= 0x40000000;
-            } else if mac1 < -0x80000000000 {
-                self.control_registers[31] |= 0x8000000;
-            }
-
-            // MAC2.
-            if mac2 > 0x80000000000 {
-                self.control_registers[31] |= 0x20000000;
-            } else if mac2 < -0x80000000000 {
-                self.control_registers[31] |= 0x4000000;
-            }
-
-            // MAC3.
-            if mac3 > 0x80000000000 {
-                self.control_registers[31] |= 0x10000000;
-            } else if mac3 < -0x80000000000 {
-                self.control_registers[31] |= 0x2000000;
-            }
+            // Check bounds.
+            self.handle_unsaturated_result(mac1, MAC1);
+            self.handle_unsaturated_result(mac2, MAC2);
+            self.handle_unsaturated_result(mac3, MAC3);
 
             // Set IR1, IR2 and IR3 - dealing with flags too,
             // saturation should be -0x8000..0x7FFF, regardless of lm bit.
@@ -548,31 +533,19 @@ impl CP2 {
 
             // Use division result and set MAC0 flag if needed.
             let mut mac0 = division_result * ir1 + ofx;
-            if mac0 > 0x80000000 {
-                self.control_registers[31] |= 0x10000;
-            } else if mac0 < -0x80000000 {
-                self.control_registers[31] |= 0x8000;
-            }
+            self.handle_unsaturated_result(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0 = mac0.sign_extend(31);
 
             let mut sx2 = mac0 / 0x10000;
             mac0 = division_result * ir2 + ofy;
-            if mac0 > 0x80000000 {
-                self.control_registers[31] |= 0x10000;
-            } else if mac0 < -0x80000000 {
-                self.control_registers[31] |= 0x8000;
-            }
+            self.handle_unsaturated_result(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0 = mac0.sign_extend(31);
 
             let mut sy2 = mac0 / 0x10000;
             mac0 = division_result * dqa + dqb;
-            if mac0 > 0x80000000 {
-                self.control_registers[31] |= 0x10000;
-            } else if mac0 < -0x80000000 {
-                self.control_registers[31] |= 0x8000;
-            }
+            self.handle_unsaturated_result(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0.sign_extend(31);
 
@@ -642,12 +615,7 @@ impl CP2 {
         let mac0 = sx0 * sy1 + sx1 * sy2 + sx2 * sy0 - sx0 * sy2 - sx1 * sy0 - sx2 * sy1;
 
         // Check and set flags if needed.
-        if mac0 > 0x80000000 {
-            self.control_registers[31] |= 0x10000;
-        }
-        else if mac0 < -0x80000000 {
-            self.control_registers[31] |= 0x8000;
-        }
+        self.handle_unsaturated_result(mac0, MAC0);
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
@@ -691,30 +659,9 @@ impl CP2 {
         self.data_registers[27] = temp3 as i32; // MAC3.
 
         // Set relevant MAC1, MAC2 and MAC3 flag bits.
-
-        // MAC1.
-        if temp1 > 0x80000000000 {
-            self.control_registers[31] |= 0x40000000;
-        }
-        else if temp1 < -0x80000000000 {
-            self.control_registers[31] |= 0x8000000;
-        }
-
-        // MAC2.
-        if temp2 > 0x80000000000 {
-            self.control_registers[31] |= 0x20000000;
-        }
-        else if temp2 < -0x80000000000 {
-            self.control_registers[31] |= 0x4000000;
-        }
-
-        // MAC3.
-        if temp3 > 0x80000000000 {
-            self.control_registers[31] |= 0x10000000;
-        }
-        else if temp3 < -0x80000000000 {
-            self.control_registers[31] |= 0x2000000;
-        }
+        self.handle_unsaturated_result(temp1, MAC1);
+        self.handle_unsaturated_result(temp2, MAC2);
+        self.handle_unsaturated_result(temp3, MAC3);
 
         // Set IR1, IR2 and IR3 registers and saturation flag bits.
         // Determine the lower saturation bound using lm bit status.
@@ -815,26 +762,9 @@ impl CP2 {
             let mut mac3 = b << 16;
 
             // Check for and set MAC1, MAC2 and MAC3 flags if needed.
-            if mac1 > 0x80000000000 {
-                self.control_registers[31] |= 0x40000000;
-            }
-            else if mac1 < -0x80000000000 {
-                self.control_registers[31] |= 0x8000000;
-            }
-
-            if mac2 > 0x80000000000 {
-                self.control_registers[31] |= 0x20000000;
-            }
-            else if mac2 < -0x80000000000 {
-                self.control_registers[31] |= 0x4000000;
-            }
-
-            if mac3 > 0x80000000000 {
-                self.control_registers[31] |= 0x10000000;
-            }
-            else if mac3 < -0x80000000000 {
-                self.control_registers[31] |= 0x2000000;
-            }
+            self.handle_unsaturated_result(mac1, MAC1);
+            self.handle_unsaturated_result(mac2, MAC2);
+            self.handle_unsaturated_result(mac3, MAC3);
 
             // Perform first common stage of calculation.
             let mut ir1 = ((rfc << 12) - mac1) >> (sf * 12);
@@ -995,12 +925,7 @@ impl CP2 {
         let mut otz = mac0 / 0x1000;
 
         // Set flags where needed, and apply saturation to OTZ if needed.
-        if mac0 > 0x80000000 {
-            self.control_registers[31] |= 0x10000;
-        }
-        else if mac0 < -0x80000000 {
-            self.control_registers[31] |= 0x8000;
-        }
+        self.handle_unsaturated_result(mac0, MAC0);
 
         if otz < 0 {
             otz = 0;
@@ -1040,12 +965,7 @@ impl CP2 {
         let mut otz = mac0 / 0x1000;
 
         // Set flags where needed, and apply saturation to OTZ if needed.
-        if mac0 > 0x80000000 {
-            self.control_registers[31] |= 0x10000;
-        }
-        else if mac0 < -0x80000000 {
-            self.control_registers[31] |= 0x8000;
-        }
+        self.handle_unsaturated_result(mac0, MAC0);
 
         if otz < 0 {
             otz = 0;
@@ -1081,11 +1001,10 @@ impl CP2 {
 
     }
 
-    /// This function handles overflow/underflow detection for given unsaturated results.
+    /// This function handles overflow/underflow detection for given results in MAC0/1/2/3, which we
+    /// do not saturate.
     #[inline(always)]
     fn handle_unsaturated_result(&mut self, result: i64, result_type: UnsaturatedFlagRegisterField) {
-
-        use UnsaturatedFlagRegisterField::*;
 
         let (lower_bound, upper_bound) = match result_type {
 
