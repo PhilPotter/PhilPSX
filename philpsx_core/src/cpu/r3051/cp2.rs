@@ -49,6 +49,24 @@ enum UnsaturatedFlagRegisterField {
 }
 use UnsaturatedFlagRegisterField::*;
 
+/// This enum represents flag register fields that are larger or smaller than some
+/// given boundary, and should trigger a flag register to be set as well as a saturated
+/// value to be returned.
+enum SaturatedFlagRegisterField {
+    IR0,
+    IR1,
+    IR2,
+    IR3,
+    IR3Quirk,
+    ColourFifoR,
+    ColourFifoG,
+    ColourFifoB,
+    SX2,
+    SY2,
+    SZ3
+}
+use SaturatedFlagRegisterField::*;
+
 /// The CP2 structure models the Geometry Transformation Engine, which is a
 /// co-processor in the PlayStation responsible for matrix calculations amongst
 /// other things.
@@ -429,61 +447,10 @@ impl CP2 {
 
             // Set IR1, IR2 and IR3 - dealing with flags too,
             // saturation should be -0x8000..0x7FFF, regardless of lm bit.
-
-            // IR1.
-            let ir1 = if mac1 < -0x8000 {
-                self.control_registers[31] |= 0x1000000;
-                -0x8000
-            } else if mac1 > 0x7FFF {
-                self.control_registers[31] |= 0x1000000;
-                0x7FFF
-            } else {
-                mac1
-            };
-
-            // IR2.
-            let ir2 = if mac2 < -0x8000 {
-                self.control_registers[31] |= 0x800000;
-                -0x8000
-            } else if mac2 > 0x7FFF {
-                self.control_registers[31] |= 0x800000;
-                0x7FFF
-            } else {
-                mac2
-            };
-
-            // IR3.
-            let ir3 = if mac3 < -0x8000 {
-                // Deal with quirk in IR3 flag handling.
-                if sf == 0 {
-                    // Shift MAC3 (a 64-bit signed value) right by 12 bits,
-                    // preserving sign automatically.
-                    let temp = mac3 >> 12;
-                    if !(-0x8000..0x7FFF).contains(&temp) {
-                        self.control_registers[31] |= 0x400000;
-                    }
-                } else {
-                    self.control_registers[31] |= 0x400000;
-                }
-
-                -0x8000
-            } else if mac3 > 0x7FFF {
-                // Deal with quirk in IR3 flag handling.
-                if sf == 0 {
-                    // Shift MAC3 (a 64-bit signed value) right by 12 bits,
-                    // preserving sign automatically.
-                    let temp = mac3 >> 12;
-                    if !(-0x8000..0x7FFF).contains(&temp) {
-                        self.control_registers[31] |= 0x400000;
-                    }
-                } else {
-                    self.control_registers[31] |= 0x400000;
-                }
-
-                0x7FFF
-            } else {
-                mac3
-            };
+            // IR3 flag should be handled in quirk mode.
+            let ir1 = self.handle_saturated_result(mac1, IR1, false, sf);
+            let ir2 = self.handle_saturated_result(mac2, IR2, false, sf);
+            let ir3 = self.handle_saturated_result(mac3, IR3Quirk, false, sf);
 
             // Write back to real registers.
             self.data_registers[25] = mac1 as i32; // MAC1.
@@ -1040,6 +1007,112 @@ impl CP2 {
         }
         else if result > upper_bound {
             self.control_registers[31] |= upper_bit_flag;
+        }
+    }
+
+    /// This function handles overflow/underflow detection for given results in:
+    /// IR0/IR1/IR2/IR3/Colour-FIFO-R/Colour-FIFO-G/Colour-FIFO-B/SX2/SY2/SZ3.
+    /// we also return a value which is conditionally saturated.
+    #[inline(always)]
+    fn handle_saturated_result(&mut self, result: i64, result_type: SaturatedFlagRegisterField, lm: bool, sf: i32) -> i64 {
+
+        let (lower_bound, upper_bound) = match result_type {
+
+            IR0 => (0_i64, 0x1000_i64),
+
+            // IR1/IR2/IR3 need different behaviour depending on lm bit.
+            IR1 | IR2 | IR3 => (
+                if lm { 0_i64 } else { -0x8000_i64 }, 0x7FFF_i64
+            ),
+
+            // Special case for IR3 quirk in RTPS/RTPT.
+            IR3Quirk => (-0x8000_i64, 0x7FFF_i64),
+
+            ColourFifoR | ColourFifoG | ColourFifoB => (0_i64, 0xFF_i64),
+
+            SX2 | SY2 => (-0x400_i64, 0x3FF_i64),
+
+            SZ3 => (0_i64, 0xFFFF_i64),
+        };
+
+        let bit_flag = match result_type {
+
+            IR0 => 0x1000_i32,
+
+            IR1 => 0x1000000_i32,
+
+            IR2 => 0x800000_i32,
+
+            IR3 | IR3Quirk => 0x400000_i32,
+
+            ColourFifoR => 0x200000_i32,
+
+            ColourFifoG => 0x100000_i32,
+
+            ColourFifoB => 0x80000_i32,
+
+            SX2 => 0x4000_i32,
+
+            SY2 => 0x2000_i32,
+
+            SZ3 => 0x40000_i32,
+        };
+
+        // Now we can set flag register flags as appropriate,
+        // and return the value, saturated or otherwise.
+        // Be sure to peform the IR3 quirk behaviour if specified.
+        if result < lower_bound {
+
+            match result_type {
+
+                IR3Quirk => {
+                    // Deal with quirk in IR3 flag handling.
+                    if sf == 0 {
+                        // Shift result (a 64-bit signed value) right by 12 bits,
+                        // preserving sign automatically.
+                        let temp = result >> 12;
+                        if !(-0x8000..0x7FFF).contains(&temp) {
+                            self.control_registers[31] |= 0x400000;
+                        }
+                    } else {
+                        self.control_registers[31] |= 0x400000;
+                    }
+                },
+
+                _ => {
+                    self.control_registers[31] |= bit_flag;
+                },
+            };
+
+            lower_bound
+        }
+        else if result > upper_bound {
+
+            match result_type {
+
+                IR3Quirk => {
+                    // Deal with quirk in IR3 flag handling.
+                    if sf == 0 {
+                        // Shift result (a 64-bit signed value) right by 12 bits,
+                        // preserving sign automatically.
+                        let temp = result >> 12;
+                        if !(-0x8000..0x7FFF).contains(&temp) {
+                            self.control_registers[31] |= 0x400000;
+                        }
+                    } else {
+                        self.control_registers[31] |= 0x400000;
+                    }
+                },
+
+                _ => {
+                    self.control_registers[31] |= bit_flag;
+                },
+            };
+
+            upper_bound
+        }
+        else {
+            result
         }
     }
 }
