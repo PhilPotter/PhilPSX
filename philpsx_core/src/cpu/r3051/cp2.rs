@@ -1080,6 +1080,49 @@ impl CP2 {
     fn handle_ncct(&mut self, opcode: i32) {
 
     }
+
+    /// This function handles overflow/underflow detection for given unsaturated results.
+    #[inline(always)]
+    fn handle_unsaturated_result(&mut self, result: i64, result_type: UnsaturatedFlagRegisterField) {
+
+        use UnsaturatedFlagRegisterField::*;
+
+        let (lower_bound, upper_bound) = match result_type {
+
+            // Result larger than 43 bits and negative, or larger than 43 bits and positive.
+            // This corrects a misconception for the larger bound that I had in the original.
+            MAC1 | MAC2 | MAC3 => (-0x80000000000_i64, 0x7FFFFFFFFFF_i64),
+
+            // Result larger than 31 bits and negative, or larger than 31 bits and positive.
+            // Again, this correct a misconception for the larger bound in the original version.
+            MAC0 => (-0x80000000_i64, 0x7FFFFFFF_i64),
+        };
+
+        let (lower_bit_flag, upper_bit_flag) = match result_type {
+
+            // For lower and upper bit flags, these will respectively be:
+
+            // Bit 27, Bit 30.
+            MAC1 => (0x8000000_i32, 0x40000000_i32),
+
+            // Bit 26, Bit 29.
+            MAC2 => (0x4000000_i32, 0x20000000_i32),
+
+            // Bit 25, Bit 28.
+            MAC3 => (0x2000000_i32, 0x10000000_i32),
+
+            // Bit 15, Bit 16.
+            MAC0 => (0x8000_i32, 0x10000_i32),
+        };
+
+        // Now we can set flag register flags as appropriate.
+        if result < lower_bound {
+            self.control_registers[31] |= lower_bit_flag;
+        }
+        else if result > upper_bound {
+            self.control_registers[31] |= upper_bit_flag;
+        }
+    }
 }
 
 #[cfg(test)]
