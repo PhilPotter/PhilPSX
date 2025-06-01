@@ -600,46 +600,9 @@ impl CP2 {
         // Set IR1, IR2 and IR3 registers and saturation flag bits.
         // Determine the lower saturation bound using lm bit status.
         // Upper bound is always 0x7FFF.
-        let lower_bound = if lm { 0 } else { -0x8000 };
-
-        // IR1.
-        if temp1 < lower_bound {
-            self.data_registers[9] = lower_bound as i32;
-            self.control_registers[31] |= 0x1000000;
-        }
-        else if temp1 > 0x7FFF {
-            self.data_registers[9] = 0x7FFF;
-            self.control_registers[31] |= 0x1000000;
-        }
-        else {
-            self.data_registers[9] = temp1 as i32;
-        }
-
-        // IR2.
-        if temp2 < lower_bound {
-            self.data_registers[10] = lower_bound as i32;
-            self.control_registers[31] |= 0x800000;
-        }
-        else if temp2 > 0x7FFF {
-            self.data_registers[10] = 0x7FFF;
-            self.control_registers[31] |= 0x800000;
-        }
-        else {
-            self.data_registers[10] = temp2 as i32;
-        }
-
-        // IR3.
-        if temp3 < lower_bound {
-            self.data_registers[11] = lower_bound as i32;
-            self.control_registers[31] |= 0x400000;
-        }
-        else if temp3 > 0x7FFF {
-            self.data_registers[11] = 0x7FFF;
-            self.control_registers[31] |= 0x400000;
-        }
-        else {
-            self.data_registers[11] = temp3 as i32;
-        }
+        self.data_registers[9] = self.handle_saturated_result(temp1, IR1, lm, sf) as i32;
+        self.data_registers[10] = self.handle_saturated_result(temp2, IR2, lm, sf) as i32;
+        self.data_registers[11] = self.handle_saturated_result(temp3, IR3, lm, sf) as i32;
 
         // Calculate bit 31 of flag register.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
