@@ -664,42 +664,16 @@ impl CP2 {
             self.handle_unsaturated_result(mac3, MAC3);
 
             // Perform first common stage of calculation.
-            let mut ir1 = ((rfc << 12) - mac1) >> (sf * 12);
-            let mut ir2 = ((gfc << 12) - mac2) >> (sf * 12);
-            let mut ir3 = ((bfc << 12) - mac3) >> (sf * 12);
-
             // Saturate IR1, IR2 and IR3 results, setting flags as needed.
-            if ir1 > 0x7FFF {
-                ir1 = 0x7FFF;
-                self.control_registers[31] |= 0x1000000;
-            }
-            else if ir1 < -0x8000 {
-                ir1 = -0x8000;
-                self.control_registers[31] |= 0x1000000;
-            }
-
-            if ir2 > 0x7FFF {
-                ir2 = 0x7FFF;
-                self.control_registers[31] |= 0x800000;
-            }
-            else if ir2 < -0x8000 {
-                ir2 = -0x8000;
-                self.control_registers[31] |= 0x800000;
-            }
-
-            if ir3 > 0x7FFF {
-                ir3 = 0x7FFF;
-                self.control_registers[31] |= 0x400000;
-            }
-            else if ir3 < -0x8000 {
-                ir3 = -0x8000;
-                self.control_registers[31] |= 0x400000;
-            }
+            // Ignore lm bit for this first set of writes.
+            let ir1 = self.handle_saturated_result(((rfc << 12) - mac1) >> (sf * 12), IR1, false, sf);
+            let ir2 = self.handle_saturated_result(((gfc << 12) - mac2) >> (sf * 12), IR2, false, sf);
+            let ir3 = self.handle_saturated_result(((bfc << 12) - mac3) >> (sf * 12), IR3, false, sf);
 
             // Continue first common stage of calculation.
-            mac1 = ir1 * ir0 + mac1;
-            mac2 = ir2 * ir0 + mac2;
-            mac3 = ir3 * ir0 + mac3;
+            mac1 += ir1 * ir0;
+            mac2 += ir2 * ir0;
+            mac3 += ir3 * ir0;
 
 
         }
