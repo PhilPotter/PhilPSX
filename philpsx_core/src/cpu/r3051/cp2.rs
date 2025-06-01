@@ -466,16 +466,7 @@ impl CP2 {
             self.data_registers[18] = self.data_registers[19]; // SZ3 to SZ2.
 
             let shift_by = (1 - sf) * 12;
-            let mut temp_sz3 = mac3 >> shift_by;
-            temp_sz3 = if temp_sz3 < 0 {
-                self.control_registers[31] |= 0x40000;
-                0
-            } else if temp_sz3 > 0xFFFF {
-                self.control_registers[31] |= 0x40000;
-                0xFFFF
-            } else {
-                temp_sz3
-            };
+            let temp_sz3 = self.handle_saturated_result(mac3 >> shift_by, SZ3, false, sf);
             self.data_registers[19] = temp_sz3 as i32;
 
             // Begin second phase of calculations - use Unsigned Newton-Raphson
@@ -499,49 +490,25 @@ impl CP2 {
             };
 
             // Use division result and set MAC0 flag if needed.
+            // Also handle SX2/SY2/IR0 saturation and flags as needed.
             let mut mac0 = division_result * ir1 + ofx;
             self.handle_unsaturated_result(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0 = mac0.sign_extend(31);
 
-            let mut sx2 = mac0 / 0x10000;
+            let sx2 = self.handle_saturated_result(mac0 / 0x10000, SX2, false, sf);
             mac0 = division_result * ir2 + ofy;
             self.handle_unsaturated_result(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0 = mac0.sign_extend(31);
 
-            let mut sy2 = mac0 / 0x10000;
+            let sy2 = self.handle_saturated_result(mac0 / 0x10000, SY2, false, sf);
             mac0 = division_result * dqa + dqb;
             self.handle_unsaturated_result(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0.sign_extend(31);
 
-            let mut ir0 = mac0 / 0x1000;
-
-            // Adjust results for saturation and set flags if needed.
-            if sx2 > 0x3FF {
-                sx2 = 0x3FF;
-                self.control_registers[31] |= 0x4000;
-            } else if sx2 < -0x400 {
-                sx2 = -0x400;
-                self.control_registers[31] |= 0x4000;
-            }
-
-            if sy2 > 0x3FF {
-                sy2 = 0x3FF;
-                self.control_registers[31] |= 0x2000;
-            } else if sy2 < -0x400 {
-                sy2 = -0x400;
-                self.control_registers[31] |= 0x2000;
-            }
-
-            if ir0 < 0 {
-                ir0 = 0;
-                self.control_registers[31] |= 0x1000;
-            } else if ir0 > 0x1000 {
-                ir0 = 0x1000;
-                self.control_registers[31] |= 0x1000;
-            }
+            let ir0 = self.handle_saturated_result(mac0 / 0x1000, IR0, false, sf);
 
             // Store values back to correct registers.
 
