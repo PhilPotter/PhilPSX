@@ -754,13 +754,19 @@ impl CP2 {
         self.data_registers[27] = ir3 as i32; // MAC3.
 
         // Set IR1, IR2 and IR3 registers.
+        //
         // Also handle saturation. Although saturation function checks for lower
-        // bound too, that would cause problems here - the result will always be
-        // positive due to squaring, and the max result of two i16 values is 0xFFFE0001.
+        // bound too, that shouldn't cause problems here - the result will always be
+        // positive due to squaring or zero.
+        //
+        // The max result of two i16 values multiplied together (allowing for overflow)
+        // is thus: -32,768 x -32,768 = 1,073,741,824.
+        // Bigger than an i16, but easily representable with i64 as we're using here.
         self.data_registers[9] = self.handle_saturated_result(ir1, IR1, false, sf) as i32;
         self.data_registers[10] = self.handle_saturated_result(ir2, IR2, false, sf) as i32;
         self.data_registers[11] = self.handle_saturated_result(ir3, IR3, false, sf) as i32;
 
+        // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
             self.control_registers[31] |= 0x80000000_u32 as i32;
         }
