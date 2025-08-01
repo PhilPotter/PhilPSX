@@ -785,20 +785,10 @@ impl CP2 {
         let sz3 = (self.data_registers[19] & 0xFFFF) as i64; // SZ3.
 
         // Perform calculation.
-        let mac0 = zsf3 * (sz1 + sz2 + sz3);
-        let mut otz = mac0 / 0x1000;
-
         // Set flags where needed, and apply saturation to OTZ if needed.
+        let mac0 = zsf3 * (sz1 + sz2 + sz3);
         self.handle_unsaturated_result(mac0, MAC0);
-
-        if otz < 0 {
-            otz = 0;
-            self.control_registers[31] |= 0x40000;
-        }
-        else if otz > 0xFFFF {
-            otz = 0xFFFF;
-            self.control_registers[31] |= 0x40000;
-        }
+        let otz = self.handle_saturated_result(mac0 / 0x1000, SZ3, false, 0);
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
@@ -825,20 +815,10 @@ impl CP2 {
         let sz3 = (self.data_registers[19] & 0xFFFF) as i64; // SZ3.
 
         // Perform calculation.
-        let mac0 = zsf4 * (sz0 + sz1 + sz2 + sz3);
-        let mut otz = mac0 / 0x1000;
-
         // Set flags where needed, and apply saturation to OTZ if needed.
+        let mac0 = zsf4 * (sz0 + sz1 + sz2 + sz3);
         self.handle_unsaturated_result(mac0, MAC0);
-
-        if otz < 0 {
-            otz = 0;
-            self.control_registers[31] |= 0x40000;
-        }
-        else if otz > 0xFFFF {
-            otz = 0xFFFF;
-            self.control_registers[31] |= 0x40000;
-        }
+        let otz = self.handle_saturated_result(mac0 / 0x1000, SZ3, false, 0);
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
@@ -909,7 +889,7 @@ impl CP2 {
 
     /// This function handles overflow/underflow detection for given results in:
     /// IR0/IR1/IR2/IR3/Colour-FIFO-R/Colour-FIFO-G/Colour-FIFO-B/SX2/SY2/SZ3.
-    /// we also return a value which is conditionally saturated.
+    /// We also return a value which is conditionally saturated.
     #[inline(always)]
     fn handle_saturated_result(&mut self, result: i64, result_type: SaturatedFlagRegisterField, lm: bool, sf: i32) -> i64 {
 
