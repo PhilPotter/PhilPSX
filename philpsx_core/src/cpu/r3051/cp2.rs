@@ -723,6 +723,97 @@ impl CP2 {
     /// This function handles the INTPL GTE function.
     fn handle_intpl(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Filter out sf bit.
+        let sf = opcode.bit_value(19);
+
+        // Get lm bit status.
+        let lm = opcode.bit_is_set(10);
+
+        // Retrieve R0, IR1, IR2 and IR3, sign extending as necessary.
+        let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15);
+        let mut ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15);
+        let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15);
+        let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
+
+        // Retrieve far colour values, sign extending naturally.
+        let rfc = self.control_registers[21] as i64;
+        let gfc = self.control_registers[22] as i64;
+        let bfc = self.control_registers[23] as i64;
+
+        // Fetch code value from RGBC.
+        let code = self.data_registers[6].logical_rshift(24) as i64;
+
+        // Perform INTPL-only calculation.
+        let mut mac1 = ir1 << 12;
+        let mut mac2 = ir2 << 12;
+        let mut mac3 = ir3 << 12;
+
+        // Handle MAC1, MAC2 and MAC3 flags.
+        self.handle_unsaturated_result(mac1, MAC1);
+        self.handle_unsaturated_result(mac2, MAC2);
+        self.handle_unsaturated_result(mac3, MAC3);
+
+        // Perform first common stage of calculation.
+        ir1 = ((rfc << 12) - mac1) >> (sf * 12);
+        ir2 = ((gfc << 12) - mac2) >> (sf * 12);
+        ir3 = ((bfc << 12) - mac3) >> (sf * 12);
+
+        // Saturate and check flags for IR1, IR2 and IR3. Note that for this specific
+        // check, we ignore the lm bit, and always use the negative lower bound.
+        ir1 = self.handle_saturated_result(ir1, IR1, false, sf);
+        ir2 = self.handle_saturated_result(ir2, IR2, false, sf);
+        ir3 = self.handle_saturated_result(ir3, IR3, false, sf);
+
+        // Continue first common stage of calculation.
+        mac1 += ir1 * ir0;
+        mac2 += ir2 * ir0;
+        mac3 += ir3 * ir0;
+
+        // Handle MAC1, MAC2 and MAC3 flags again.
+        self.handle_unsaturated_result(mac1, MAC1);
+        self.handle_unsaturated_result(mac2, MAC2);
+        self.handle_unsaturated_result(mac3, MAC3);
+
+        // Shift MAC1, MAC2 and MAC3 by (sf * 12) bits, preserving sign bit.
+        mac1 >>= sf * 12;
+        mac2 >>= sf * 12;
+        mac3 >>= sf * 12;
+
+        // Handle MAC1, MAC2 and MAC3 flags again.
+        self.handle_unsaturated_result(mac1, MAC1);
+        self.handle_unsaturated_result(mac2, MAC2);
+        self.handle_unsaturated_result(mac3, MAC3);
+
+        // Store MAC1, MAC2 and MAC3 to IR1, IR2 and IR3, handling saturation and flags.
+        ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
+        ir2 = self.handle_saturated_result(mac2, IR2, lm, sf);
+        ir3 = self.handle_saturated_result(mac3, IR3, lm, sf);
+
+        // Calculate colour FIFO entries, saturating and flag setting as needed.
+        let r_out = self.handle_saturated_result(mac1 / 16, ColourFifoR, lm, sf);
+        let g_out = self.handle_saturated_result(mac2 / 16, ColourFifoG, lm, sf);
+        let b_out = self.handle_saturated_result(mac3 / 16, ColourFifoB, lm, sf);
+
+        // Calculate flag bit 31.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
+
+        // Store all values back.
+        self.data_registers[25] = mac1 as i32; // MAC1.
+        self.data_registers[26] = mac2 as i32; // MAC2.
+        self.data_registers[27] = mac3 as i32; // MAC3.
+
+        self.data_registers[9] = ir1 as i32;  // IR1.
+        self.data_registers[10] = ir2 as i32; // IR2.
+        self.data_registers[11] = ir3 as i32; // IR3.
+
+        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
     }
 
     /// This function handles the MVMVA GTE function.
