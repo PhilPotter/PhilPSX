@@ -649,7 +649,7 @@ impl CP2 {
                 (self.data_registers[colour_register_index] & 0xFF) as i64, // R or R0.
                 ((self.data_registers[colour_register_index].logical_rshift(8) & 0xFF) as i64), // G or G0.
                 ((self.data_registers[colour_register_index].logical_rshift(16) & 0xFF) as i64), // B or B0.
-                ((self.data_registers[colour_register_index].logical_rshift(24) & 0xFF) as i64) // CODE.
+                ((self.data_registers[6].logical_rshift(24) & 0xFF) as i64) // CODE.
             );
 
             // This left-shifting should happen for both DPCS and DPCT,
@@ -666,16 +666,57 @@ impl CP2 {
             // Perform first common stage of calculation.
             // Saturate IR1, IR2 and IR3 results, setting flags as needed.
             // Ignore lm bit for this first set of writes.
-            let ir1 = self.handle_saturated_result(((rfc << 12) - mac1) >> (sf * 12), IR1, false, sf);
-            let ir2 = self.handle_saturated_result(((gfc << 12) - mac2) >> (sf * 12), IR2, false, sf);
-            let ir3 = self.handle_saturated_result(((bfc << 12) - mac3) >> (sf * 12), IR3, false, sf);
+            let mut ir1 = self.handle_saturated_result(((rfc << 12) - mac1) >> (sf * 12), IR1, false, sf);
+            let mut ir2 = self.handle_saturated_result(((gfc << 12) - mac2) >> (sf * 12), IR2, false, sf);
+            let mut ir3 = self.handle_saturated_result(((bfc << 12) - mac3) >> (sf * 12), IR3, false, sf);
 
             // Continue first common stage of calculation.
             mac1 += ir1 * ir0;
             mac2 += ir2 * ir0;
             mac3 += ir3 * ir0;
 
+            // Check for and set MAC1, MAC2 and MAC3 flags again if needed.
+            self.handle_unsaturated_result(mac1, MAC1);
+            self.handle_unsaturated_result(mac2, MAC2);
+            self.handle_unsaturated_result(mac3, MAC3);
 
+            // Shift MAC1, MAC2 and MAC3 by (sf * 12) bits, preserving sign bit.
+	        mac1 >>= sf * 12;
+	        mac2 >>= sf * 12;
+	        mac3 >>= sf * 12;
+
+            // Check for and set MAC1, MAC2 and MAC3 flags again if needed.
+            self.handle_unsaturated_result(mac1, MAC1);
+            self.handle_unsaturated_result(mac2, MAC2);
+            self.handle_unsaturated_result(mac3, MAC3);
+
+            // Store MAC1, MAC2 and MAC3 to IR1, IR2 and IR3, saturating as needed.
+            ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
+            ir2 = self.handle_saturated_result(mac2, IR2, lm, sf);
+            ir3 = self.handle_saturated_result(mac3, IR3, lm, sf);
+
+            // Generate colour FIFO values and check/set flags as needed.
+            let r_out = self.handle_saturated_result(mac1 / 16, ColourFifoR, lm, sf);
+            let g_out = self.handle_saturated_result(mac2 / 16, ColourFifoG, lm, sf);
+            let b_out = self.handle_saturated_result(mac3 / 16, ColourFifoB, lm, sf);
+
+            // Calculate flag bit 31.
+            if (self.control_registers[31] & 0x7F87E000) != 0 {
+                self.control_registers[31] |= 0x80000000_u32 as i32;
+            }
+
+            // Store values back to registers.
+            self.data_registers[25] = mac1 as i32; // MAC1.
+            self.data_registers[26] = mac2 as i32; // MAC2.
+            self.data_registers[27] = mac3 as i32; // MAC3.
+
+            self.data_registers[9] = ir1 as i32;   // IR1.
+            self.data_registers[10] = ir2 as i32;  // IR2.
+            self.data_registers[11] = ir3 as i32;  // IR3.
+
+            self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
+            self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
+            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; //RGB2.
         }
     }
 

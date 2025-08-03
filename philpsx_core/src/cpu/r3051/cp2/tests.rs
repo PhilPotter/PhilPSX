@@ -210,3 +210,12 @@ fn all_gte_functions_should_give_proper_cycle_count() {
     let cycles = cp2.gte_function(0);
     assert_eq!(cycles, 0);
 }
+
+#[test]
+fn casting_should_extend_sign_too() {
+
+    let input: i32 = -1;
+    let output = input as i64;    
+
+    assert_eq!(output, -1_i64)
+}
