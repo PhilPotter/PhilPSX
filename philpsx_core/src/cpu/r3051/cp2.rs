@@ -753,6 +753,136 @@ impl CP2 {
     /// This function handles the CC GTE function.
     fn handle_cc(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Filter out sf bit.
+        let sf = opcode.bit_value(19);
+
+        // Get lm bit status.
+        let lm = opcode.bit_is_set(10);
+
+        // Retrieve background colour values - let natural sign extension happen,
+        // and store them inside a vector. Also, multiple each one by 0x1000.
+        let background_colour_vector = CP2Vector::new(
+            (self.control_registers[13] as i64) * 0x1000, // RBK.
+            (self.control_registers[14] as i64) * 0x1000, // GBK.
+            (self.control_registers[15] as i64) * 0x1000  // BBK.
+        );
+
+        // Fetch IR1, IR2 and IR3, sign extending if needed, and also storing
+        // into a vector.
+        let mut ir_vector = CP2Vector::new(
+            ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15),  // IR1.
+            ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15), // IR2.
+            ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15)  // IR3.
+        );
+
+        // Retrieve RGBC values.
+        let r = (self.data_registers[6] & 0xFF) as i64; // R.
+        let g = (self.data_registers[6].logical_rshift(8) & 0xFF) as i64; // G.
+        let b = (self.data_registers[6].logical_rshift(16) & 0xFF) as i64; // B.
+        let code = (self.data_registers[6].logical_rshift(24) & 0xFF) as i64; // CODE.
+
+        // Retrieve light colour matrix values, sign extending as needed.
+        let light_colour_matrix = CP2Matrix::new(
+
+            // Top row:
+            [
+                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15), // LR1.
+                ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15) // LR3.
+            ],
+
+            // Middle row:
+            [
+                ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15), // LG2.
+                ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // LG3.
+            ],
+
+            // Bottom row:
+            [
+                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15), // LB1.
+                ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15) // LB3.
+            ]
+        );
+
+        // Perform first stage of calculaton, and shift results right by (sf * 12),
+        // preserving sign bit.
+        let mut mac_results = light_colour_matrix * ir_vector + background_colour_vector;
+        mac_results = CP2Vector::new(
+            mac_results.top() >> (sf * 12),
+            mac_results.middle() >> (sf * 12),
+            mac_results.bottom() >> (sf * 12)
+        );
+
+        // Now set MAC1, MAC2 and MAC3 flags accordingly.
+        self.handle_unsaturated_result(mac_results.top(), MAC1);
+        self.handle_unsaturated_result(mac_results.middle(), MAC2);
+        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+
+        // Store results to IR1, IR2 and IR3.
+        ir_vector = CP2Vector::new(
+            self.handle_saturated_result(mac_results.top(), IR1, lm, sf),
+            self.handle_saturated_result(mac_results.middle(), IR2, lm, sf),
+            self.handle_saturated_result(mac_results.bottom(), IR3, lm, sf)
+        );
+
+        // Perform second stage of calculation.
+        mac_results = CP2Vector::new(
+            (r * ir_vector.top()) << 4,
+            (g * ir_vector.middle()) << 4,
+            (b * ir_vector.bottom()) << 4
+        );
+
+        // Now again set MAC1, MAC2 and MAC3 flags accordingly.
+        self.handle_unsaturated_result(mac_results.top(), MAC1);
+        self.handle_unsaturated_result(mac_results.middle(), MAC2);
+        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+
+        // Shift MAC1, MAC2 and MAC3 right by (sf * 12) bits, preserving sign bit.
+        mac_results = CP2Vector::new(
+            mac_results.top() >> (sf * 12),
+            mac_results.middle() >> (sf * 12),
+            mac_results.bottom() >> (sf * 12)
+        );
+
+        // Now again set MAC1, MAC2 and MAC3 flags accordingly.
+        self.handle_unsaturated_result(mac_results.top(), MAC1);
+        self.handle_unsaturated_result(mac_results.middle(), MAC2);
+        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+
+        // Store results to IR1, IR2 and IR3 again.
+        ir_vector = CP2Vector::new(
+            self.handle_saturated_result(mac_results.top(), IR1, lm, sf),
+            self.handle_saturated_result(mac_results.middle(), IR2, lm, sf),
+            self.handle_saturated_result(mac_results.bottom(), IR3, lm, sf)
+        );
+
+        // Generate colour FIFO values, setting flags as needed.
+        let r_out = self.handle_saturated_result(mac_results.top() / 16, ColourFifoR, lm, sf);
+        let g_out = self.handle_saturated_result(mac_results.middle() / 16, ColourFifoG, lm, sf);
+        let b_out = self.handle_saturated_result(mac_results.bottom() / 16, ColourFifoB, lm, sf);
+
+        // Calculate flag bit 31.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
+
+        // Store values back to registers.
+        self.data_registers[25] = mac_results.top() as i32;    // MAC1.
+        self.data_registers[26] = mac_results.middle() as i32; // MAC2.
+        self.data_registers[27] = mac_results.bottom() as i32; // MAC3.
+
+        self.data_registers[9] = ir_vector.top() as i32;     // IR1.
+        self.data_registers[10] = ir_vector.middle() as i32; // IR2.
+        self.data_registers[11] = ir_vector.bottom() as i32; // IR3.
+
+        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
     }
 
     /// This function handles the NCS GTE function.
