@@ -819,6 +819,241 @@ impl CP2 {
     /// This function handles the MVMVA GTE function.
     fn handle_mvmva(&mut self, opcode: i32) {
 
+        // Clear flag register.
+        self.control_registers[31] = 0;
+
+        // Filter out sf bit.
+        let sf = opcode.bit_value(19);
+
+        // Get lm bit status.
+        let lm = opcode.bit_is_set(10);
+
+        // Filter out translation vector value.
+        let t_vec = (opcode & 0x6000).logical_rshift(13);
+
+        // Filter out multiply vector value.
+        let m_vec = (opcode & 0x18000).logical_rshift(15);
+
+        // Filter out multiply matrix value.
+        let m_matrix = (opcode & 0x60000).logical_rshift(17);
+
+        // Declare and store correct translation vector values, allowing for
+        // natural sign extension.
+        let mut translation_vector = match t_vec {
+
+            // TR.
+            0 => CP2Vector::new(
+                self.control_registers[5] as i64, // TRX.
+                self.control_registers[6] as i64, // TRY.
+                self.control_registers[7] as i64  // TRZ.
+            ),
+
+            // BK.
+            1 => CP2Vector::new(
+                self.control_registers[13] as i64, // RBK.
+                self.control_registers[14] as i64, // GBK.
+                self.control_registers[15] as i64  // BBK.
+            ),
+
+            // FC.
+            2 => CP2Vector::new(
+                self.control_registers[21] as i64, // RFC.
+                self.control_registers[22] as i64, // GFC.
+                self.control_registers[23] as i64  // BFC.
+            ),
+
+            // None, use empty vector. In C version we checked for 3 here, but just used break.
+            // Effect here is the same therefore as 0 to 3 are the only possible values based on
+            // our math above.
+            _ => CP2Vector::new(
+                0,
+                0,
+                0
+            )
+        };
+
+        // Multiply all translation vector elements by 0x1000. Needed later on for our calculation.
+        translation_vector = CP2Vector::new(
+            translation_vector.top() * 0x1000,
+            translation_vector.middle() * 0x1000,
+            translation_vector.bottom() * 0x1000
+        );
+
+        // Declare and store correct multiply vector values, manually
+        // sign extending as needed.
+        let multiply_vector = match m_vec {
+
+            // V0.
+            0 => CP2Vector::new(
+                ((self.data_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // VX0.
+                ((self.data_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY0.
+                ((self.data_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // VZ0.
+            ),
+
+            // V1.
+            1 => CP2Vector::new(
+                ((self.data_registers[2] & 0xFFFF) as i64).sign_extend(15),                    // VX1.
+                ((self.data_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY1.
+                ((self.data_registers[3] & 0xFFFF) as i64).sign_extend(15),                    // VZ1.
+            ),
+
+            // V2.
+            2 => CP2Vector::new(
+                ((self.data_registers[4] & 0xFFFF) as i64).sign_extend(15),                    // VX2.
+                ((self.data_registers[4].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY2.
+                ((self.data_registers[5] & 0xFFFF) as i64).sign_extend(15),                    // VZ2.
+            ),
+
+            // [IR1, IR2, IR3]. If we get here, then m_vec must be 3 due to the math above.
+            _ => CP2Vector::new(
+                ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15),  // IR1.
+                ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15), // IR2.
+                ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15)  // IR3.
+            ),
+        };
+
+        // Declare and store correct multiply matrix values, manually
+        // sign extending as needed.
+        let multiply_matrix = match m_matrix {
+
+            // Rotation matrix.
+            0 => CP2Matrix::new(
+
+                // Top row.
+                [
+                    ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // RT11.
+                    ((self.control_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT12.
+                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // RT13.
+                ],
+
+                // Middle row.
+                [
+                    ((self.control_registers[1].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT21.
+                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15),                    // RT22.
+                    ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // RT23.
+                ],
+
+                // Bottom row.
+                [
+                    ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15),                    // RT31.
+                    ((self.control_registers[3].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT32.
+                    ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15)                     // RT33.
+                ]
+            ),
+
+            // Light matrix.
+            1 => CP2Matrix::new(
+
+                // Top row.
+                [
+                    ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),                    // L11.
+                    ((self.control_registers[8].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L12.
+                    ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)                     // L13.
+                ],
+
+                // Middle row.
+                [
+                    ((self.control_registers[9].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L21.
+                    ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),                   // L22.
+                    ((self.control_registers[10].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // L23.
+                ],
+
+                // Bottom row.
+                [
+                    ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),                    // L31.
+                    ((self.control_registers[11].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L32.
+                    ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)                     // L33.
+                ]
+            ),
+
+            // Colour matrix.
+            2 => CP2Matrix::new(
+
+                // Top row.
+                [
+                    ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),                    // LR1.
+                    ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                    ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)                     // LR3.
+                ],
+
+                // Middle row.
+                [
+                    ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                    ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),                    // LG2.
+                    ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
+                ],
+
+                // Bottom row.
+                [
+                    ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),                    // LB1.
+                    ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                    ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)                     // LB3.
+                ]
+            ),
+
+            // Reserved (garbage matrix). If we get here, then m_matrix must be 3 due to the math above.
+            _ => CP2Matrix::new(
+
+                // Top row.
+                [
+                    -0x60,
+                    0x60,
+                    ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15) // IR0.
+                ],
+
+                // Middle row.
+                [
+                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15), // RT13.
+                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15), // RT13.
+                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)  // RT13.
+                ],
+
+                // Bottom row.
+                [
+                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22.
+                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22.
+                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15)  // RT22.
+                ]
+            ),
+        };
+
+        // Perform calculation now.
+        let mut result_vector = if t_vec != 2 {
+            multiply_matrix * multiply_vector + translation_vector
+        } else {
+            // Account for faulty FC vector calculation on real hardware.
+            CP2Vector::new(
+                multiply_matrix.top_right() * multiply_vector.bottom(),
+                multiply_matrix.middle_right() * multiply_vector.bottom(),
+                multiply_matrix.bottom_right() * multiply_vector.bottom()
+            )
+        };
+
+        // Shift results right by (sf * 12) bits, preserving sign bit.
+        result_vector = CP2Vector::new(
+            result_vector.top() >> (sf * 12),
+            result_vector.middle() >> (sf * 12),
+            result_vector.bottom() >> (sf * 12)
+        );
+
+        // Set MAC1, MAC2 and MAC3 registers, handling flags too.
+        self.data_registers[25] = result_vector.top() as i32;    // MAC1.
+        self.data_registers[26] = result_vector.middle() as i32; // MAC2.
+        self.data_registers[27] = result_vector.bottom() as i32; // MAC3.
+
+        self.handle_unsaturated_result(result_vector.top(), MAC1);
+        self.handle_unsaturated_result(result_vector.middle(), MAC2);
+        self.handle_unsaturated_result(result_vector.bottom(), MAC3);
+
+        // Set IR1, IR2 and IR3 registers and saturation flag bits.
+        self.data_registers[9] = self.handle_saturated_result(result_vector.top(), IR1, lm, sf) as i32;
+        self.data_registers[10] = self.handle_saturated_result(result_vector.middle(), IR2, lm, sf) as i32;
+        self.data_registers[11] = self.handle_saturated_result(result_vector.bottom(), IR3, lm, sf) as i32;
+
+        // Calculate flag bit 31.
+        if (self.control_registers[31] & 0x7F87E000) != 0 {
+            self.control_registers[31] |= 0x80000000_u32 as i32;
+        }
     }
 
     /// This function handles the NCDS GTE function.
