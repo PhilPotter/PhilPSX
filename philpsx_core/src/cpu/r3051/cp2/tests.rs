@@ -2,6 +2,7 @@
 // tests.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
 use super::CP2;
+use super::InstructionVariant;
 
 // Tests for the CP2 / Geometry Transformation Engine.
 
@@ -221,7 +222,86 @@ fn casting_should_extend_sign_too() {
 }
 
 // Below tests are for opcodes themselves and thus use public functionality only, such
-// that register manipulation via read/write routines works as expected.
+// that register manipulation via read/write routines works as expected. Also, the input
+// data is mostly picked at random. This is more likely to uncover bugs when testing against
+// the NOPSX debugger, and is the next best thing from exhaustively testing ever edge case
+// which is too much for a passion project like this.
+#[test]
+fn rtps_should_product_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup TRX, TRY and TRZ.
+    cp2.write_control_reg(5, 0x0C7ECDFC, false);
+    cp2.write_control_reg(6, 0x1E844F9B, false);
+    cp2.write_control_reg(7, 0x61153630, false);
+
+    // Setup rotation matrix.
+    cp2.write_control_reg(0, 0x48C52508, false); // RT12 | RT11.
+    cp2.write_control_reg(1, 0xD41E63BA_u32 as i32, false); // RT21 | RT13.
+    cp2.write_control_reg(2, 0xB6331DC8_u32 as i32, false); // RT23 | RT22.
+    cp2.write_control_reg(3, 0xF7F7FD3A_u32 as i32, false); // RT32 | RT31.
+    cp2.write_control_reg(4, 0x0000260E, false); // RT33.
+
+    // Write ofx, ofy, h, dqa and dqb.
+    cp2.write_control_reg(24, 0x094427BF, false); // ofx.
+    cp2.write_control_reg(25, 0xF83A9D3C_u32 as i32, false); // ofy.
+    cp2.write_control_reg(26, 0x00008CC7, false); // h.
+    cp2.write_control_reg(27, 0x0000F6A1, false); // dqa.
+    cp2.write_control_reg(28, 0xF87ECDA2_u32 as i32, false); // dqb.
+
+    // Write VX0, VY0 and VZ0.
+    cp2.write_data_reg(0, 0xB54BC06A_u32 as i32, false); // VY0 | VX0.
+    cp2.write_data_reg(1, 0x00004C87, false); // VZ0.
+
+    // Execute RTPS (with sf bit set to 0).
+    cp2.handle_common_rtp(0x4BE00001, InstructionVariant::Single);
+
+    // Now read registers.
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac0 = cp2.read_data_reg(24);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+    let flag = cp2.read_control_reg(31);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let sxy2 = cp2.read_data_reg(14);
+    let sxyp = cp2.read_data_reg(15);
+    let sz3 = cp2.read_data_reg(19);
+
+    println!("ir1: {:#10X}", ir1);
+    println!("ir2: {:#10X}", ir2);
+    println!("ir3: {:#10X}", ir3);
+    println!("mac0: {:#10X}", mac0);
+    println!("mac1: {:#10X}", mac1);
+    println!("mac2: {:#10X}", mac2);
+    println!("mac3: {:#10X}", mac3);
+    println!("flag: {:#10X}", flag);
+    println!("irgb: {:#10X}", irgb);
+    println!("orgb: {:#10X}", orgb);
+    println!("sxy2: {:#10X}", sxy2);
+    println!("sxyp: {:#10X}", sxyp);
+    println!("sz3: {:#10X}", sz3);
+
+    // Assert results are correct.
+    assert_eq!(ir1, 0x8000);
+    assert_eq!(ir2, 0x7FFF);
+    assert_eq!(ir3, 0x7FFF);
+    assert_eq!(mac0, 0xF35790C9_u32 as i32);
+    assert_eq!(mac1, 0xEC407F1D_u32 as i32);
+    assert_eq!(mac2, 0x311F5EE9);
+    assert_eq!(mac3, 0x61CBDBC3);
+    assert_eq!(flag, 0x81C47000_u32 as i32);
+    assert_eq!(irgb, 0x7FE0);
+    assert_eq!(orgb, 0x7FE0);
+    assert_eq!(sxy2, 0x03FFFC00);
+    assert_eq!(sxyp, 0x03FFFC00);
+    assert_eq!(sz3, 0xFFFF);
+}
+
 #[test]
 fn sqr_should_produce_correct_result() {
 
