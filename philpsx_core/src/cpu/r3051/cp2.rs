@@ -136,13 +136,11 @@ impl CP2 {
             1 | 3 | 5 | 8 | 9 | 10 | 11 =>
                 self.data_registers[array_index].sign_extend(15),
 
-            // Return 0 for these.
-            23 | 28 => 0,
+            // Return 0 for this.
+            23 => 0,
 
-            // Combine registers 9, 10 and 11 accordingly.
-            29 => ((self.data_registers[11] << 3) | 0x7C00) |
-                (self.data_registers[10].logical_rshift(2) & 0x3E0) |
-                (self.data_registers[9].logical_rshift(7) & 0x1F),
+            // Combine registers 9, 10 and 11 accordingly to display ORGB.
+            28 | 29 => self.calculate_orgb(),
 
             // LZCR
             31 => {
@@ -219,11 +217,7 @@ impl CP2 {
                     },
 
                     // IRGB
-                    28 => {
-                        self.data_registers[9] = (0x1F & value) << 7;                 // IR1
-                        self.data_registers[10] = (0x3E0 & value) << 2;               // IR2
-                        self.data_registers[11] = (0x7C00 & value).logical_rshift(3); // IR3
-                    },
+                    28 => self.calculate_and_write_irgb(value),
 
                     // For all other registers, just write the value back as-is.
                     _ => {
@@ -232,6 +226,39 @@ impl CP2 {
                 }
             }
         }
+    }
+
+    /// This function retrieves values from IR1, IR2 and IR3 and transforms them for display
+    /// via IRGB (data register 28) or ORGB (data register 29).
+    fn calculate_orgb(&self) -> i32 {
+
+        // Divide IR1, IR2 and IR3 by 0x80 after sign-extending.
+        let ir1_divided = (self.data_registers[9] & 0xFFFF).sign_extend(15) / 0x80;
+        let ir2_divided = (self.data_registers[10] & 0xFFFF).sign_extend(15) / 0x80;
+        let ir3_divided = (self.data_registers[11] & 0xFFFF).sign_extend(15) / 0x80;
+
+        // Now saturate them.
+        let ir1_saturated = ir1_divided.clamp(0, 0x1F);
+        let ir2_saturated = ir2_divided.clamp(0, 0x1F);
+        let ir3_saturated = ir3_divided.clamp(0, 0x1F);
+
+        // Now arrange them in order - no bitmasking needed given they are saturated
+        // already to 0 - 0x1F.
+        (ir3_saturated << 10) | (ir2_saturated << 5) | ir1_saturated
+    }
+
+    /// This function receives values from IRGB and transforms/writes them to IR1, IR2 and IR3.
+    fn calculate_and_write_irgb(&mut self, value: i32) {
+
+        // Extract value into constituent parts, multiplying each one by 0x80.
+        let ir1_multiplied = (value & 0x1F) * 0x80;
+        let ir2_multiplied = ((value >> 5) & 0x1F) * 0x80;
+        let ir3_multiplied = ((value >> 10) & 0x1F) * 0x80;
+
+        // Save this into the correct registers.
+        self.data_registers[9] = ir1_multiplied;
+        self.data_registers[10] = ir2_multiplied;
+        self.data_registers[11] = ir3_multiplied;
     }
 
     /// This function deals with GTE functions that are invoked on CP2 from the CPU.
