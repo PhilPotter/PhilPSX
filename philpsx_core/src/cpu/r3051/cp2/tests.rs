@@ -219,3 +219,42 @@ fn casting_should_extend_sign_too() {
 
     assert_eq!(output, -1_i64)
 }
+
+// Below tests are for opcodes themselves and thus use public functionality only, such
+// that register manipulation via read/write routines works as expected.
+#[test]
+fn sqr_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Set IR1, IR2 and IR3 to 0xB5, 0xB5 and 0xFFF, thus
+    // triggering saturation only on IR3.
+    cp2.write_data_reg(9, 0xB5, false);
+    cp2.write_data_reg(10, 0xB5, false);
+    cp2.write_data_reg(11, 0xFFF, false);
+
+    // Execute SQR.
+    cp2.handle_sqr(0x2800E04B);
+
+    // Now read registers.
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+    let flag = cp2.read_control_reg(31);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+
+    // Assert results are correct.
+    assert_eq!(ir1, 0x7FF9);
+    assert_eq!(ir2, 0x7FF9);
+    assert_eq!(ir3, 0x7FFF);
+    assert_eq!(mac1, 0x7FF9);
+    assert_eq!(mac2, 0x7FF9);
+    assert_eq!(mac3, 0xFFE001);
+    assert_eq!(flag, 0x400000);
+    assert_eq!(irgb, 0x7FFF);
+    assert_eq!(orgb, 0x7FFF);
+}
