@@ -463,14 +463,14 @@ impl CP2 {
             );
 
             // Set MAC1, MAC2 and MAC3 flags accordingly.
-            let mac1 = mac_results.top();
-            let mac2 = mac_results.middle();
-            let mac3 = mac_results.bottom();
+            let mut mac1 = mac_results.top();
+            let mut mac2 = mac_results.middle();
+            let mut mac3 = mac_results.bottom();
 
             // Check bounds.
-            self.handle_unsaturated_result(mac1, MAC1);
-            self.handle_unsaturated_result(mac2, MAC2);
-            self.handle_unsaturated_result(mac3, MAC3);
+            mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+            mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+            mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
             // Set IR1, IR2 and IR3 - dealing with flags too,
             // saturation should be -0x8000..0x7FFF, regardless of lm bit.
@@ -519,19 +519,19 @@ impl CP2 {
             // Use division result and set MAC0 flag if needed.
             // Also handle SX2/SY2/IR0 saturation and flags as needed.
             let mut mac0 = division_result * ir1 + ofx;
-            self.handle_unsaturated_result(mac0, MAC0);
+            mac0 = self.handle_unsaturated_result_and_truncate(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0 = mac0.sign_extend(31);
 
             let sx2 = self.handle_saturated_result(mac0 / 0x10000, SX2, false, sf);
             mac0 = division_result * ir2 + ofy;
-            self.handle_unsaturated_result(mac0, MAC0);
+            mac0 = self.handle_unsaturated_result_and_truncate(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0 = mac0.sign_extend(31);
 
             let sy2 = self.handle_saturated_result(mac0 / 0x10000, SY2, false, sf);
             mac0 = division_result * dqa + dqb;
-            self.handle_unsaturated_result(mac0, MAC0);
+            mac0 = self.handle_unsaturated_result_and_truncate(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
             mac0.sign_extend(31);
 
@@ -573,10 +573,10 @@ impl CP2 {
         let sy2 = ((self.data_registers[14].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15); // SY2.
 
         // Perform calculation.
-        let mac0 = sx0 * sy1 + sx1 * sy2 + sx2 * sy0 - sx0 * sy2 - sx1 * sy0 - sx2 * sy1;
+        let mut mac0 = sx0 * sy1 + sx1 * sy2 + sx2 * sy0 - sx0 * sy2 - sx1 * sy0 - sx2 * sy1;
 
         // Check and set flags if needed.
-        self.handle_unsaturated_result(mac0, MAC0);
+        mac0 = self.handle_unsaturated_result_and_truncate(mac0, MAC0);
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
@@ -610,9 +610,9 @@ impl CP2 {
         let d3 = ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15); // RT33.
 
         // Perform calculation, and shift result right by (sf * 12), preserving sign bit.
-        let temp1 = (ir3 * d2 - ir2 * d3) >> (sf * 12);
-        let temp2 = (ir1 * d3 - ir3 * d1) >> (sf * 12);
-        let temp3 = (ir2 * d1 - ir1 * d2) >> (sf * 12);
+        let mut temp1 = (ir3 * d2 - ir2 * d3) >> (sf * 12);
+        let mut temp2 = (ir1 * d3 - ir3 * d1) >> (sf * 12);
+        let mut temp3 = (ir2 * d1 - ir1 * d2) >> (sf * 12);
 
         // Store results in MAC1, MAC2 and MAC3 registers.
         self.data_registers[25] = temp1 as i32; // MAC1.
@@ -620,9 +620,9 @@ impl CP2 {
         self.data_registers[27] = temp3 as i32; // MAC3.
 
         // Set relevant MAC1, MAC2 and MAC3 flag bits.
-        self.handle_unsaturated_result(temp1, MAC1);
-        self.handle_unsaturated_result(temp2, MAC2);
-        self.handle_unsaturated_result(temp3, MAC3);
+        temp1 = self.handle_unsaturated_result_and_truncate(temp1, MAC1);
+        temp2 = self.handle_unsaturated_result_and_truncate(temp2, MAC2);
+        temp3 = self.handle_unsaturated_result_and_truncate(temp3, MAC3);
 
         // Set IR1, IR2 and IR3 registers and saturation flag bits.
         // Determine the lower saturation bound using lm bit status.
@@ -686,9 +686,9 @@ impl CP2 {
             let mut mac3 = b << 16;
 
             // Check for and set MAC1, MAC2 and MAC3 flags if needed.
-            self.handle_unsaturated_result(mac1, MAC1);
-            self.handle_unsaturated_result(mac2, MAC2);
-            self.handle_unsaturated_result(mac3, MAC3);
+            mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+            mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+            mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
             // Perform first common stage of calculation.
             // Saturate IR1, IR2 and IR3 results, setting flags as needed.
@@ -703,9 +703,9 @@ impl CP2 {
             mac3 += ir3 * ir0;
 
             // Check for and set MAC1, MAC2 and MAC3 flags again if needed.
-            self.handle_unsaturated_result(mac1, MAC1);
-            self.handle_unsaturated_result(mac2, MAC2);
-            self.handle_unsaturated_result(mac3, MAC3);
+            mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+            mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+            mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
             // Shift MAC1, MAC2 and MAC3 by (sf * 12) bits, preserving sign bit.
 	        mac1 >>= sf * 12;
@@ -713,9 +713,9 @@ impl CP2 {
 	        mac3 >>= sf * 12;
 
             // Check for and set MAC1, MAC2 and MAC3 flags again if needed.
-            self.handle_unsaturated_result(mac1, MAC1);
-            self.handle_unsaturated_result(mac2, MAC2);
-            self.handle_unsaturated_result(mac3, MAC3);
+            mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+            mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+            mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
             // Store MAC1, MAC2 and MAC3 to IR1, IR2 and IR3, saturating as needed.
             ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
@@ -779,9 +779,9 @@ impl CP2 {
         let mut mac3 = ir3 << 12;
 
         // Handle MAC1, MAC2 and MAC3 flags.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Perform first common stage of calculation.
         ir1 = ((rfc << 12) - mac1) >> (sf * 12);
@@ -800,9 +800,9 @@ impl CP2 {
         mac3 += ir3 * ir0;
 
         // Handle MAC1, MAC2 and MAC3 flags again.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Shift MAC1, MAC2 and MAC3 by (sf * 12) bits, preserving sign bit.
         mac1 >>= sf * 12;
@@ -810,9 +810,9 @@ impl CP2 {
         mac3 >>= sf * 12;
 
         // Handle MAC1, MAC2 and MAC3 flags again.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Store MAC1, MAC2 and MAC3 to IR1, IR2 and IR3, handling saturation and flags.
         ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
@@ -1068,9 +1068,11 @@ impl CP2 {
         self.data_registers[26] = result_vector.middle() as i32; // MAC2.
         self.data_registers[27] = result_vector.bottom() as i32; // MAC3.
 
-        self.handle_unsaturated_result(result_vector.top(), MAC1);
-        self.handle_unsaturated_result(result_vector.middle(), MAC2);
-        self.handle_unsaturated_result(result_vector.bottom(), MAC3);
+        result_vector = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(result_vector.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(result_vector.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(result_vector.bottom(), MAC3)
+        );
 
         // Set IR1, IR2 and IR3 registers and saturation flag bits.
         self.data_registers[9] = self.handle_saturated_result(result_vector.top(), IR1, lm, sf) as i32;
@@ -1194,9 +1196,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Setup IR1, IR2 and IR3, handling flags too.
             let mut ir_vector = CP2Vector::new(
@@ -1215,9 +1219,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Deal with IR1, IR2 and IR3 again, handling flags too.
             ir_vector = CP2Vector::new(
@@ -1234,9 +1240,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Peform NCDx only calculation, saturating afterwards but ignoring lm bit.
             ir_vector = CP2Vector::new(
@@ -1268,9 +1276,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Perform second NCCx stage calculation, shifting MAC1, MAC2 and MAC3 by
             // (sf * 12) and preserving sign bit.
@@ -1281,9 +1291,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Deal with IR1, IR2 and IR3 again, handling flags too.
             ir_vector = CP2Vector::new(
@@ -1396,9 +1408,11 @@ impl CP2 {
         );
 
         // Now set MAC1, MAC2 and MAC3 flags accordingly.
-        self.handle_unsaturated_result(mac_results.top(), MAC1);
-        self.handle_unsaturated_result(mac_results.middle(), MAC2);
-        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+        mac_results = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+        );
 
         // Store results to IR1, IR2 and IR3.
         ir_vector = CP2Vector::new(
@@ -1415,9 +1429,11 @@ impl CP2 {
         );
 
         // Now again set MAC1, MAC2 and MAC3 flags accordingly.
-        self.handle_unsaturated_result(mac_results.top(), MAC1);
-        self.handle_unsaturated_result(mac_results.middle(), MAC2);
-        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+        mac_results = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+        );
 
         // Perform first part of CDP-only stage of calculation.
         ir_vector = CP2Vector::new(
@@ -1442,9 +1458,11 @@ impl CP2 {
         );
 
         // Now again set MAC1, MAC2 and MAC3 flags accordingly.
-        self.handle_unsaturated_result(mac_results.top(), MAC1);
-        self.handle_unsaturated_result(mac_results.middle(), MAC2);
-        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+        mac_results = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+        );
 
         // Shift MAC1, MAC2 and MAC3 right by (sf * 12) bits, preserving sign bit.
         mac_results = CP2Vector::new(
@@ -1454,9 +1472,11 @@ impl CP2 {
         );
 
         // Now again set MAC1, MAC2 and MAC3 flags accordingly.
-        self.handle_unsaturated_result(mac_results.top(), MAC1);
-        self.handle_unsaturated_result(mac_results.middle(), MAC2);
-        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+        mac_results = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+        );
 
         // Store results to IR1, IR2 and IR3 again.
         ir_vector = CP2Vector::new(
@@ -1590,9 +1610,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Setup IR1, IR2 and IR3, handling flags too.
             let mut ir_vector = CP2Vector::new(
@@ -1611,9 +1633,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Deal with IR1, IR2 and IR3 again, handling flags too.
             ir_vector = CP2Vector::new(
@@ -1630,9 +1654,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Peform second NCCx stage calculation, shifting MAC1, MAC2 and MAC3 by (sf * 12),
             // and preserving sign bit.
@@ -1643,9 +1669,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Deal with IR1, IR2 and IR3 again, handling flags too.
             ir_vector = CP2Vector::new(
@@ -1748,9 +1776,11 @@ impl CP2 {
         );
 
         // Now set MAC1, MAC2 and MAC3 flags accordingly.
-        self.handle_unsaturated_result(mac_results.top(), MAC1);
-        self.handle_unsaturated_result(mac_results.middle(), MAC2);
-        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+        mac_results = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+        );
 
         // Store results to IR1, IR2 and IR3.
         ir_vector = CP2Vector::new(
@@ -1767,9 +1797,11 @@ impl CP2 {
         );
 
         // Now again set MAC1, MAC2 and MAC3 flags accordingly.
-        self.handle_unsaturated_result(mac_results.top(), MAC1);
-        self.handle_unsaturated_result(mac_results.middle(), MAC2);
-        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+        mac_results = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+        );
 
         // Shift MAC1, MAC2 and MAC3 right by (sf * 12) bits, preserving sign bit.
         mac_results = CP2Vector::new(
@@ -1779,9 +1811,11 @@ impl CP2 {
         );
 
         // Now again set MAC1, MAC2 and MAC3 flags accordingly.
-        self.handle_unsaturated_result(mac_results.top(), MAC1);
-        self.handle_unsaturated_result(mac_results.middle(), MAC2);
-        self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+        mac_results = CP2Vector::new(
+            self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+            self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+            self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+        );
 
         // Store results to IR1, IR2 and IR3 again.
         ir_vector = CP2Vector::new(
@@ -1912,9 +1946,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Setup IR1, IR2 and IR3, handling flags too.
             let mut ir_vector = CP2Vector::new(
@@ -1933,9 +1969,11 @@ impl CP2 {
             );
 
             // Handle flags for MAC1, MAC2 and MAC3 again.
-            self.handle_unsaturated_result(mac_results.top(), MAC1);
-            self.handle_unsaturated_result(mac_results.middle(), MAC2);
-            self.handle_unsaturated_result(mac_results.bottom(), MAC3);
+            mac_results = CP2Vector::new(
+                self.handle_unsaturated_result_and_truncate(mac_results.top(), MAC1),
+                self.handle_unsaturated_result_and_truncate(mac_results.middle(), MAC2),
+                self.handle_unsaturated_result_and_truncate(mac_results.bottom(), MAC3)
+            );
 
             // Deal with IR1, IR2 and IR3 again, handling flags too.
             ir_vector = CP2Vector::new(
@@ -2052,9 +2090,9 @@ impl CP2 {
         let mut mac3 = (b * ir3) << 4;
 
         // Handle MAC1, MAC2 and MAC3 flags.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Perform first common stage of calculation, saturating and flag setting as needed.
         // Ignore lm bit for this first set of writes.
@@ -2068,9 +2106,9 @@ impl CP2 {
         mac3 += ir3 * ir0;
 
         // Handle MAC1, MAC2 and MAC3 flags again.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Shift MAC1, MAC2 and MAC3 by (sf * 12) bits, preserving sign bit.
         mac1 >>= sf * 12;
@@ -2078,9 +2116,9 @@ impl CP2 {
         mac3 >>= sf * 12;
 
         // Handle MAC1, MAC2 and MAC3 flags again.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Store MAC1, MAC2 and MAC3 to IR1, IR3 and IR3, handling saturation + flags.
         ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
@@ -2126,8 +2164,8 @@ impl CP2 {
 
         // Perform calculation.
         // Set flags where needed, and apply saturation to OTZ if needed.
-        let mac0 = zsf3 * (sz1 + sz2 + sz3);
-        self.handle_unsaturated_result(mac0, MAC0);
+        let mut mac0 = zsf3 * (sz1 + sz2 + sz3);
+        mac0 = self.handle_unsaturated_result_and_truncate(mac0, MAC0);
         let otz = self.handle_saturated_result(mac0 / 0x1000, SZ3, false, 0);
 
         // Calculate flag bit 31.
@@ -2156,8 +2194,8 @@ impl CP2 {
 
         // Perform calculation.
         // Set flags where needed, and apply saturation to OTZ if needed.
-        let mac0 = zsf4 * (sz0 + sz1 + sz2 + sz3);
-        self.handle_unsaturated_result(mac0, MAC0);
+        let mut mac0 = zsf4 * (sz0 + sz1 + sz2 + sz3);
+        mac0 = self.handle_unsaturated_result_and_truncate(mac0, MAC0);
         let otz = self.handle_saturated_result(mac0 / 0x1000, SZ3, false, 0);
 
         // Calculate flag bit 31.
@@ -2189,14 +2227,14 @@ impl CP2 {
         let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
 
         // Perform calculations.
-        let mac1 = (ir1 * ir0) >> (sf * 12);
-        let mac2 = (ir2 * ir0) >> (sf * 12);
-        let mac3 = (ir3 * ir0) >> (sf * 12);
+        let mut mac1 = (ir1 * ir0) >> (sf * 12);
+        let mut mac2 = (ir2 * ir0) >> (sf * 12);
+        let mut mac3 = (ir3 * ir0) >> (sf * 12);
 
         // Check/set flags for MAC1, MAC2 and MAC3.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Store MAC1, MAC2 and MAC3 to IR1, IR2 and IR3.
         ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
@@ -2248,9 +2286,9 @@ impl CP2 {
         let mut mac3 = (self.data_registers[27] as i64) << (sf * 12);
 
         // Handle MAC1, MAC2 and MAC3 flags.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Retrieve R0, IR1, IR2 and IR3, sign extending as necessary.
         let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15);
@@ -2264,9 +2302,9 @@ impl CP2 {
         mac3 = ((ir3 * ir0) + mac3) >> (sf * 12);
 
         // Check/set flags for MAC1, MAC2 and MAC3 again.
-        self.handle_unsaturated_result(mac1, MAC1);
-        self.handle_unsaturated_result(mac2, MAC2);
-        self.handle_unsaturated_result(mac3, MAC3);
+        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Store MAC1, MAC2 and MAC3 to IR1, IR2 and IR3.
         ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
@@ -2303,7 +2341,7 @@ impl CP2 {
     /// This function handles overflow/underflow detection for given results in MAC0/1/2/3, which we
     /// do not saturate.
     #[inline(always)]
-    fn handle_unsaturated_result(&mut self, result: i64, result_type: UnsaturatedFlagRegisterField) {
+    fn handle_unsaturated_result_and_truncate(&mut self, result: i64, result_type: UnsaturatedFlagRegisterField) -> i64 {
 
         let (lower_bound, upper_bound) = match result_type {
 
@@ -2339,6 +2377,16 @@ impl CP2 {
         }
         else if result > upper_bound {
             self.control_registers[31] |= upper_bit_flag;
+        }
+
+        // Finally, we should chop everything past the first 32 bits (now that we've analysed them).
+        // Sign extend from bit 31 and return this. This means that later comparisons will work based
+        // upon this truncated/sign-extended version, thus evaluating as positive/negative based on this
+        // rather than the potentially >32 bits original.
+        if result & 0x80000000 == 0 {
+            result & 0xFFFFFFFF
+        } else {
+            result | 0xFFFFFFFF_00000000_u64 as i64
         }
     }
 

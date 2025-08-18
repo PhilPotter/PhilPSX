@@ -287,7 +287,7 @@ fn rtps_should_product_correct_result() {
     println!("sz3: {:#10X}", sz3);
 
     // Assert results are correct.
-    assert_eq!(ir1, 0x8000);
+    assert_eq!(ir1, 0xFFFF8000_u32 as i32);
     assert_eq!(ir2, 0x7FFF);
     assert_eq!(ir3, 0x7FFF);
     assert_eq!(mac0, 0xF35790C9_u32 as i32);
