@@ -272,20 +272,6 @@ fn rtps_should_product_correct_result() {
     let sxyp = cp2.read_data_reg(15);
     let sz3 = cp2.read_data_reg(19);
 
-    println!("ir1: {:#10X}", ir1);
-    println!("ir2: {:#10X}", ir2);
-    println!("ir3: {:#10X}", ir3);
-    println!("mac0: {:#10X}", mac0);
-    println!("mac1: {:#10X}", mac1);
-    println!("mac2: {:#10X}", mac2);
-    println!("mac3: {:#10X}", mac3);
-    println!("flag: {:#10X}", flag);
-    println!("irgb: {:#10X}", irgb);
-    println!("orgb: {:#10X}", orgb);
-    println!("sxy2: {:#10X}", sxy2);
-    println!("sxyp: {:#10X}", sxyp);
-    println!("sz3: {:#10X}", sz3);
-
     // Assert results are correct.
     assert_eq!(ir1, 0xFFFF8000_u32 as i32);
     assert_eq!(ir2, 0x7FFF);
