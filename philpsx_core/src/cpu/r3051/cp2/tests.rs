@@ -41,12 +41,21 @@ fn read_data_reg_should_work() {
         assert_eq!(output, 0x7000);
     }
 
-    for i in [23, 28] {
-        cp2.data_registers[i] = 1;
-        let output = cp2.read_data_reg(i as i32);
-        assert_eq!(output, 0);
-    }
+    // Should always return 0.
+    cp2.write_data_reg(23, 1, false);
+    let output = cp2.read_data_reg(23);
+    assert_eq!(output, 0);
+    
+    // IRGB - writable and readable.
+    cp2.write_data_reg(28, 0x1F, false);
+    let output = cp2.read_data_reg(28);
+    assert_eq!(output, 0x1F);
 
+    // ORGB - readonly mirror of IRGB.
+    cp2.write_data_reg(29, 0, false);
+    let output = cp2.read_data_reg(29);
+    assert_eq!(output, 0x1F);
+    
     cp2.data_registers[29] = 123;
     cp2.data_registers[11] = 0xF80;
     cp2.data_registers[10] = 0xF80;
