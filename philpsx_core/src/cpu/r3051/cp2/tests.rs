@@ -289,6 +289,30 @@ fn rtps_should_product_correct_result() {
 }
 
 #[test]
+fn nclip_should_product_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup SXY0, SXY1 and SXY2.
+    cp2.write_data_reg(12, 0x29F498C6, false);
+    cp2.write_data_reg(13, 0x1ACE8EBE, false);
+    cp2.write_data_reg(14, 0x99A9E1F1_u32 as i32, false);
+
+    // Execute NCLIP.
+    cp2.handle_nclip(0x4BE00006);
+
+    // Now read registers.
+    let sxyp = cp2.read_data_reg(15);
+    let mac0 = cp2.read_data_reg(24);
+    let flag = cp2.read_control_reg(31);
+
+    // Assert results are correct.
+    assert_eq!(sxyp, 0x99A9E1F1_u32 as i32);
+    assert_eq!(mac0, 0x09FBD1BA);
+    assert_eq!(flag, 0);
+}
+
+#[test]
 fn sqr_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
