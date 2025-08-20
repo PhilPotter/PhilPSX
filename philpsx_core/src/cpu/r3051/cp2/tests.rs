@@ -236,7 +236,7 @@ fn casting_should_extend_sign_too() {
 // the NOPSX debugger, and is the next best thing from exhaustively testing ever edge case
 // which is too much for a passion project like this.
 #[test]
-fn rtps_should_product_correct_result() {
+fn rtps_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
 
@@ -298,7 +298,7 @@ fn rtps_should_product_correct_result() {
 }
 
 #[test]
-fn nclip_should_product_correct_result() {
+fn nclip_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
 
@@ -322,7 +322,7 @@ fn nclip_should_product_correct_result() {
 }
 
 #[test]
-fn op_should_product_correct_result() {
+fn op_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
 
@@ -360,6 +360,48 @@ fn op_should_product_correct_result() {
     assert_eq!(mac1, 0xF757E814_u32 as i32);
     assert_eq!(mac2, 0xF2EA5000_u32 as i32);
     assert_eq!(mac3, 0x12591F24);
+}
+
+#[test]
+fn dpcs_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup IR0.
+    cp2.write_data_reg(8, 0x551A, false);
+
+    // Setup RFC, GFC and BFC.
+    cp2.write_control_reg(21, 0x7A63EA20, false);
+    cp2.write_control_reg(22, 0xBCF74DF3_u32 as i32, false);
+    cp2.write_control_reg(23, 0x9AA79D4C_u32 as i32, false);
+
+    // Write RGBC.
+    cp2.write_data_reg(6, 0xDDF85B4F_u32 as i32, false);
+
+    // Execute DPCS (with sf bit set to 1 and lm bit set to 0).
+    cp2.handle_common_dpc(0x4BE80010, InstructionVariant::Single);
+
+    // Now read registers.
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(irgb, 0x001F);
+    assert_eq!(orgb, 0x001F);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0x7FFF);
+    assert_eq!(ir2, 0xFFFF8000_u32 as i32);
+    assert_eq!(ir3, 0xFFFF8000_u32 as i32);
+    assert_eq!(mac1, 0x0002ADBA);
+    assert_eq!(mac2, 0xFFFD5CE0_u32 as i32);
+    assert_eq!(mac3, 0xFFFD66B0_u32 as i32);
 }
 
 #[test]
