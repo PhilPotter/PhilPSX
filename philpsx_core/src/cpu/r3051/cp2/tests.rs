@@ -322,6 +322,47 @@ fn nclip_should_product_correct_result() {
 }
 
 #[test]
+fn op_should_product_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup IR1, IR2 and IR3.
+    cp2.write_data_reg(9, 0xD0C0, false);
+    cp2.write_data_reg(10, 0xEFEF, false);
+    cp2.write_data_reg(11, 0xDE40, false);
+
+    // Setup RT11, RT22 and RT33.
+    cp2.write_control_reg(0, 0x9CDC, false);
+    cp2.write_control_reg(2, 0x41B3, false);
+    cp2.write_control_reg(4, 0x0014, false);
+
+    // Execute OP (with sf bit set to 0 and lm bit set to 1).
+    cp2.handle_op(0x4BE0040C);
+
+    // Now read registers.
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(irgb, 0x7C00);
+    assert_eq!(orgb, 0x7C00);
+    assert_eq!(flag, 0x81C00000_u32 as i32);
+    assert_eq!(ir1, 0);
+    assert_eq!(ir2, 0);
+    assert_eq!(ir3, 0x7FFF);
+    assert_eq!(mac1, 0xF757E814_u32 as i32);
+    assert_eq!(mac2, 0xF2EA5000_u32 as i32);
+    assert_eq!(mac3, 0x12591F24);
+}
+
+#[test]
 fn sqr_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
