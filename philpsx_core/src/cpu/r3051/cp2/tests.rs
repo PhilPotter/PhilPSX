@@ -452,6 +452,51 @@ fn intpl_should_produce_correct_result() {
 }
 
 #[test]
+fn mvmva_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup RBK, GBK and BBK.
+    cp2.write_control_reg(13, 0x31D403CE, false);
+    cp2.write_control_reg(14, 0xC38A24BD_u32 as i32, false);
+    cp2.write_control_reg(15, 0x3E2C6816, false);
+
+    // Setup VX0, VY0 and VZ0.
+    cp2.write_data_reg(0, 0x07E7D758, false);
+    cp2.write_data_reg(1, 0xD24A, false);
+
+    // Setup IR0, RT13 and RT22.
+    cp2.write_data_reg(8, 0x52E1, false);
+    cp2.write_control_reg(1, 0xDEC2, false);
+    cp2.write_control_reg(2, 0xF851, false);
+
+    // Execute MVMVA (with sf bit set to 0 and lm bit set to 1).
+    cp2.handle_mvmva(0x4BE62412);
+
+    // Now read registers.
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(irgb, 0x001F);
+    assert_eq!(orgb, 0x001F);
+    assert_eq!(flag, 0x81C00000_u32 as i32);
+    assert_eq!(ir1, 0x7FFF);
+    assert_eq!(ir2, 0);
+    assert_eq!(ir3, 0);
+    assert_eq!(mac1, 0x31829CAA);
+    assert_eq!(mac2, 0xAC7C27D2_u32 as i32);
+    assert_eq!(mac3, 0xC8DC4459_u32 as i32);
+}
+
+#[test]
 fn sqr_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();

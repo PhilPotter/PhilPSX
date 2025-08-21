@@ -1019,29 +1019,34 @@ impl CP2 {
             ),
 
             // Reserved (garbage matrix). If we get here, then m_matrix must be 3 due to the math above.
-            _ => CP2Matrix::new(
+            _ => {
+                let rt13 = ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15);
+                let rt22 = ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15);
 
-                // Top row.
-                [
-                    -0x60,
-                    0x60,
-                    ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15) // IR0.
-                ],
+                CP2Matrix::new(
 
-                // Middle row.
-                [
-                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15), // RT13.
-                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15), // RT13.
-                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)  // RT13.
-                ],
+                    // Top row.
+                    [
+                        -0x60,
+                        0x60,
+                        ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15) // IR0.
+                    ],
 
-                // Bottom row.
-                [
-                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22.
-                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22.
-                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15)  // RT22.
-                ]
-            ),
+                    // Middle row.
+                    [
+                        rt13, // RT13.
+                        rt13, // RT13.
+                        rt13  // RT13.
+                    ],
+
+                    // Bottom row.
+                    [
+                        rt22, // RT22.
+                        rt22, // RT22.
+                        rt22  // RT22.
+                    ]
+                )
+            },
         };
 
         // Perform calculation now.
