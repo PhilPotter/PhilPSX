@@ -405,6 +405,53 @@ fn dpcs_should_produce_correct_result() {
 }
 
 #[test]
+fn intpl_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup IR0, IR1, IR2 and IR3.
+    cp2.write_data_reg(8, 0x5DF2, false);
+    cp2.write_data_reg(9, 0x291A, false);
+    cp2.write_data_reg(10, 0x6D59, false);
+    cp2.write_data_reg(11, 0xC84E, false);
+
+    // Setup RFC, GFC and BFC.
+    cp2.write_control_reg(21, 0x6AF00171, false);
+    cp2.write_control_reg(22, 0x1D0974AA, false);
+    cp2.write_control_reg(23, 0x1DB84F2E, false);
+
+    // Write CODE.
+    cp2.write_data_reg(6, 0xE4, false);
+
+    // Execute INTPL (with sf bit set to 1 and lm bit set to 0).
+    cp2.handle_intpl(0x4BE80011);
+
+    // Now read registers.
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb2, 0x00FFFFFF);
+    assert_eq!(irgb, 0x7FFF);
+    assert_eq!(orgb, 0x7FFF);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0x7FFF);
+    assert_eq!(ir2, 0x7FFF);
+    assert_eq!(ir3, 0x7FFF);
+    assert_eq!(mac1, 0x000318A4);
+    assert_eq!(mac2, 0x00035CE3);
+    assert_eq!(mac3, 0x0002B7D8);
+}
+
+#[test]
 fn sqr_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
