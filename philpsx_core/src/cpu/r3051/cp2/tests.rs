@@ -421,7 +421,7 @@ fn intpl_should_produce_correct_result() {
     cp2.write_control_reg(23, 0x1DB84F2E, false);
 
     // Write CODE.
-    cp2.write_data_reg(6, 0xE4, false);
+    cp2.write_data_reg(6, 0xE4000000_u32 as i32, false);
 
     // Execute INTPL (with sf bit set to 1 and lm bit set to 0).
     cp2.handle_intpl(0x4BE80011);
@@ -439,7 +439,7 @@ fn intpl_should_produce_correct_result() {
     let mac3 = cp2.read_data_reg(27);
 
     // Assert results are correct.
-    assert_eq!(rgb2, 0x00FFFFFF);
+    assert_eq!(rgb2, 0xE4FFFFFF_u32 as i32);
     assert_eq!(irgb, 0x7FFF);
     assert_eq!(orgb, 0x7FFF);
     assert_eq!(flag, 0x81F80000_u32 as i32);
