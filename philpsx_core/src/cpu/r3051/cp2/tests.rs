@@ -233,7 +233,7 @@ fn casting_should_extend_sign_too() {
 // Below tests are for opcodes themselves and thus use public functionality only, such
 // that register manipulation via read/write routines works as expected. Also, the input
 // data is mostly picked at random. This is more likely to uncover bugs when testing against
-// the NOPSX debugger, and is the next best thing from exhaustively testing ever edge case
+// the NOPSX debugger, and is the next best thing from exhaustively testing every edge case
 // which is too much for a passion project like this.
 #[test]
 fn rtps_should_produce_correct_result() {
@@ -620,6 +620,65 @@ fn cdp_should_produce_correct_result() {
     assert_eq!(mac1, 0x000208DF);
     assert_eq!(mac2, 0x00021F5F);
     assert_eq!(mac3, 0xFFFE24A3_u32 as i32);
+}
+
+#[test]
+fn nccs_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup light matrix.
+    cp2.write_control_reg(8, 0x81059853_u32 as i32, false);
+    cp2.write_control_reg(9, 0xDD1320C6_u32 as i32, false);
+    cp2.write_control_reg(10, 0x115712DC, false);
+    cp2.write_control_reg(11, 0x0686DAA6, false);
+    cp2.write_control_reg(12, 0x31E3, false);
+
+    // Setup light colour matrix.
+    cp2.write_control_reg(16, 0xE71DAD51_u32 as i32, false);
+    cp2.write_control_reg(17, 0xEFAFF0CE_u32 as i32, false);
+    cp2.write_control_reg(18, 0xCC7B8EB3_u32 as i32, false);
+    cp2.write_control_reg(19, 0x2845AE41, false);
+    cp2.write_control_reg(20, 0xC8A2, false);
+
+    // Setup RBK, GBK and BBK.
+    cp2.write_control_reg(13, 0xB9BFE5E9_u32 as i32, false);
+    cp2.write_control_reg(14, 0x8A717DC9_u32 as i32, false);
+    cp2.write_control_reg(15, 0xEBEBDD4E_u32 as i32, false);
+
+    // Write RGBC.
+    cp2.write_data_reg(6, 0xECCC7792_u32 as i32, false);
+
+    // Write VX0, VY0 and VZ0.
+    cp2.write_data_reg(0, 0x7B348CA2, false);
+    cp2.write_data_reg(1, 0xEF6B, false);
+
+    // Execute NCCS (with sf bit set to 1 and lm bit set to 1).
+    cp2.handle_common_ncc(0x4BE8041B, InstructionVariant::Single);
+
+    // Now read registers.
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb2, 0xEC000000_u32 as i32);
+    assert_eq!(irgb, 0);
+    assert_eq!(orgb, 0);
+    assert_eq!(flag, 0x81C00000_u32 as i32);
+    assert_eq!(ir1, 0);
+    assert_eq!(ir2, 0);
+    assert_eq!(ir3, 0);
+    assert_eq!(mac1, 0);
+    assert_eq!(mac2, 0);
+    assert_eq!(mac3, 0);
 }
 
 #[test]
