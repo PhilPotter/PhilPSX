@@ -564,6 +564,65 @@ fn ncds_should_produce_correct_result() {
 }
 
 #[test]
+fn cdp_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup RBK, GBK and BBK.
+    cp2.write_control_reg(13, 0x7D4D7981, false);
+    cp2.write_control_reg(14, 0x4EDC826D, false);
+    cp2.write_control_reg(15, 0x3E0C38CA, false);
+
+    // Setup RFC, GFC and BFC.
+    cp2.write_control_reg(21, 0xD9B39721_u32 as i32, false);
+    cp2.write_control_reg(22, 0xECD4B243_u32 as i32, false);
+    cp2.write_control_reg(23, 0x110C2255, false);
+
+    // Write IR0, IR1, IR2 and IR3.
+    cp2.write_data_reg(8, 0xC384, false);
+    cp2.write_data_reg(9, 0x0F69, false);
+    cp2.write_data_reg(10, 0xB7AC, false);
+    cp2.write_data_reg(11, 0xF692, false);
+
+    // Write RGBC.
+    cp2.write_data_reg(6, 0xA511774A_u32 as i32, false);
+
+    // Setup light colour matrix.
+    cp2.write_control_reg(16, 0x8EE57615_u32 as i32, false);
+    cp2.write_control_reg(17, 0xB8B4B74E_u32 as i32, false);
+    cp2.write_control_reg(18, 0x35AC624B, false);
+    cp2.write_control_reg(19, 0x8F2872D8_u32 as i32, false);
+    cp2.write_control_reg(20, 0x2286, false);
+
+    // Execute CDP (with sf bit set to 1 and lm bit set to 0).
+    cp2.handle_cdp(0x4BE80014);
+
+    // Now read registers.
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb2, 0xA500FFFF_u32 as i32);
+    assert_eq!(irgb, 0x03FF);
+    assert_eq!(orgb, 0x03FF);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0x7FFF);
+    assert_eq!(ir2, 0x7FFF);
+    assert_eq!(ir3, 0xFFFF8000_u32 as i32);
+    assert_eq!(mac1, 0x000208DF);
+    assert_eq!(mac2, 0x00021F5F);
+    assert_eq!(mac3, 0xFFFE24A3_u32 as i32);
+}
+
+#[test]
 fn sqr_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
