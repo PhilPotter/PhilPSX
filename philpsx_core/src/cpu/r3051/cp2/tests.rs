@@ -623,6 +623,81 @@ fn cdp_should_produce_correct_result() {
 }
 
 #[test]
+fn ncdt_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup light matrix.
+    cp2.write_control_reg(8, 0x45F14941, false);
+    cp2.write_control_reg(9, 0x287577FE, false);
+    cp2.write_control_reg(10, 0x63F3B255, false);
+    cp2.write_control_reg(11, 0xB41A47A8_u32 as i32, false);
+    cp2.write_control_reg(12, 0xA39D, false);
+
+    // Setup light colour matrix.
+    cp2.write_control_reg(16, 0xA2F1D4CD_u32 as i32, false);
+    cp2.write_control_reg(17, 0x2CDE7E82, false);
+    cp2.write_control_reg(18, 0x68C4537A, false);
+    cp2.write_control_reg(19, 0xD19306B0_u32 as i32, false);
+    cp2.write_control_reg(20, 0x5F8C, false);
+
+    // Setup RBK, GBK and BBK.
+    cp2.write_control_reg(13, 0x7CA6292C, false);
+    cp2.write_control_reg(14, 0x9C6B02A5_u32 as i32, false);
+    cp2.write_control_reg(15, 0x05E85B0F, false);
+
+    // Setup RFC, GFC and BFC.
+    cp2.write_control_reg(21, 0x243DA360, false);
+    cp2.write_control_reg(22, 0xC089D527_u32 as i32, false);
+    cp2.write_control_reg(23, 0xDA171A5F_u32 as i32, false);
+
+    // Write IR0.
+    cp2.write_data_reg(8, 0x249D, false);
+
+    // Write RGBC.
+    cp2.write_data_reg(6, 0xB745516E_u32 as i32, false);
+
+    // Setup VXx, VYx and VZx.
+    cp2.write_data_reg(0, 0xA59B584C_u32 as i32, false);
+    cp2.write_data_reg(1, 0xDDA8, false);
+    cp2.write_data_reg(2, 0xDB407286_u32 as i32, false);
+    cp2.write_data_reg(3, 0x3ED7, false);
+    cp2.write_data_reg(4, 0x72935978, false);
+    cp2.write_data_reg(5, 0x1876, false);
+
+    // Execute NCDT (with sf bit set to 0 and lm bit set to 1).
+    cp2.handle_common_ncd(0x4BE00416, InstructionVariant::Triple);
+
+    // Now read registers.
+    let rgb0 = cp2.read_data_reg(20);
+    let rgb1 = cp2.read_data_reg(21);
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb0, 0xB7FF0000_u32 as i32);
+    assert_eq!(rgb1, 0xB7FF0000_u32 as i32);
+    assert_eq!(rgb2, 0xB7FF0000_u32 as i32);
+    assert_eq!(irgb, 0x7C00);
+    assert_eq!(orgb, 0x7C00);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0);
+    assert_eq!(ir2, 0);
+    assert_eq!(ir3, 0x7FFF);
+    assert_eq!(mac1, 0xF1217920_u32 as i32);
+    assert_eq!(mac2, 0xEDB18000_u32 as i32);
+    assert_eq!(mac3, 0x124E5B63);
+}
+
+#[test]
 fn nccs_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
