@@ -536,7 +536,7 @@ fn ncds_should_produce_correct_result() {
     cp2.write_data_reg(1, 0x256A, false);
 
     // Execute NCDS (with sf bit set to 1 and lm bit set to 1).
-    cp2.handle_common_ncd(0x4B780413, InstructionVariant::Single);
+    cp2.handle_common_ncd(0x4BE80413, InstructionVariant::Single);
 
     // Now read registers.
     let rgb2 = cp2.read_data_reg(22);
@@ -856,7 +856,7 @@ fn sqr_should_produce_correct_result() {
     cp2.write_data_reg(11, 0xFFF, false);
 
     // Execute SQR.
-    cp2.handle_sqr(0x2800E04B);
+    cp2.handle_sqr(0x4BE00028);
 
     // Now read registers.
     let ir1 = cp2.read_data_reg(9);
