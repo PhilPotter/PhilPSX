@@ -2401,6 +2401,14 @@ impl CP2 {
     #[inline(always)]
     fn handle_saturated_result(&mut self, result: i64, result_type: SaturatedFlagRegisterField, lm: bool, sf: i32) -> i64 {
 
+        // Before checking bounds, we should make sure that we chop the upper 32 bits and sign extend
+        // from bit 31 if necessary.
+        let result = if result & 0x80000000 == 0 {
+            result & 0xFFFFFFFF
+        } else {
+            result | 0xFFFFFFFF_00000000_u64 as i64
+        };
+
         let (lower_bound, upper_bound) = match result_type {
 
             IR0 => (0_i64, 0x1000_i64),

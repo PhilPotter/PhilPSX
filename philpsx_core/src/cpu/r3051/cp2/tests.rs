@@ -698,7 +698,7 @@ fn ncdt_should_produce_correct_result() {
 }
 
 #[test]
-fn ncds_temp() {
+fn ncds_with_same_inputs_as_ncdt_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
 
@@ -756,19 +756,6 @@ fn ncds_temp() {
     let mac1 = cp2.read_data_reg(25);
     let mac2 = cp2.read_data_reg(26);
     let mac3 = cp2.read_data_reg(27);
-
-    println!("rgb0: {:x}", rgb0);
-    println!("rgb1: {:x}", rgb1);
-    println!("rgb2: {:x}", rgb2);
-    println!("irgb: {:x}", irgb);
-    println!("orgb: {:x}", orgb);
-    println!("flag: {:x}", flag);
-    println!("ir1: {:x}", ir1);
-    println!("ir2: {:x}", ir2);
-    println!("ir3: {:x}", ir3);
-    println!("mac1: {:x}", mac1);
-    println!("mac2: {:x}", mac2);
-    println!("mac3: {:x}", mac3);
 
     // Assert results are correct.
     assert_eq!(rgb0, 0);
