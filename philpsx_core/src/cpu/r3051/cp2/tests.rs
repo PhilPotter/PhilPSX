@@ -16,7 +16,17 @@ fn read_control_reg_should_work() {
         assert_eq!(output, 0x8000);
     }
 
-    for i in 26..=30 {
+    for i in [26, 27, 29, 30] {
+        cp2.control_registers[i] = 0x8000;
+        let output = cp2.read_control_reg(i as i32);
+        assert_eq!(output, 0xFFFF8000_u32 as i32);
+
+        cp2.control_registers[i] = 0x7000;
+        let output = cp2.read_control_reg(i as i32);
+        assert_eq!(output, 0x7000);
+    }
+
+    for i in [4, 12, 20] {
         cp2.control_registers[i] = 0x8000;
         let output = cp2.read_control_reg(i as i32);
         assert_eq!(output, 0xFFFF8000_u32 as i32);

@@ -114,11 +114,17 @@ impl CP2 {
         let array_index = reg as usize;
         match array_index {
 
-            // For range 26-30 inclusive, return the register but
+            // For registers 26, 27, 29 and 30 return the register but
             // also sign extend if necessary. Register 26 should
             // actually be unsigned, but due to a hardware bug it
             // isn't, so we should preserve this behaviour here.
-            26..=30 => self.control_registers[array_index].sign_extend(15),
+            26 | 27 | 29 | 30 => self.control_registers[array_index].sign_extend(15),
+
+            // Sign extend RT33, L33 and LB33 respectively, as they are
+            // the last elements of the rotation, light and light colour
+            // matrices so only occupy the lower 16 bits. Keep this separate
+            // from the above match arm for clarity.
+            4 | 12 | 20 => self.control_registers[array_index].sign_extend(15),
 
             // Return actual value.
             _ => self.control_registers[array_index]
