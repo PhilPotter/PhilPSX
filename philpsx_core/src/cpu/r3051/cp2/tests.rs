@@ -392,6 +392,7 @@ fn dpcs_should_produce_correct_result() {
     cp2.handle_common_dpc(0x4BE80010, InstructionVariant::Single);
 
     // Now read registers.
+    let rgb2 = cp2.read_data_reg(22);
     let irgb = cp2.read_data_reg(28);
     let orgb = cp2.read_data_reg(29);
     let flag = cp2.read_control_reg(31);
@@ -403,6 +404,7 @@ fn dpcs_should_produce_correct_result() {
     let mac3 = cp2.read_data_reg(27);
 
     // Assert results are correct.
+    assert_eq!(rgb2, 0xDD0000FF_u32 as i32);
     assert_eq!(irgb, 0x001F);
     assert_eq!(orgb, 0x001F);
     assert_eq!(flag, 0x81F80000_u32 as i32);
@@ -1104,4 +1106,55 @@ fn dcpl_should_produce_correct_result() {
     assert_eq!(mac1, 0xF0614850_u32 as i32);
     assert_eq!(mac2, 0x166F2AC1);
     assert_eq!(mac3, 0xE8ED6960_u32 as i32);
+}
+
+#[test]
+fn dpct_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup IR0.
+    cp2.write_data_reg(8, 0xB38B, false);
+
+    // Setup RFC, GFC and BFC.
+    cp2.write_control_reg(21, 0x6715D3AF, false);
+    cp2.write_control_reg(22, 0x3F7A41B8, false);
+    cp2.write_control_reg(23, 0x0FDE1D62, false);
+
+    // Setup CODE.
+    cp2.write_data_reg(6, 0x13000000, false);
+
+    // Setup RGB0.
+    cp2.write_data_reg(20, 0x00374C75, false);
+
+    // Execute DPCT (with sf bit set to 0 and lm bit set to 1).
+    cp2.handle_common_dpc(0x4BE0042A, InstructionVariant::Triple);
+
+    // Now read registers.
+    let rgb0 = cp2.read_data_reg(20);
+    let rgb1 = cp2.read_data_reg(21);
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb0, 0x13FFFF00);
+    assert_eq!(rgb1, 0x13FFFF00);
+    assert_eq!(rgb2, 0x13FFFF00);
+    assert_eq!(irgb, 0x7FE0);
+    assert_eq!(orgb, 0x7FE0);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0);
+    assert_eq!(ir2, 0x7FFF);
+    assert_eq!(ir3, 0x7FFF);
+    assert_eq!(mac1, 0xD9C5CC75_u32 as i32);
+    assert_eq!(mac2, 0x263A8000);
+    assert_eq!(mac3, 0x263A8000);
 }

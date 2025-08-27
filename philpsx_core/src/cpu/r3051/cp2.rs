@@ -643,7 +643,7 @@ impl CP2 {
         }
     }
 
-    /// This function implements the functionality for the DCPS and DCPT instructions.
+    /// This function implements the functionality for the DPCS and DPCT instructions.
     /// Figured I'm porting/re-writing from C anyway and these are largely identical.
     fn handle_common_dpc(&mut self, opcode: i32, variant: InstructionVariant) {
 
