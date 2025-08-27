@@ -1185,3 +1185,31 @@ fn avsz3_should_produce_correct_result() {
     assert_eq!(mac0, 0x8AAD3EBD_u32 as i32);
     assert_eq!(otz, 0);
 }
+
+#[test]
+fn avsz4_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup ZFS4.
+    cp2.write_control_reg(30, 0x272E, false);
+
+    // Setup SZ1, SZ2 and SZ3.
+    cp2.write_data_reg(16, 0xD695, false);
+    cp2.write_data_reg(17, 0xFBA2, false);
+    cp2.write_data_reg(18, 0x7C3A, false);
+    cp2.write_data_reg(19, 0xA213, false);
+
+    // Execute AVSZ4.
+    cp2.handle_avsz4(0x4BE0002E);
+
+    // Now read registers.
+    let flag = cp2.read_control_reg(31);
+    let mac0 = cp2.read_data_reg(24);
+    let otz = cp2.read_data_reg(7);
+
+    // Assert results are correct.
+    assert_eq!(flag, 0x80040000_u32 as i32);
+    assert_eq!(mac0, 0x732B53B8);
+    assert_eq!(otz, 0xFFFF);
+}
