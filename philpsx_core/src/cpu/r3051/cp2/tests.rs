@@ -1056,3 +1056,52 @@ fn sqr_should_produce_correct_result() {
     assert_eq!(irgb, 0x7FFF);
     assert_eq!(orgb, 0x7FFF);
 }
+
+#[test]
+fn dcpl_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup IR0, IR1, IR2 and IR3.
+    cp2.write_data_reg(8, 0x243F, false);
+    cp2.write_data_reg(9, 0x5927, false);
+    cp2.write_data_reg(10, 0x584E, false);
+    cp2.write_data_reg(11, 0x8D76, false);
+
+    // Setup RFC, GFC and BFC.
+    cp2.write_control_reg(21, 0xCD2B19E0_u32 as i32, false);
+    cp2.write_control_reg(22, 0x90339DD6_u32 as i32, false);
+    cp2.write_control_reg(23, 0x0A0AD788, false);
+
+    // Setup RGBC.
+    cp2.write_data_reg(6, 0xB7B1C873_u32 as i32, false);
+
+    // Execute DCPL (with sf bit set to 0 and lm bit set to 0).
+    cp2.handle_dcpl(0x4BE00029);
+
+    // Now read registers.
+    let rgb0 = cp2.read_data_reg(20);
+    let rgb1 = cp2.read_data_reg(21);
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb2, 0xB700FF00_u32 as i32);
+    assert_eq!(irgb, 0x03E0);
+    assert_eq!(orgb, 0x03E0);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0xFFFF8000_u32 as i32);
+    assert_eq!(ir2, 0x7FFF);
+    assert_eq!(ir3, 0xFFFF8000_u32 as i32);
+    assert_eq!(mac1, 0xF0614850_u32 as i32);
+    assert_eq!(mac2, 0x166F2AC1);
+    assert_eq!(mac3, 0xE8ED6960_u32 as i32);
+}
