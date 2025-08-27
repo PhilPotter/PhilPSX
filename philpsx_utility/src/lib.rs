@@ -21,7 +21,8 @@ pub trait CustomInteger {
 
     /// This function should return sign-extended version of the original value, based
     /// on extension from the n-th most significant bit as specified. It can be used
-    /// for arbitrary widths within the type (for example 16-bit values).
+    /// for arbitrary widths within the type (for example 16-bit values). In addition,
+    /// it will mask out higher bits when not sign extending.
     fn sign_extend(self, from_bit: i32) -> Self::Output;
 
     /// This returns 1 if the specified bit is set, and 0 otherwise.
@@ -50,7 +51,7 @@ impl CustomInteger for CustomInt32 {
     }
 
     /// Sign extends based on the specified bit, with 31 being most significant and
-    /// 0 being least significant.
+    /// 0 being least significant. Also mask out higher bits when not sign extending.
     #[inline(always)]
     fn sign_extend(self, from_bit: i32) -> Self::Output {
 
@@ -58,7 +59,7 @@ impl CustomInteger for CustomInt32 {
         let extension_pattern = (0xFFFFFFFE_u32 as i32) << from_bit;
 
         if self & bit_pattern_to_test == 0 {
-            self
+            self & !extension_pattern
         } else {
             self | extension_pattern
         }
@@ -110,7 +111,7 @@ impl CustomInteger for CustomInt64 {
     }
 
     /// Sign extends based on the specified bit, with 63 being most significant and
-    /// 0 being least significant.
+    /// 0 being least significant. Also mask out higher bits when not sign extending.
     #[inline(always)]
     fn sign_extend(self, from_bit: i32) -> Self::Output {
 
@@ -118,7 +119,7 @@ impl CustomInteger for CustomInt64 {
         let extension_pattern = (0xFFFFFFFF_FFFFFFFE_u64 as i64) << from_bit;
 
         if self & bit_pattern_to_test == 0 {
-            self
+            self & !extension_pattern
         } else {
             self | extension_pattern
         }
@@ -290,6 +291,24 @@ mod tests {
     fn sign_extend_should_leave_32_bit_value_if_bit_31_is_unset_for_i64() {
 
         let input = 0x70000000_i64;
+        let output = input.sign_extend(31);
+
+        assert_eq!(output, 0x70000000_i64);
+    }
+
+    #[test]
+    fn sign_extend_should_mask_out_higher_bits_when_not_extending_i32() {
+
+        let input = 0xFFFF7000_u32 as i32;
+        let output = input.sign_extend(15);
+
+        assert_eq!(output, 0x7000);
+    }
+
+    #[test]
+    fn sign_extend_should_mask_out_higher_bits_when_not_extending_i64() {
+
+        let input = 0xFFFFFFFF_70000000_u64 as i64;
         let output = input.sign_extend(31);
 
         assert_eq!(output, 0x70000000_i64);

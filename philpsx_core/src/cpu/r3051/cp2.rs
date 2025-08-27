@@ -2394,11 +2394,7 @@ impl CP2 {
         // Sign extend from bit 31 and return this. This means that later comparisons will work based
         // upon this truncated/sign-extended version, thus evaluating as positive/negative based on this
         // rather than the potentially >32 bits original.
-        if result & 0x80000000 == 0 {
-            result & 0xFFFFFFFF
-        } else {
-            result | 0xFFFFFFFF_00000000_u64 as i64
-        }
+        result.sign_extend(31)
     }
 
     /// This function handles overflow/underflow detection for given results in:
@@ -2409,11 +2405,7 @@ impl CP2 {
 
         // Before checking bounds, we should make sure that we chop the upper 32 bits and sign extend
         // from bit 31 if necessary.
-        let result = if result & 0x80000000 == 0 {
-            result & 0xFFFFFFFF
-        } else {
-            result | 0xFFFFFFFF_00000000_u64 as i64
-        };
+        let result = result.sign_extend(31);
 
         let (lower_bound, upper_bound) = match result_type {
 
