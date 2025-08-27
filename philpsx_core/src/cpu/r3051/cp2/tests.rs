@@ -895,6 +895,65 @@ fn cc_should_produce_correct_result() {
 }
 
 #[test]
+fn ncs_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup light matrix.
+    cp2.write_control_reg(8, 0xCA097274_u32 as i32, false);
+    cp2.write_control_reg(9, 0x5A0B3305, false);
+    cp2.write_control_reg(10, 0x3047377D, false);
+    cp2.write_control_reg(11, 0xB45166D9_u32 as i32, false);
+    cp2.write_control_reg(12, 0x4507, false);
+
+    // Setup light colour matrix.
+    cp2.write_control_reg(16, 0xF08223B6_u32 as i32, false);
+    cp2.write_control_reg(17, 0xA29269CA_u32 as i32, false);
+    cp2.write_control_reg(18, 0x361E800A, false);
+    cp2.write_control_reg(19, 0x70110788, false);
+    cp2.write_control_reg(20, 0x8D76, false);
+
+    // Setup RBK, GBK and BBK.
+    cp2.write_control_reg(13, 0xCC31624D_u32 as i32, false);
+    cp2.write_control_reg(14, 0xD1406D34_u32 as i32, false);
+    cp2.write_control_reg(15, 0x88A04499_u32 as i32, false);
+
+    // Setup CODE.
+    cp2.write_data_reg(6, 0x96000000_u32 as i32, false);
+
+    // Setup VX0, VY0 and VZ0.
+    cp2.write_data_reg(0, 0xAF7564FB_u32 as i32, false);
+    cp2.write_data_reg(1, 0x814D, false);
+
+    // Execute NCS (with sf bit set to 1 and lm bit set to 0).
+    cp2.handle_common_nc(0x4BE8001E, InstructionVariant::Single);
+
+    // Now read registers.
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb2, 0x96000000_u32 as i32);
+    assert_eq!(irgb, 0);
+    assert_eq!(orgb, 0);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0xFFFF8000_u32 as i32);
+    assert_eq!(ir2, 0xFFFF8000_u32 as i32);
+    assert_eq!(ir3, 0xFFFF8000_u32 as i32);
+    assert_eq!(mac1, 0xCC3628A2_u32 as i32);
+    assert_eq!(mac2, 0xD1421D24_u32 as i32);
+    assert_eq!(mac3, 0x889A5ED9_u32 as i32);
+}
+
+#[test]
 fn sqr_should_produce_correct_result() {
 
     let mut cp2 = CP2::new();
