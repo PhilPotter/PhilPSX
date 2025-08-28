@@ -1293,3 +1293,45 @@ fn rtpt_should_produce_correct_result() {
     assert_eq!(sxy2, 0x03FFFC00);
     assert_eq!(sxyp, 0x03FFFC00);
 }
+
+#[test]
+fn gpf_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup IR0, IR1, IR2 and IR3.
+    cp2.write_data_reg(8, 0x7FBD, false);
+    cp2.write_data_reg(9, 0xD39F, false);
+    cp2.write_data_reg(10, 0xCC74, false);
+    cp2.write_data_reg(11, 0x9157, false);
+
+    // Setup CODE.
+    cp2.write_data_reg(6, 0x14000000, false);
+
+    // Execute GPF (with sf bit set to 0 and lm bit set to 1).
+    cp2.handle_gpf(0x4BE0043D);
+
+    // Now read registers.
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+
+    // Assert results are correct.
+    assert_eq!(rgb2, 0x14000000);
+    assert_eq!(irgb, 0);
+    assert_eq!(orgb, 0);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(mac1, 0xE9DB1D63_u32 as i32);
+    assert_eq!(mac2, 0xE6477DA4_u32 as i32);
+    assert_eq!(mac3, 0xC8C8763B_u32 as i32);
+    assert_eq!(ir1, 0);
+    assert_eq!(ir2, 0);
+    assert_eq!(ir3, 0);
+}

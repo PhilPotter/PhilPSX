@@ -2237,6 +2237,9 @@ impl CP2 {
         let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15);
         let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
 
+        // Fetch code value from RGBC.
+        let code = self.data_registers[6].logical_rshift(24) as i64;
+
         // Perform calculations.
         let mut mac1 = (ir1 * ir0) >> (sf * 12);
         let mut mac2 = (ir2 * ir0) >> (sf * 12);
@@ -2251,9 +2254,6 @@ impl CP2 {
         ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
         ir2 = self.handle_saturated_result(mac2, IR2, lm, sf);
         ir3 = self.handle_saturated_result(mac3, IR3, lm, sf);
-
-        // Fetch code value from RGBC.
-        let code = self.data_registers[6].logical_rshift(24) as i64;
 
         // Calculate colour FIFO entries, saturating and flag setting as needed.
         let r_out = self.handle_saturated_result(mac1 / 16, ColourFifoR, lm, sf);
