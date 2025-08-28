@@ -1213,3 +1213,83 @@ fn avsz4_should_produce_correct_result() {
     assert_eq!(mac0, 0x732B53B8);
     assert_eq!(otz, 0xFFFF);
 }
+
+#[test]
+fn rtpt_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup TRX, TRY and TRZ.
+    cp2.write_control_reg(5, 0x838C8285_u32 as i32, false);
+    cp2.write_control_reg(6, 0x44940A70, false);
+    cp2.write_control_reg(7, 0x3462E663, false);
+
+    // Setup rotation matrix.
+    cp2.write_control_reg(0, 0x1CCD4AA4, false);
+    cp2.write_control_reg(1, 0xA485C2E7_u32 as i32, false);
+    cp2.write_control_reg(2, 0x8D4B7B82_u32 as i32, false);
+    cp2.write_control_reg(3, 0xA92CFA09_u32 as i32, false);
+    cp2.write_control_reg(4, 0x7B9F, false);
+
+    // Setup ofx and ofy.
+    cp2.write_control_reg(24, 0x2A5A3B18, false);
+    cp2.write_control_reg(25, 0x03CD6D09, false);
+
+    // Setup h, dqa and dqb.
+    cp2.write_control_reg(26, 0xA21B, false);
+    cp2.write_control_reg(27, 0x399F, false);
+    cp2.write_control_reg(28, 0x90AD2F8D_u32 as i32, false);
+
+    // Setup VXx, VYx and VZx.
+    cp2.write_data_reg(0, 0xF3F61D40_u32 as i32, false);
+    cp2.write_data_reg(1, 0xB6F0, false);
+    cp2.write_data_reg(2, 0xE2B31653_u32 as i32, false);
+    cp2.write_data_reg(3, 0x9628, false);
+    cp2.write_data_reg(4, 0x1A9C8911, false);
+    cp2.write_data_reg(5, 0x4639, false);
+
+    // Execute RTPT (with sf bit set to 0).
+    cp2.handle_common_rtp(0x4BE80030, InstructionVariant::Triple);
+
+    // Now read registers.
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let mac0 = cp2.read_data_reg(24);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+    let ir0 = cp2.read_data_reg(8);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let sz0 = cp2.read_data_reg(16);
+    let sz1 = cp2.read_data_reg(17);
+    let sz2 = cp2.read_data_reg(18);
+    let sz3 = cp2.read_data_reg(19);
+    let sxy0 = cp2.read_data_reg(12);
+    let sxy1 = cp2.read_data_reg(13);
+    let sxy2 = cp2.read_data_reg(14);
+    let sxyp = cp2.read_data_reg(15);
+
+    // Assert results are correct.
+    assert_eq!(irgb, 0x7FE0);
+    assert_eq!(orgb, 0x7FE0);
+    assert_eq!(flag, 0x81C47000_u32 as i32);
+    assert_eq!(mac0, 0xB529E152_u32 as i32);
+    assert_eq!(mac1, 0x83897B6F_u32 as i32);
+    assert_eq!(mac2, 0x44958868);
+    assert_eq!(mac3, 0x3464A0E2);
+    assert_eq!(ir0, 0);
+    assert_eq!(ir1, 0xFFFF8000_u32 as i32);
+    assert_eq!(ir2, 0x7FFF);
+    assert_eq!(ir3, 0x7FFF);
+    assert_eq!(sz0, 0);
+    assert_eq!(sz1, 0xFFFF);
+    assert_eq!(sz2, 0xFFFF);
+    assert_eq!(sz3, 0xFFFF);
+    assert_eq!(sxy0, 0x03FFFC00);
+    assert_eq!(sxy1, 0x03FFFC00);
+    assert_eq!(sxy2, 0x03FFFC00);
+    assert_eq!(sxyp, 0x03FFFC00);
+}

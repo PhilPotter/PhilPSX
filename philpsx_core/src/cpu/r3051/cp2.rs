@@ -413,25 +413,25 @@ impl CP2 {
         // Setup rotation matrix, sign-extending values as needed.
         let rotation_matrix = CP2Matrix::new(
 
-            // Top row:
+            // Top row.
             [
-                ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15), // RT11.
+                ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // RT11.
                 ((self.control_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT12.
-                ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15) // RT13.
+                ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // RT13.
             ],
 
-            // Middle row:
+            // Middle row.
             [
                 ((self.control_registers[1].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT21.
-                ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15), // RT22.
-                ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // RT23.
+                ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15),                    // RT22.
+                ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // RT23.
             ],
 
-            // Bottom row:
+            // Bottom row.
             [
-                ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15), // RT31.
+                ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15),                    // RT31.
                 ((self.control_registers[3].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT32.
-                ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15) // RT33.
+                ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15)                     // RT33.
             ]
         );
 
@@ -539,7 +539,7 @@ impl CP2 {
             mac0 = division_result * dqa + dqb;
             mac0 = self.handle_unsaturated_result_and_truncate(mac0, MAC0);
             mac0 &= 0xFFFFFFFF;
-            mac0.sign_extend(31);
+            mac0 = mac0.sign_extend(31);
 
             let ir0 = self.handle_saturated_result(mac0 / 0x1000, IR0, false, sf);
 
@@ -1387,21 +1387,21 @@ impl CP2 {
         // Retrieve light colour matrix values, sign extending as needed.
         let light_colour_matrix = CP2Matrix::new(
 
-            // Top row:
+            // Top row.
             [
                 ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15), // LR1.
                 ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
                 ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15) // LR3.
             ],
 
-            // Middle row:
+            // Middle row.
             [
                 ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
                 ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15), // LG2.
                 ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // LG3.
             ],
 
-            // Bottom row:
+            // Bottom row.
             [
                 ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15), // LB1.
                 ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
@@ -1755,21 +1755,21 @@ impl CP2 {
         // Retrieve light colour matrix values, sign extending as needed.
         let light_colour_matrix = CP2Matrix::new(
 
-            // Top row:
+            // Top row.
             [
                 ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15), // LR1.
                 ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
                 ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15) // LR3.
             ],
 
-            // Middle row:
+            // Middle row.
             [
                 ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
                 ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15), // LG2.
                 ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // LG3.
             ],
 
-            // Bottom row:
+            // Bottom row.
             [
                 ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15), // LB1.
                 ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
