@@ -2305,10 +2305,12 @@ impl CP2 {
         let mut mac2 = (self.data_registers[26] as i64) << (sf * 12);
         let mut mac3 = (self.data_registers[27] as i64) << (sf * 12);
 
-        // Handle MAC1, MAC2 and MAC3 flags.
-        mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
-        mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
-        mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
+        // Handle MAC1, MAC2 and MAC3 flags - do not save them here though. NOPSX docs say that
+        // we can still have internal overflow condition here despite the left-shift being undone
+        // by the right-shift when the sf bit is set.
+        self.handle_unsaturated_result_and_truncate(mac1, MAC1);
+        self.handle_unsaturated_result_and_truncate(mac2, MAC2);
+        self.handle_unsaturated_result_and_truncate(mac3, MAC3);
 
         // Perform calculations.
         mac1 = ((ir1 * ir0) + mac1) >> (sf * 12);
