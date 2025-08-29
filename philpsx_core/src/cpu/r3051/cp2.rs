@@ -2291,6 +2291,15 @@ impl CP2 {
         // Get lm bit status.
         let lm = opcode.bit_is_set(10);
 
+        // Retrieve R0, IR1, IR2 and IR3, sign extending as necessary.
+        let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15);
+        let mut ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15);
+        let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15);
+        let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
+
+        // Fetch code value from RGBC.
+        let code = self.data_registers[6].logical_rshift(24) as i64;
+
         // Retrieve MAC1, MAC2 and MAC3, naturally sign extending and shifting left by sf * 12.
         let mut mac1 = (self.data_registers[25] as i64) << (sf * 12);
         let mut mac2 = (self.data_registers[26] as i64) << (sf * 12);
@@ -2300,12 +2309,6 @@ impl CP2 {
         mac1 = self.handle_unsaturated_result_and_truncate(mac1, MAC1);
         mac2 = self.handle_unsaturated_result_and_truncate(mac2, MAC2);
         mac3 = self.handle_unsaturated_result_and_truncate(mac3, MAC3);
-
-        // Retrieve R0, IR1, IR2 and IR3, sign extending as necessary.
-        let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15);
-        let mut ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15);
-        let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15);
-        let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
 
         // Perform calculations.
         mac1 = ((ir1 * ir0) + mac1) >> (sf * 12);
@@ -2321,9 +2324,6 @@ impl CP2 {
         ir1 = self.handle_saturated_result(mac1, IR1, lm, sf);
         ir2 = self.handle_saturated_result(mac2, IR2, lm, sf);
         ir3 = self.handle_saturated_result(mac3, IR3, lm, sf);
-
-        // Fetch code value from RGBC.
-        let code = self.data_registers[6].logical_rshift(24) as i64;
 
         // Calculate colour FIFO entries, saturating and flag setting as needed.
         let r_out = self.handle_saturated_result(mac1 / 16, ColourFifoR, lm, sf);
