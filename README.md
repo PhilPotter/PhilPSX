@@ -9,6 +9,7 @@ Please note that this is my own code, and there is no association or endorsement
 ## Implemented features
 
 * The CP0 co-processor, aka System Control Co-processor.
+* The CP2 co-processor, aka the Geometry Transformation Engine.
 
 ## Not yet implemented/stubbed out
 

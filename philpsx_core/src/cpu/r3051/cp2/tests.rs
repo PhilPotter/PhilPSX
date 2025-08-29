@@ -1382,3 +1382,70 @@ fn gpl_should_produce_correct_result() {
     assert_eq!(ir2, 0x7FFF);
     assert_eq!(ir3, 0x7FFF);
 }
+
+#[test]
+fn ncct_should_produce_correct_result() {
+
+    let mut cp2 = CP2::new();
+
+    // Setup light matrix.
+    cp2.write_control_reg(8, 0x451BE51D, false);
+    cp2.write_control_reg(9, 0x1070A75D, false);
+    cp2.write_control_reg(10, 0xF1FF6D08_u32 as i32, false);
+    cp2.write_control_reg(11, 0xAE8B3B05_u32 as i32, false);
+    cp2.write_control_reg(12, 0x9773, false);
+
+    // Setup light colour matrix.
+    cp2.write_control_reg(16, 0xB92F2344_u32 as i32, false);
+    cp2.write_control_reg(17, 0x5F22E05B, false);
+    cp2.write_control_reg(18, 0xA400300F_u32 as i32, false);
+    cp2.write_control_reg(19, 0x192DDE43, false);
+    cp2.write_control_reg(20, 0xF8EF, false);
+
+    // Setup RBK, GBK and BBK.
+    cp2.write_control_reg(13, 0x8AC4A5E4_u32 as i32, false);
+    cp2.write_control_reg(14, 0xEE66ED20_u32 as i32, false);
+    cp2.write_control_reg(15, 0x068018C2, false);
+
+    // Write RGBC.
+    cp2.write_data_reg(6, 0xF83256A0_u32 as i32, false);
+
+    // Write VXx, VYx and VZx.
+    cp2.write_data_reg(0, 0x0A01B3EF, false);
+    cp2.write_data_reg(1, 0xD212, false);
+    cp2.write_data_reg(2, 0x3CE3E966, false);
+    cp2.write_data_reg(3, 0xED22, false);
+    cp2.write_data_reg(4, 0xD945B02B_u32 as i32, false);
+    cp2.write_data_reg(5, 0x00B1, false);
+
+    // Execute NCCT (with sf bit set to 1 and lm bit set to 0).
+    cp2.handle_common_ncc(0x4BE8003F, InstructionVariant::Triple);
+
+    // Now read registers.
+    let rgb0 = cp2.read_data_reg(20);
+    let rgb1 = cp2.read_data_reg(21);
+    let rgb2 = cp2.read_data_reg(22);
+    let irgb = cp2.read_data_reg(28);
+    let orgb = cp2.read_data_reg(29);
+    let flag = cp2.read_control_reg(31);
+    let ir1 = cp2.read_data_reg(9);
+    let ir2 = cp2.read_data_reg(10);
+    let ir3 = cp2.read_data_reg(11);
+    let mac1 = cp2.read_data_reg(25);
+    let mac2 = cp2.read_data_reg(26);
+    let mac3 = cp2.read_data_reg(27);
+
+    // Assert results are correct.
+    assert_eq!(rgb0, 0xF8FF0000_u32 as i32);
+    assert_eq!(rgb1, 0xF8FF0000_u32 as i32);
+    assert_eq!(rgb2, 0xF8FF0000_u32 as i32);
+    assert_eq!(irgb, 0x7C00);
+    assert_eq!(orgb, 0x7C00);
+    assert_eq!(flag, 0x81F80000_u32 as i32);
+    assert_eq!(ir1, 0xFFFFB000_u32 as i32);
+    assert_eq!(ir2, 0xFFFFD500_u32 as i32);
+    assert_eq!(ir3, 0x18FF);
+    assert_eq!(mac1, 0xFFFFB000_u32 as i32);
+    assert_eq!(mac2, 0xFFFFD500_u32 as i32);
+    assert_eq!(mac3, 0x000018FF);
+}
