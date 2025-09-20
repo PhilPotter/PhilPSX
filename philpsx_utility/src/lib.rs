@@ -160,6 +160,14 @@ impl CustomInteger for CustomInt64 {
     }
 }
 
+/// This just provides a helpful list of the different possible system bus holders, to be referenced
+/// when needed so that (for example) we can do DMA operations safely.
+#[derive(Copy, Clone)]
+pub enum SystemBusHolder {
+    CPU,
+    DMA,
+}
+
 /// Re-exported stdlib `min` function, to keep all our utility functions together
 /// here in the same way they are for the C macro versions.
 pub use std::cmp::min;

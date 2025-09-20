@@ -4,6 +4,12 @@
 use philpsx_utility::{CustomInteger, min};
 use math::{CP2Matrix, CP2Vector};
 
+/// The number of control registers.
+const CONTROL_REGISTER_COUNT: usize = 32;
+
+/// The number of data registers.
+const DATA_REGISTER_COUNT: usize = 32;
+
 // Unsigned Newton-Raphson algorithm array - values taken from NOPSX
 // documentation to mimic NOPSX results (but with my own code of course).
 const UNR_RESULTS: [i32; 257] = [
@@ -73,10 +79,10 @@ use SaturatedFlagRegisterField::*;
 pub struct CP2 {
 
     // Control registers.
-    control_registers: [i32; 32],
+    control_registers: [i32; CONTROL_REGISTER_COUNT],
 
     // Data registers.
-    data_registers: [i32; 32],
+    data_registers: [i32; DATA_REGISTER_COUNT],
 
     // Condition line.
     condition_line: bool,
@@ -89,8 +95,8 @@ impl CP2 {
         CP2 {
             
             // Zero-out both register arrays.
-            control_registers: [0; 32],
-            data_registers: [0; 32],
+            control_registers: [0; CONTROL_REGISTER_COUNT],
+            data_registers: [0; DATA_REGISTER_COUNT],
 
             // Set condition line to false.
             condition_line: false,

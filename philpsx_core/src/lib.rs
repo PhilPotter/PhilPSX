@@ -14,3 +14,6 @@
 
 /// This module contains PlayStation CPU-related functionality.
 pub mod cpu;
+
+/// This module contains PlayStation motherboard related functionality.
+pub mod motherboard;

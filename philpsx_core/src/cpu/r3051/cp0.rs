@@ -3,12 +3,15 @@
 
 use philpsx_utility::CustomInteger;
 
+/// The number of co-processor registers.
+const REGISTER_COUNT: usize = 32;
+
 /// The CP0 structure models the System Control Co-processor (CP0), which
 /// is responsible for mememory management and exceptions.
 pub struct CP0 {
 
     // Register definitions.
-    cp_registers: [i32; 32],
+    cp_registers: [i32; REGISTER_COUNT],
 
     // Condition line.
     condition_line: bool,
@@ -22,7 +25,7 @@ impl CP0 {
         let mut cp0 = CP0 {
             
             // Zero out all registers.
-            cp_registers: [0; 32],
+            cp_registers: [0; REGISTER_COUNT],
 
             // Set condition line to false.
             condition_line: false,
@@ -36,7 +39,7 @@ impl CP0 {
     }
 
     /// This function resets the state of the co-processor as per the reset exception.
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
 
         // Set random register to 63.
         self.cp_registers[1] = 63 << 8;
