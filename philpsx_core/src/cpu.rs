@@ -37,10 +37,10 @@ pub trait CpuBridge {
     fn append_sync_cycles(&mut self, cpu: &mut dyn Cpu, cycles: i32);
 
     /// The CPU must call this to determine how many stall cycles are needed.
-    fn how_how_many_stall_cycles(&self, cpu: &mut dyn Cpu) -> i32;
+    fn how_how_many_stall_cycles(&self, cpu: &mut dyn Cpu, address: i32) -> i32;
 
     /// The CPU must call this to determine if an address should be incremented.
-    fn ok_to_increment(&self, cpu: &mut dyn Cpu) -> bool;
+    fn ok_to_increment(&self, cpu: &mut dyn Cpu, address: i64) -> bool;
 
     /// The CPU must call this to determine if the scratchpad is enabled.
     fn scratchpad_enabled(&self, cpu: &mut dyn Cpu) -> bool;

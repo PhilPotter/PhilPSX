@@ -218,6 +218,118 @@ impl R3051 {
                 bridge.read_byte(self, starting_address as i32);
         }
     }
+
+    /// This is a utility function to swap the endianness of a word. It can be
+    /// used to allow the processor to operate in both endian modes by transparently
+    /// swapping the byte order before writing or after writing.
+    fn swap_word_endianness(&self, word: i32) -> i32 {
+        (word << 24) |
+        ((word << 8) & 0xFF0000) |
+        (word.logical_rshift(8) & 0xFF00) |
+        (word.logical_rshift(24) & 0xFF)
+    }
+
+    /// This instruction reads a data value of the specified width, and abstracts
+    /// this functionality from the MEM stage.
+    fn read_data_value(&mut self, bridge: &mut dyn CpuBridge, width: R3051Width, address: i32) -> i32 {
+
+        // Define value
+        let mut value: i32 = 0;
+
+        // Determine data cache isolation.
+        let data_cache_isolated = self.sccp.is_data_cache_isolated();
+
+        // Get physical address.
+        let physical_address = self.sccp.virtual_to_physical(address);
+        let mut temp_physical_address = (physical_address as i64) & 0xFFFFFFFF;
+
+        // Is cache isolated? Although we don't have a data cache (it is used as
+        // scratchpad instead) we should read from instruction cache if so.
+        if data_cache_isolated { // Yes.
+
+            // Read from instruction cache no matter what.
+            match width {
+
+                R3051Width::BYTE => {
+                    value = 0xFF & (self.read_instruction_cache_byte(physical_address) as i32);
+                },
+
+                R3051Width::HALFWORD => {
+                    value = 0xFF & self.read_instruction_cache_byte(temp_physical_address as i32) as i32;
+                    temp_physical_address += 1;
+                    value = (value << 8) |
+                            (0xFF & self.read_instruction_cache_byte(temp_physical_address as i32) as i32);
+                },
+
+                R3051Width::WORD => {
+                    value = self.read_instruction_cache_word(physical_address);
+                },
+            }
+        } else { // No.
+
+            // Check if we are reading from scratchpad.
+            if (0x1F800000..0x1F800400).contains(&temp_physical_address) &&
+               bridge.scratchpad_enabled(self) {
+
+                // Although we are sending reads to system, this actually
+                // accesses scratchpad.
+                match width {
+
+                    R3051Width::BYTE => {
+                        value = 0xFF & bridge.read_byte(self, physical_address) as i32;
+                    },
+
+                    R3051Width::HALFWORD => {
+                        value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
+                        temp_physical_address += 1;
+                        value = (value << 8) |
+                                (0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32);
+                    },
+
+                    R3051Width::WORD => {
+                        value = bridge.read_word(self, physical_address);
+                    },
+                }
+
+                return value;
+            }
+
+            // Calculate delay cycles before reading from system.
+            let delay_cycles = bridge.how_how_many_stall_cycles(self, physical_address);
+
+            // Begin transaction.
+
+            // Read value straight away.
+            match width {
+
+                R3051Width::BYTE => {
+                    value = 0xFF & bridge.read_byte(self, physical_address) as i32;
+                },
+
+                R3051Width::HALFWORD => {
+                    value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
+                    temp_physical_address = if bridge.ok_to_increment(self, temp_physical_address) {
+                        temp_physical_address + 1
+                    } else {
+                        temp_physical_address
+                    };
+                    value = (value << 8) |
+                            (0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32);
+                },
+
+                R3051Width::WORD => {
+                    value = bridge.read_word(self, physical_address);
+                },
+            }
+            self.cycles += delay_cycles;
+            self.total_cycles += delay_cycles as i64;
+
+            // End transaction.
+        }
+
+        // Return data value
+        value
+    }
 }
 
 /// Implementation functions to be called from anything that understands what
@@ -240,4 +352,11 @@ impl Cpu for R3051 {
     ) -> SystemBusHolder {
         self.system_bus_holder
     }
+}
+
+/// This enum is used to specify the width we want to use (byte/half word/word).
+enum R3051Width {
+    BYTE,
+    HALFWORD,
+    WORD,
 }
