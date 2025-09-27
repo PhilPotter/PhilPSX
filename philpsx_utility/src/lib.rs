@@ -162,7 +162,7 @@ impl CustomInteger for CustomInt64 {
 
 /// This just provides a helpful list of the different possible system bus holders, to be referenced
 /// when needed so that (for example) we can do DMA operations safely.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum SystemBusHolder {
     CPU,
     DMA,

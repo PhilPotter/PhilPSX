@@ -58,7 +58,7 @@ pub trait CpuBridge {
     fn write_byte(&mut self, cpu: &mut dyn Cpu, address: i32, value: i8);
 
     /// The CPU must call this to write a word to the system bus.
-    fn write_word(&mut self, cpu: &mut dyn Cpu, address: i32, value: i8);
+    fn write_word(&mut self, cpu: &mut dyn Cpu, address: i32, value: i32);
 
     /// The CPU must call this to increment all interrupt-relevant counters.
     fn increment_interrupt_counters(&mut self, cpu: &mut dyn Cpu);

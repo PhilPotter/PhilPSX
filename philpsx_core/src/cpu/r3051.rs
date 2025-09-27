@@ -3,7 +3,7 @@
 
 use super::{Cpu, CpuBridge};
 use philpsx_utility::{CustomInteger, SystemBusHolder};
-use mips_exception::MIPSException;
+use mips_exception::{MIPSException, MIPSExceptionReason};
 use cp0::CP0;
 use cp2::CP2;
 
@@ -229,15 +229,9 @@ impl R3051 {
         (word.logical_rshift(24) & 0xFF)
     }
 
-    /// This instruction reads a data value of the specified width, and abstracts
+    /// This function reads a data value of the specified width, and abstracts
     /// this functionality from the MEM stage.
     fn read_data_value(&mut self, bridge: &mut dyn CpuBridge, width: R3051Width, address: i32) -> i32 {
-
-        // Define value
-        let mut value: i32 = 0;
-
-        // Determine data cache isolation.
-        let data_cache_isolated = self.sccp.is_data_cache_isolated();
 
         // Get physical address.
         let physical_address = self.sccp.virtual_to_physical(address);
@@ -245,24 +239,25 @@ impl R3051 {
 
         // Is cache isolated? Although we don't have a data cache (it is used as
         // scratchpad instead) we should read from instruction cache if so.
-        if data_cache_isolated { // Yes.
+        if self.sccp.is_data_cache_isolated() { // Yes.
 
             // Read from instruction cache no matter what.
             match width {
 
                 R3051Width::BYTE => {
-                    value = 0xFF & (self.read_instruction_cache_byte(physical_address) as i32);
+                    0xFF & (self.read_instruction_cache_byte(physical_address) as i32)
                 },
 
                 R3051Width::HALFWORD => {
-                    value = 0xFF & self.read_instruction_cache_byte(temp_physical_address as i32) as i32;
+                    let mut value = 0xFF & self.read_instruction_cache_byte(temp_physical_address as i32) as i32;
                     temp_physical_address += 1;
                     value = (value << 8) |
                             (0xFF & self.read_instruction_cache_byte(temp_physical_address as i32) as i32);
+                    value
                 },
 
                 R3051Width::WORD => {
-                    value = self.read_instruction_cache_word(physical_address);
+                    self.read_instruction_cache_word(physical_address)
                 },
             }
         } else { // No.
@@ -276,59 +271,235 @@ impl R3051 {
                 match width {
 
                     R3051Width::BYTE => {
-                        value = 0xFF & bridge.read_byte(self, physical_address) as i32;
+                        0xFF & bridge.read_byte(self, physical_address) as i32
                     },
 
                     R3051Width::HALFWORD => {
-                        value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
+                        let mut value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
                         temp_physical_address += 1;
                         value = (value << 8) |
                                 (0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32);
+
+                        value
                     },
 
                     R3051Width::WORD => {
-                        value = bridge.read_word(self, physical_address);
+                        bridge.read_word(self, physical_address)
                     },
                 }
+            } else {
 
-                return value;
+                // Calculate delay cycles before reading from system.
+                let delay_cycles = bridge.how_how_many_stall_cycles(self, physical_address);
+
+                // Begin transaction.
+
+                // Read value straight away.
+                let value = match width {
+
+                    R3051Width::BYTE => {
+                        0xFF & bridge.read_byte(self, physical_address) as i32
+                    },
+
+                    R3051Width::HALFWORD => {
+                        let mut value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
+                        temp_physical_address = if bridge.ok_to_increment(self, temp_physical_address) {
+                            temp_physical_address + 1
+                        } else {
+                            temp_physical_address
+                        };
+                        value = (value << 8) |
+                                (0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32);
+                        value
+                    },
+
+                    R3051Width::WORD => {
+                        bridge.read_word(self, physical_address)
+                    },
+                };
+
+                self.cycles += delay_cycles;
+                self.total_cycles += delay_cycles as i64;
+
+                // End transaction.
+                value
             }
+        }
+    }
 
-            // Calculate delay cycles before reading from system.
-            let delay_cycles = bridge.how_how_many_stall_cycles(self, physical_address);
+    /// This function writes a data value of the specified width, and abstracts
+    /// this functionality from the MEM stage.
+    fn write_data_value(
+        &mut self,
+        bridge: &mut dyn CpuBridge,
+        width: R3051Width,
+        address: i32,
+        value: i32
+    ) {
 
-            // Begin transaction.
+        // Get physical address.
+        let physical_address = self.sccp.virtual_to_physical(address);
+        let mut temp_physical_address = (physical_address as i64) & 0xFFFFFFFF;
 
-            // Read value straight away.
+        // Is cache isolated?
+        if self.sccp.is_data_cache_isolated() { // Yes.
+
+            // Write to instruction cache no matter what.
             match width {
 
                 R3051Width::BYTE => {
-                    value = 0xFF & bridge.read_byte(self, physical_address) as i32;
+                    self.write_instruction_cache_byte(physical_address, value as i8);
                 },
 
                 R3051Width::HALFWORD => {
-                    value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
-                    temp_physical_address = if bridge.ok_to_increment(self, temp_physical_address) {
-                        temp_physical_address + 1
-                    } else {
-                        temp_physical_address
-                    };
-                    value = (value << 8) |
-                            (0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32);
+                    self.write_instruction_cache_byte(temp_physical_address as i32, value.logical_rshift(8) as i8);
+                    temp_physical_address += 1;
+                    self.write_instruction_cache_byte(temp_physical_address as i32, value as i8);
                 },
 
                 R3051Width::WORD => {
-                    value = bridge.read_word(self, physical_address);
+                    self.write_instruction_cache_word(physical_address, value);
                 },
             }
-            self.cycles += delay_cycles;
-            self.total_cycles += delay_cycles as i64;
+        } else { // No.
 
-            // End transaction.
+            // Check if we are writing to scratchpad.
+            if (0x1F800000..0x1F800400).contains(&temp_physical_address) &&
+               bridge.scratchpad_enabled(self) {
+
+                // Although we are sending writes to the system, they actually
+                // go to the scratchpad.
+                match width {
+                    R3051Width::BYTE => {
+                        bridge.write_byte(self, physical_address, value as i8);
+                    },
+
+                    R3051Width::HALFWORD => {
+                        bridge.write_byte(self, temp_physical_address as i32, value.logical_rshift(8) as i8);
+                        temp_physical_address += 1;
+                        bridge.write_byte(self, temp_physical_address as i32, value as i8);
+                    },
+
+                    R3051Width::WORD => {
+                        bridge.write_word(self, physical_address, value);
+                    },
+                }
+            } else {
+
+                // Calculate delay cycles before writing to system.
+                let delay_cycles = bridge.how_how_many_stall_cycles(self, physical_address);
+
+                // Begin transaction.
+
+                // Write value.
+                match width {
+
+                    R3051Width::BYTE => {
+                        bridge.write_byte(self, physical_address, value as i8);
+                    },
+
+                    R3051Width::HALFWORD => {
+                        bridge.write_byte(self, temp_physical_address as i32, value.logical_rshift(8) as i8);
+                        temp_physical_address = if bridge.ok_to_increment(self, temp_physical_address) {
+                            temp_physical_address + 1
+                        } else {
+                            temp_physical_address
+                        };
+                        bridge.write_byte(self, temp_physical_address as i32, value as i8);
+                    },
+
+                    R3051Width::WORD => {
+                        bridge.write_word(self, physical_address, value);
+                    },
+                }
+
+                self.cycles += delay_cycles;
+                self.total_cycles += delay_cycles as i64;
+
+                // End transaction.
+            }
+        }
+    }
+
+    /// This function reads an instruction word. It allows abstraction of this
+    /// functionality from the IF pipeline stage.
+    fn read_instruction_word(
+        &mut self,
+        bridge: &mut dyn CpuBridge,
+        address: i32,
+        temp_branch_address: i32
+    ) -> i64 {
+
+        // Check for dodgy address.
+        if self.sccp.is_address_allowed(address) || self.program_counter % 4 != 0 {
+
+            // Trigger exception.
+            self.exception.bad_address = address;
+            self.exception.exception_reason = MIPSExceptionReason::ADEL;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_branch_address
+            } else {
+                address
+            };
+
+            //R3051_handleException(cpu);
+            return -1;
         }
 
-        // Return data value
-        value
+        // Check if instruction cache enabled.
+        let instruction_cache_enabled = bridge.instruction_cache_enabled(self);
+
+        // Get physical address.
+        let physical_address = self.sccp.virtual_to_physical(address);
+
+        // Check if address is cacheable or not.
+        let word_val = if self.sccp.is_cacheable(address) && instruction_cache_enabled {
+
+            // Check cache for hit.
+            if self.check_for_instruction_cache_hit(physical_address) {
+                self.read_instruction_cache_word(physical_address)
+            } else {
+
+                // Refill cache then set wordVal.
+                if self.get_system_bus_holder(bridge) != SystemBusHolder::CPU {
+
+                    // Stall for one cycle as BIU is being used by
+                    // another component.
+                    return -1;
+                } else {
+                    // Begin transaction.
+
+                    let stall_cycles = bridge.how_how_many_stall_cycles(self, physical_address);
+                    self.cycles += stall_cycles;
+                    self.total_cycles += stall_cycles as i64;
+                    self.refill_instruction_cache_line(bridge, physical_address);
+                    self.read_instruction_cache_word(physical_address)
+
+                    // End transaction.
+                }
+            }
+        } else {
+
+            // Read word straight from system, stalling if being used.
+            if self.get_system_bus_holder(bridge) != SystemBusHolder::CPU {
+
+                // Stall for one cycle as BIU is being used by another component.
+                return -1;
+            } else {
+                // Begin transaction.
+
+                let stall_cycles = bridge.how_how_many_stall_cycles(self, physical_address);
+                self.cycles += stall_cycles;
+                self.total_cycles += stall_cycles as i64;
+                bridge.read_word(self, physical_address)
+
+                // End transaction.
+            }
+        };
+
+        // Return word variable.
+        0xFFFFFFFF & word_val as i64
     }
 }
 

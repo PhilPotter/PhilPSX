@@ -3,16 +3,16 @@
 
 /// This structure models exceptions within the R3051 CPU.
 pub struct MIPSException {
-    exception_reason: MIPSExceptionReason,
-    program_counter_origin: i32,
-    bad_address: i32,
-    co_processor_num: i32,
-    is_in_branch_delay_slot: bool
+    pub exception_reason: MIPSExceptionReason,
+    pub program_counter_origin: i32,
+    pub bad_address: i32,
+    pub co_processor_num: i32,
+    pub is_in_branch_delay_slot: bool
 }
 
 /// This enum represents all possible reasons for an exception.
 /// Integer codes are listed explicitly for clarity.
-enum MIPSExceptionReason {
+pub enum MIPSExceptionReason {
     INT = 0,
     ADEL = 4,
     ADES = 5,
