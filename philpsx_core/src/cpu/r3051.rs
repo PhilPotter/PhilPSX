@@ -443,7 +443,7 @@ impl R3051 {
                 address
             };
 
-            //R3051_handleException(cpu);
+            self.handle_exception();
             return -1;
         }
 
@@ -500,6 +500,105 @@ impl R3051 {
 
         // Return word variable.
         0xFFFFFFFF & word_val as i64
+    }
+
+    /// This function can deal with an exception, making sure the right things
+    /// are done.
+    fn handle_exception(&mut self) -> bool {
+
+        // Exit if exception is NULL.
+        if self.exception.exception_reason == MIPSExceptionReason::NULL {
+            return false;
+        }
+
+        // Wipe out pending jump and branch delay info.
+        self.jump_pending = false;
+        self.prev_was_branch = false;
+
+        // Fetch cause register and status register from Cop0.
+        let mut temp_cause = self.sccp.read_reg(13);
+        let mut temp_status = self.sccp.read_reg(12);
+
+        // Bail out early for reset exceptions.
+        if self.exception.exception_reason == MIPSExceptionReason::RESET {
+
+            // Reset and exit method early.
+            self.reset();
+            self.sccp.reset();
+            return true;
+        }
+
+        // Check the exception code and handle common behaviour accordingly.
+        match self.exception.exception_reason {
+
+            MIPSExceptionReason::ADEL |
+            MIPSExceptionReason::ADES |
+            MIPSExceptionReason::BP |
+            MIPSExceptionReason::DBE |
+            MIPSExceptionReason::IBE |
+            MIPSExceptionReason::CPU |
+            MIPSExceptionReason::INT |
+            MIPSExceptionReason::OVF |
+            MIPSExceptionReason::RI |
+            MIPSExceptionReason::SYS => {
+
+                // Mask out ExcCode and replace.
+                temp_cause = (temp_cause & (0xFFFFFF83_u32 as i32)) |
+                             ((self.exception.exception_reason as i32) << 2);
+
+                // Set BD bit of cause register if necessary.
+                if self.exception.is_in_branch_delay_slot {
+                    temp_cause |= 0x80000000_u32 as i32;
+                } else {
+                    temp_cause &= 0x7FFFFFFF;
+                }
+
+                // Set EPC register.
+                self.sccp.write_reg(14, self.exception.program_counter_origin, true);
+
+                // Save KUp and IEp to KUo and IEo, KUc and IEc to KUp and IEp,
+                // and reset KUc and IEc to 0.
+                let temp = (temp_status & 0x0000000F) << 2;
+                temp_status &= 0xFFFFFFC0_u32 as i32;
+                temp_status |= temp;
+
+                // Set PC to general exception vector and finish processing.
+                self.program_counter = self.sccp.get_general_exception_vector();
+            },
+
+            _ => (),
+        }
+
+        // Specifically for ADEL/ADES/CPU exception types, handle the custom behaviour.
+        match self.exception.exception_reason {
+
+            // Handle address error exception (load or store operation).
+            MIPSExceptionReason::ADEL | MIPSExceptionReason::ADES => {
+
+                // Set bad virtual address register.
+                self.sccp.write_reg(8, self.exception.bad_address, true);
+            },
+
+            // Handle co-processor unusable exception.
+            MIPSExceptionReason::CPU => {
+
+                // Set relevant bit of CE field in cause register.
+                temp_cause = (temp_cause & (0xCFFFFFFF_u32 as i32)) |
+                             (self.exception.co_processor_num << 28);
+            },
+
+            _ => (),
+        }
+
+        // Write cause and status registers back to Cop0.
+        self.sccp.write_reg(13, temp_cause, true);
+        self.sccp.write_reg(12, temp_status, true);
+
+        // Reset exception object.
+        self.exception.reset();
+
+        // Signal that an exception has been processed.
+        true
     }
 }
 

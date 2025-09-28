@@ -12,6 +12,8 @@ pub struct MIPSException {
 
 /// This enum represents all possible reasons for an exception.
 /// Integer codes are listed explicitly for clarity.
+#[derive(Copy, Clone, PartialEq)]
+#[repr(i32)]
 pub enum MIPSExceptionReason {
     INT = 0,
     ADEL = 4,
