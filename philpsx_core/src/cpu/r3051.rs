@@ -661,6 +661,1776 @@ impl R3051 {
         // Signal that no interrupt occurred.
         false
     }
+
+    /// This function handles the ADD R3051 instruction.
+    fn add_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Add rs_val to rt_val.
+        let rs_val = self.general_registers[rs];
+        let rt_val = self.general_registers[rt];
+        let result = rs_val + rt_val;
+
+        // Check for two's complement overflow.
+        let sign_bit = 0x80000000_u32 as i32;
+        if (rs_val & sign_bit) == (rt_val & sign_bit) &&
+           (rs_val & sign_bit) != (result & sign_bit) {
+
+            // Trigger exception.
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.exception_reason = MIPSExceptionReason::OVF;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Store result.
+        self.general_registers[rd] = result;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the ADDI R3051 instruction.
+    fn addi_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and immediate. Sign extend immediate if needed.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Add to rs_val.
+        let rs_val = self.general_registers[rs];
+        let result = rs_val + immediate;
+
+        // Check for two's complement overflow.
+        let sign_bit = 0x80000000_u32 as i32;
+        if (rs_val & sign_bit) == (immediate & sign_bit) &&
+           (rs_val & sign_bit) != (result & sign_bit) {
+
+            // Trigger exception.
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.exception_reason = MIPSExceptionReason::OVF;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Store result.
+        self.general_registers[rt] = result;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the ADDIU R3051 instruction.
+    fn addiu_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and immediate. Sign extend immediate if needed.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Add to rs_val.
+        let result = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Store result.
+        self.general_registers[rt] = result as i32;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the ADDU R3051 instruction.
+    fn addu_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Add rs_val to rt_val.
+        let result = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) +
+                     ((self.general_registers[rt] as i64) & 0xFFFFFFFF);
+
+        // Store result.
+        self.general_registers[rd] = result as i32;
+        self.general_registers[0] = 0;
+    }
+
+/*
+/*
+ * This function handles the AND R3051 instruction.
+ */
+static void R3051_AND(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Bitwise AND rsVal and rtVal, storing result
+    cpu->generalRegisters[rd] =
+            cpu->generalRegisters[rs] & cpu->generalRegisters[rt];
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the ANDI R3051 instruction.
+ */
+static void R3051_ANDI(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Zero extending immediate is already done for us
+    // so just AND with rsVal and store result
+    cpu->generalRegisters[rt] = immediate & cpu->generalRegisters[rs];
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the BC2F R3051 instruction.
+ */
+static void R3051_BC2F(R3051 *cpu, int32_t instruction)
+{
+    // Get immediate
+    int32_t immediate = instruction & 0xFFFF;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // Jump if COP2 condition line is false
+    if (!Cop2_getConditionLineStatus(&cpu->gte)) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BC2T R3051 instruction.
+ */
+static void R3051_BC2T(R3051 *cpu, int32_t instruction)
+{
+    // Get immediate
+    int32_t immediate = instruction & 0xFFFF;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // Jump if COP2 condition line is true
+    if (Cop2_getConditionLineStatus(&cpu->gte)) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BEQ R3051 instruction.
+ */
+static void R3051_BEQ(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // Tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if condition holds true
+    if (cpu->generalRegisters[rs] == cpu->generalRegisters[rt]) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BGEZ R3051 instruction.
+ */
+static void R3051_BGEZ(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // This tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if rs greater than or equal to 0
+    if (cpu->generalRegisters[rs] >= 0) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BGEZAL R3051 instruction.
+ */
+static void R3051_BGEZAL(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Define target address and return address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
+    int64_t returnAddress = targetAddress;
+
+    // Create target address
+    targetAddress -= 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // This tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if rs greater than or equal to 0, and save return address in r31
+    if (cpu->generalRegisters[rs] >= 0) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+        cpu->generalRegisters[31] = (int32_t)returnAddress;
+        cpu->generalRegisters[0] = 0;
+    }
+}
+
+/*
+ * This function handles the BGTZ R3051 instruction.
+ */
+static void R3051_BGTZ(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // This tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if rs greater than 0
+    if (cpu->generalRegisters[rs] > 0) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BLEZ R3051 instruction.
+ */
+static void R3051_BLEZ(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // This tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if rs less than or equal to 0
+    if (cpu->generalRegisters[rs] <= 0) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BLTZ R3051 instruction.
+ */
+static void R3051_BLTZ(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // This tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if rs less than 0
+    if (cpu->generalRegisters[rs] < 0) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BLTZAL R3051 instruction.
+ */
+static void R3051_BLTZAL(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Define target address and return address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
+    int64_t returnAddress = targetAddress;
+
+    // Create target address
+    targetAddress -= 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // This tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if rs less than 0, and save return address in r31
+    if (cpu->generalRegisters[rs] < 0) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+        cpu->generalRegisters[31] = (int32_t)returnAddress;
+        cpu->generalRegisters[0] = 0;
+    }
+}
+
+/*
+ * This function handles the BNE R3051 instruction.
+ */
+static void R3051_BNE(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Create target address
+    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
+    int32_t offset = immediate << 2;
+    if ((offset & 0x20000) == 0x20000) {
+        offset |= 0xFFFC0000;
+    }
+    targetAddress += offset;
+
+    // Tells us this is a branch-type instruction
+    cpu->isBranch = true;
+
+    // Jump if condition holds false
+    if (cpu->generalRegisters[rs] != cpu->generalRegisters[rt]) {
+        cpu->jumpAddress = (int32_t)targetAddress;
+        cpu->jumpPending = true;
+    }
+}
+
+/*
+ * This function handles the BREAK R3051 instruction.
+ */
+static void R3051_BREAK(R3051 *cpu, int32_t instruction)
+{
+    // Trigger Breakpoint Exception
+    int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+    tempAddress -= 4;
+    cpu->exception.exceptionReason = PHILPSX_EXCEPTION_BP;
+    cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+    cpu->exception.programCounterOrigin
+            = cpu->exception.isInBranchDelaySlot ?
+                (int32_t)tempAddress : cpu->programCounter;
+}
+
+/*
+ * This function handles the CF2 R3051 instruction.
+ */
+static void R3051_CF2(R3051 *cpu, int32_t instruction)
+{
+    // Get rt and rd
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Move from COP2 control reg rd to CPU reg rt
+    cpu->generalRegisters[rt] = Cop2_readControlReg(&cpu->gte, rd);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the CT2 R3051 instruction.
+ */
+static void R3051_CT2(R3051 *cpu, int32_t instruction)
+{
+    // Get rt and rd
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Move from CPU reg rt to COP2 control reg rd
+    Cop2_writeControlReg(&cpu->gte, rd, cpu->generalRegisters[rt], false);
+}
+
+/*
+ * This function handles the DIV R3051 instruction.
+ */
+static void R3051_DIV(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and rt
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Divide rs by rt as signed values
+    int64_t rsVal = cpu->generalRegisters[rs];
+    int64_t rtVal = cpu->generalRegisters[rt];
+    int64_t quotient = 0;
+    int64_t remainder = 0;
+
+    if (rtVal != 0) {
+        quotient = rsVal / rtVal;
+        remainder = rsVal % rtVal;
+    } else {
+        //fprintf(stdout, "PhilPSX: R3051: R3051_DIV: divided by 0\n");
+        quotient = 0xFFFFFFFFL;
+        remainder = rsVal;
+    }
+
+    // Store result
+    cpu->hiReg = (int32_t)remainder;
+    cpu->loReg = (int32_t)quotient;
+}
+
+/*
+ * This function handles the DIVU R3051 instruction.
+ */
+static void R3051_DIVU(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and rt
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Divide rs by rt as unsigned values
+    int64_t rsVal = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    int64_t rtVal = cpu->generalRegisters[rt] & 0xFFFFFFFFL;
+    int64_t quotient = 0;
+    int64_t remainder = 0;
+
+    if (rtVal != 0) {
+        quotient = rsVal / rtVal;
+        remainder = rsVal % rtVal;
+    } else {
+        //fprintf(stdout, "PhilPSX: R3051: R3051_DIVU: divided by 0\n");
+        quotient = 0xFFFFFFFFL;
+        remainder = rsVal;
+    }
+
+    // Store result
+    cpu->hiReg = (int32_t)remainder;
+    cpu->loReg = (int32_t)quotient;
+}
+
+/*
+ * This function handles the J R3051 instruction.
+ */
+static void R3051_J(R3051 *cpu, int32_t instruction)
+{
+    // Get target
+    int32_t target = instruction & 0x3FFFFFF;
+
+    // Create address to jump to
+    cpu->jumpAddress = (target << 2) | (cpu->programCounter & 0xF0000000);
+    cpu->jumpPending = true;
+    cpu->isBranch = true;
+}
+
+/*
+ * This function handles the JAL R3051 instruction.
+ */
+static void R3051_JAL(R3051 *cpu, int32_t instruction)
+{
+    // Get target
+    int32_t target = instruction & 0x3FFFFFF;
+
+    // Create address to jump to, and place address of instruction
+    // after delay slot in r31
+    cpu->jumpAddress = (target << 2) | (cpu->programCounter & 0xF0000000);
+    cpu->jumpPending = true;
+    cpu->isBranch = true;
+    int64_t newAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
+    cpu->generalRegisters[31] = (int32_t)newAddress;
+    cpu->generalRegisters[0] = 0;
+    
+}
+
+/*
+ * This function handles the JALR R3051 instruction.
+ */
+static void R3051_JALR(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Jump to rs value and place address of instruction
+    // after delay slot into rd
+    cpu->jumpAddress = cpu->generalRegisters[rs];
+    cpu->jumpPending = true;
+    cpu->isBranch = true;
+    int64_t newAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
+    cpu->generalRegisters[rd] = (int32_t)newAddress;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the JR R3051 instruction.
+ */
+static void R3051_JR(R3051 *cpu, int32_t instruction)
+{
+    // Get rs
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Jump to rs value
+    cpu->jumpAddress = cpu->generalRegisters[rs];
+    cpu->jumpPending = true;
+    cpu->isBranch = true;
+}
+
+/*
+ * This function handles the LB R3051 instruction.
+ */
+static void R3051_LB(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load byte and sign extend
+    int32_t tempByte = 0xFF & R3051_readDataValue(
+            cpu,
+            PHILPSX_R3051_BYTE,
+            (int32_t)address
+            );
+    if ((tempByte & 0x80) == 0x80) {
+        tempByte |= 0xFFFFFF00;
+    }
+
+    // Write byte to correct register
+    cpu->generalRegisters[rt] = tempByte;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the LBU R3051 instruction.
+ */
+static void R3051_LBU(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load byte and zero extend
+    int32_t tempByte = 0xFF & R3051_readDataValue(
+            cpu,
+            PHILPSX_R3051_BYTE,
+            (int32_t)address
+            );
+
+    // Write byte to correct register
+    cpu->generalRegisters[rt] = tempByte;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the LH R3051 instruction.
+ */
+static void R3051_LH(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed and half-word aligned, trigger
+    // exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
+            address % 2 != 0) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load half-word and swap endianness, sign extend
+    int32_t tempHalfWord = 0xFFFF & R3051_readDataValue(
+            cpu,
+            PHILPSX_R3051_HALFWORD,
+            (int32_t)address
+            );
+    tempHalfWord = ((tempHalfWord << 8) & 0xFF00) |
+            logical_rshift(tempHalfWord, 8);
+    if ((tempHalfWord & 0x8000) == 0x8000) {
+        tempHalfWord |= 0xFFFF0000;
+    }
+
+    // Write half-word to correct register
+    cpu->generalRegisters[rt] = tempHalfWord;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the LHU R3051 instruction.
+ */
+static void R3051_LHU(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed and half-word aligned, trigger
+    // exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
+            address % 2 != 0) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load half-word and swap endianness, zero extend
+    int32_t tempHalfWord = 0xFFFF & R3051_readDataValue(
+            cpu,
+            PHILPSX_R3051_HALFWORD,
+            (int32_t)address
+            );
+
+    // Swap byte order
+    tempHalfWord = ((tempHalfWord << 8) & 0xFF00) |
+            logical_rshift(tempHalfWord, 8);
+
+    // Write half-word to correct register
+    cpu->generalRegisters[rt] = tempHalfWord;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the LUI R3051 instruction.
+ */
+static void R3051_LUI(R3051 *cpu, int32_t instruction)
+{
+    // Get rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Shift immediate left by 16 bits (leaving least significant
+    // 16 bits as zeroes) and store result
+    cpu->generalRegisters[rt] = (immediate << 16);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the LW R3051 instruction.
+ */
+static void R3051_LW(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed and word aligned, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
+            address % 4 != 0) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load word
+    int32_t tempWord = R3051_readDataValue(
+            cpu,
+            PHILPSX_R3051_WORD,
+            (int32_t)address
+            );
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    // Write word to correct register
+    cpu->generalRegisters[rt] = tempWord;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the LWC2 R3051 instruction.
+ */
+static void R3051_LWC2(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed and word aligned, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
+            address % 4 != 0) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load word
+    int32_t tempWord = R3051_readDataValue(
+            cpu,
+            PHILPSX_R3051_WORD,
+            (int32_t)address
+            );
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    // Write word to correct COP2 data register
+    Cop2_writeDataReg(&cpu->gte, rt, tempWord, false);
+}
+
+/*
+ * This function handles the LWL R3051 instruction.
+ */
+static void R3051_LWL(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Align address, fetch word, and store shift index
+    int32_t tempAddress = (int32_t)(address & 0xFFFFFFFC);
+    int32_t byteShiftIndex = (int32_t)(~address & 0x3);
+    int32_t tempWord = R3051_readDataValue(
+            cpu,
+            PHILPSX_R3051_WORD,
+            tempAddress
+            );
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    // Shift word value left by required amount
+    tempWord = tempWord << (byteShiftIndex * 8);
+
+    // Fetch rt contents, and calculate mask
+    int32_t tempRtVal = cpu->generalRegisters[rt];
+    int32_t mask = ~(0xFFFFFFFF << (byteShiftIndex * 8));
+    tempRtVal &= mask;
+
+    // Merge contents
+    tempWord |= tempRtVal;
+
+    // Write word to correct register
+    cpu->generalRegisters[rt] = tempWord;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the LWR R3051 instruction.
+ */
+static void R3051_LWR(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ? (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Align address, fetch word, and store shift index
+    int32_t tempAddress = (int32_t)(address & 0xFFFFFFFC);
+    int32_t byteShiftIndex = (int32_t)(address & 0x3);
+    int32_t tempWord = R3051_readDataValue(cpu, PHILPSX_R3051_WORD, tempAddress);
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    // Shift word value left by required amount
+    tempWord = logical_rshift(tempWord, (byteShiftIndex * 8));
+
+    // Fetch rt contents, and calculate mask
+    int32_t tempRtVal = cpu->generalRegisters[rt];
+    int32_t mask = ~(logical_rshift(0xFFFFFFFF, (byteShiftIndex * 8)));
+    tempRtVal &= mask;
+
+    // Merge contents
+    tempWord |= tempRtVal;
+
+    // Write word to correct register
+    cpu->generalRegisters[rt] = tempWord;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the MF0 R3051 instruction.
+ */
+static void R3051_MF0(R3051 *cpu, int32_t instruction)
+{
+    // Get rt and rd
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Check if rd is any of the following and trigger exception if so
+    switch (rd) {
+        case 0:
+        case 1:
+        case 2:
+        case 4:
+        case 10:
+        {
+            // Trigger exception
+            int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+            tempAddress -= 4;
+            cpu->exception.exceptionReason = PHILPSX_EXCEPTION_RI;
+            cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+            cpu->exception.programCounterOrigin
+                    = cpu->exception.isInBranchDelaySlot ?
+                        (int32_t)tempAddress : cpu->programCounter;
+            return;
+        }
+    }
+
+    // Move COP0 reg rd to CPU reg rt
+    cpu->generalRegisters[rt] = Cop0_readReg(&cpu->sccp, rd);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the MF2 R3051 instruction.
+ */
+static void R3051_MF2(R3051 *cpu, int32_t instruction)
+{
+    // Get rt and rd
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Move from COP2 data reg rd to CPU reg rt
+    cpu->generalRegisters[rt] = Cop2_readDataReg(&cpu->gte, rd);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the MFHI R3051 instruction.
+ */
+static void R3051_MFHI(R3051 *cpu, int32_t instruction)
+{
+    // Get rd
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Move Hi to rd
+    cpu->generalRegisters[rd] = cpu->hiReg;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the MFLO R3051 instruction.
+ */
+static void R3051_MFLO(R3051 *cpu, int32_t instruction)
+{
+    // Get rd
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Move Lo to rd
+    cpu->generalRegisters[rd] = cpu->loReg;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the MT0 R3051 instruction.
+ */
+static void R3051_MT0(R3051 *cpu, int32_t instruction)
+{
+    // Get rt and rd
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Move CPU reg rt to COP0 reg rd
+    Cop0_writeReg(&cpu->sccp, rd, cpu->generalRegisters[rt], false);
+}
+
+/*
+ * This function handles the MT2 R3051 instruction.
+ */
+static void R3051_MT2(R3051 *cpu, int32_t instruction)
+{
+    // Get rt and rd
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Move from CPU reg rt to COP2 data reg rd
+    Cop2_writeDataReg(&cpu->gte, rd, cpu->generalRegisters[rt], false);
+}
+
+/*
+ * This function handles the MTHI R3051 instruction.
+ */
+static void R3051_MTHI(R3051 *cpu, int32_t instruction)
+{
+    // Get rs
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Move rs to Hi
+    cpu->hiReg = cpu->generalRegisters[rs];
+}
+
+/*
+ * This function handles the MTLO R3051 instruction.
+ */
+static void R3051_MTLO(R3051 *cpu, int32_t instruction)
+{
+    // Get rs
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+
+    // Move rs to Lo
+    cpu->loReg = cpu->generalRegisters[rs];
+}
+
+/*
+ * This function handles the MULT R3051 instruction.
+ */
+static void R3051_MULT(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and rt
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Multiply rs and rt as signed values
+    int64_t rsVal = cpu->generalRegisters[rs];
+    int64_t rtVal = cpu->generalRegisters[rt];
+    int64_t result = rsVal * rtVal;
+
+    // Store result
+    cpu->hiReg = (int32_t)logical_rshift(result, 32);
+    cpu->loReg = (int32_t)result;
+}
+
+/*
+ * This function handles the MULTU R3051 instruction.
+ */
+static void R3051_MULTU(R3051 *cpu, int32_t instruction)
+{
+    // Get rs and rt
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Multiply rs and rt as unsigned values
+    int64_t rsVal = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    int64_t rtVal = cpu->generalRegisters[rt] & 0xFFFFFFFFL;
+    int64_t result = rsVal * rtVal;
+
+    // Store result
+    cpu->hiReg = (int32_t)logical_rshift(result, 32);
+    cpu->loReg = (int32_t)result;
+}
+
+/*
+ * This function handles the NOR R3051 instruction.
+ */
+static void R3051_NOR(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Bitwise NOR rsVal and rtVal, storing result
+    cpu->generalRegisters[rd] =
+            ~(cpu->generalRegisters[rs] | cpu->generalRegisters[rt]);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the OR R3051 instruction.
+ */
+static void R3051_OR(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Bitwise OR rsVal and rtVal, storing result
+    cpu->generalRegisters[rd] =
+            cpu->generalRegisters[rs] | cpu->generalRegisters[rt];
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the ORI R3051 instruction.
+ */
+static void R3051_ORI(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Zero extending immediate is already done for us
+    // so just OR with rsVal and store result
+    cpu->generalRegisters[rt] = immediate | cpu->generalRegisters[rs];
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the RFE R3051 instruction.
+ */
+static void R3051_RFE(R3051 *cpu, int32_t instruction)
+{
+    Cop0_rfe(&cpu->sccp);
+}
+
+/*
+ * This function handles the SB R3051 instruction.
+ */
+static void R3051_SB(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load byte from register and write to memory
+    int32_t tempByte = 0xFF & cpu->generalRegisters[rt];
+    R3051_writeDataValue(cpu, PHILPSX_R3051_BYTE, (int32_t)address, tempByte);
+}
+
+/*
+ * This function handles the SH R3051 instruction.
+ */
+static void R3051_SH(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed and half-word aligned, trigger
+    // exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
+            address % 2 != 0) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load half-word from register and swap endianness, then write to memory
+    // (checking for exceptions and stalls)
+    int32_t tempHalfWord = 0xFFFF & cpu->generalRegisters[rt];
+
+    // Swap byte order
+    tempHalfWord = ((tempHalfWord << 8) & 0xFF00) |
+            logical_rshift(tempHalfWord, 8);
+
+    R3051_writeDataValue(
+            cpu,
+            PHILPSX_R3051_HALFWORD,
+            (int32_t)address,
+            tempHalfWord
+            );
+}
+
+/*
+ * This function handles the SLL R3051 instruction.
+ */
+static void R3051_SLL(R3051 *cpu, int32_t instruction)
+{
+    // Get rt, rd and shamt
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+    int32_t shamt = logical_rshift(instruction, 6) & 0x1F;
+
+    // Shift rt value left by shamt bits, inserting zeroes
+    // into low order bits, then store result
+    cpu->generalRegisters[rd] = cpu->generalRegisters[rt] << shamt;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SLLV R3051 instruction.
+ */
+static void R3051_SLLV(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Shift rt value left by (lowest 5 bits of rs value), 
+    // inserting zeroes into low order bits, then
+    // store result
+    cpu->generalRegisters[rd] = 
+            cpu->generalRegisters[rt] << (cpu->generalRegisters[rs] & 0x1F);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SLT R3051 instruction.
+ */
+static void R3051_SLT(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Compare rsVal and rtVal, storing result
+    if (cpu->generalRegisters[rs] < cpu->generalRegisters[rt]) {
+        cpu->generalRegisters[rd] = 1;
+    } else {
+        cpu->generalRegisters[rd] = 0;
+    }
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SLTI R3051 instruction.
+ */
+static void R3051_SLTI(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Sign extend immediate
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+
+    // Store result
+    if (cpu->generalRegisters[rs] < immediate) {
+        cpu->generalRegisters[rt] = 1;
+    } else {
+        cpu->generalRegisters[rt] = 0;
+    }
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SLTIU R3051 instruction.
+ */
+static void R3051_SLTIU(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Sign extend immediate
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000L;
+    }
+
+    // Treat rsVal as unsigned
+    int64_t tempRsVal = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+
+    // Store result
+    if (tempRsVal < immediate) {
+        cpu->generalRegisters[rt] = 1;
+    } else {
+        cpu->generalRegisters[rt] = 0;
+    }
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SLTU R3051 instruction.
+ */
+static void R3051_SLTU(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Compare rsVal and rtVal as unsigned values, storing result
+    if ((cpu->generalRegisters[rs] & 0xFFFFFFFFL) <
+            (cpu->generalRegisters[rt] & 0xFFFFFFFFL)) {
+        cpu->generalRegisters[rd] = 1;
+    } else {
+        cpu->generalRegisters[rd] = 0;
+    }
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SRA R3051 instruction.
+ */
+static void R3051_SRA(R3051 *cpu, int32_t instruction)
+{
+    // Get rt, rd and shamt
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+    int32_t shamt = logical_rshift(instruction, 6) & 0x1F;
+
+    // Shift rt value right by shamt bits, sign extending
+    // high order bits, then store result
+    cpu->generalRegisters[rd] = cpu->generalRegisters[rt] >> shamt;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SRAV R3051 instruction.
+ */
+static void R3051_SRAV(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Shift rt value right by (lowest 5 bits of rs value), 
+    // sign extending high order bits, then
+    // store result
+    cpu->generalRegisters[rd] =
+            cpu->generalRegisters[rt] >> (cpu->generalRegisters[rs] & 0x1F);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SRL R3051 instruction.
+ */
+static void R3051_SRL(R3051 *cpu, int32_t instruction)
+{
+    // Get rt, rd and shamt
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+    int32_t shamt = logical_rshift(instruction, 6) & 0x1F;
+
+    // Shift rt value right by shamt bits, inserting zeroes
+    // into high order bits, then store result
+    cpu->generalRegisters[rd] =
+            logical_rshift(cpu->generalRegisters[rt], shamt);
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SRLV R3051 instruction.
+ */
+static void R3051_SRLV(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Shift rt value right by (lowest 5 bits of rs value), 
+    // inserting zeroes into high order bits, then
+    // store result
+    cpu->generalRegisters[rd] =
+            logical_rshift(
+            cpu->generalRegisters[rt],
+            (cpu->generalRegisters[rs] & 0x1F)
+            );
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SUB R3051 instruction.
+ */
+static void R3051_SUB(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Subtract rtVal from rsVal
+    int32_t rsVal = cpu->generalRegisters[rs];
+    int32_t rtVal = cpu->generalRegisters[rt];
+    int32_t result = rsVal - rtVal;
+
+    // Check for two's complement overflow
+    if ((rsVal & 0x80000000) != (rtVal & 0x80000000)) {
+        if ((rsVal & 0x80000000) != (result & 0x80000000)) {
+
+            // Trigger exception
+            int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+            tempAddress -= 4;
+            cpu->exception.exceptionReason = PHILPSX_EXCEPTION_OVF;
+            cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+            cpu->exception.programCounterOrigin
+                    = cpu->exception.isInBranchDelaySlot ?
+                        (int32_t)tempAddress : cpu->programCounter;
+            return;
+        }
+    }
+
+    // Store result
+    cpu->generalRegisters[rd] = result;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SUBU R3051 instruction.
+ */
+static void R3051_SUBU(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Subtract rtVal from rsVal
+    int32_t result = (int32_t)((cpu->generalRegisters[rs] & 0xFFFFFFFFL) -
+            (cpu->generalRegisters[rt] & 0xFFFFFFFFL));
+
+    // Store result
+    cpu->generalRegisters[rd] = result;
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the SW R3051 instruction.
+ */
+static void R3051_SW(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed and word aligned, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
+            address % 4 != 0) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load word from register, set byte order and write to memory
+    // (checking for exceptions and stalls)
+    int32_t tempWord = cpu->generalRegisters[rt];
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, (int32_t)address, tempWord);
+}
+
+/*
+ * This function handles the SWC2 R3051 instruction.
+ */
+static void R3051_SWC2(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed and word aligned, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
+            address % 4 != 0) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Load word from register, set byte order and write to memory
+    int32_t tempWord = Cop2_readDataReg(&cpu->gte, rt);
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, (int32_t)address, tempWord);
+}
+
+/*
+ * This function handles the SWL R3051 instruction.
+ */
+static void R3051_SWL(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Align address, fetch word, and store shift index - sort byte order too
+    int32_t tempAddress = (int32_t)(address & 0xFFFFFFFC);
+    int32_t byteShiftIndex = (int32_t)(~address & 0x3);
+    int32_t tempWord = cpu->generalRegisters[rt];
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    // Shift word value left by required amount
+    tempWord = tempWord << (byteShiftIndex * 8);
+
+    // Fetch memory contents, and calculate mask
+    int32_t tempVal = SystemInterlink_readWord(cpu->system, tempAddress);
+    int32_t mask = ~(0xFFFFFFFF << (byteShiftIndex * 8));
+    tempVal &= mask;
+
+    // Merge contents
+    tempWord |= tempVal;
+
+    // Write word to memory
+    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, tempAddress, tempWord);
+}
+
+/*
+ * This function handles the SWR R3051 instruction.
+ */
+static void R3051_SWR(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Calculate address
+    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    if ((immediate & 0x8000) == 0x8000) {
+        immediate |= 0xFFFF0000;
+    }
+    address += immediate;
+
+    // Check if address is allowed, trigger exception if not
+    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
+        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+        tempAddress -= 4;
+        cpu->exception.badAddress = (int32_t)address;
+        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
+        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+        cpu->exception.programCounterOrigin
+                = cpu->exception.isInBranchDelaySlot ?
+                    (int32_t)tempAddress : cpu->programCounter;
+        return;
+    }
+
+    // Align address, fetch word, and store shift index - sort byte order too
+    int32_t tempAddress = (int32_t)(address & 0xFFFFFFFC);
+    int32_t byteShiftIndex = (int32_t)(address & 0x3);
+    int32_t tempWord = cpu->generalRegisters[rt];
+
+    // Swap byte order
+    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+
+    // Shift word value right by required amount
+    tempWord = logical_rshift(tempWord, (byteShiftIndex * 8));
+
+    // Fetch rt contents, and calculate mask
+    int32_t tempVal = SystemInterlink_readWord(cpu->system, tempAddress);
+    int32_t mask = ~logical_rshift(0xFFFFFFFF, (byteShiftIndex * 8));
+    tempVal &= mask;
+
+    // Merge contents
+    tempWord |= tempVal;
+
+    // Write word to main memory
+    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, tempAddress, tempWord);
+}
+
+/*
+ * This function handles the SYSCALL R3051 instruction.
+ */
+static void R3051_SYSCALL(R3051 *cpu, int32_t instruction)
+{
+    // Trigger System Call Exception
+    int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
+    tempAddress -= 4;
+    cpu->exception.exceptionReason = PHILPSX_EXCEPTION_SYS;
+    cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
+    cpu->exception.programCounterOrigin
+            = cpu->exception.isInBranchDelaySlot ?
+                (int32_t)tempAddress : cpu->programCounter;
+}
+
+/*
+ * This function handles the XOR R3051 instruction.
+ */
+static void R3051_XOR(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and rd
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+
+    // Bitwise XOR rsVal and rtVal, storing result
+    cpu->generalRegisters[rd] =
+            cpu->generalRegisters[rs] ^ cpu->generalRegisters[rt];
+    cpu->generalRegisters[0] = 0;
+}
+
+/*
+ * This function handles the XORI R3051 instruction.
+ */
+static void R3051_XORI(R3051 *cpu, int32_t instruction)
+{
+    // Get rs, rt and immediate
+    int32_t immediate = instruction & 0xFFFF;
+    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+
+    // Zero extending immediate is already done for us
+    // so just XOR with rsVal and store result
+    cpu->generalRegisters[rt] = immediate ^ cpu->generalRegisters[rs];
+    cpu->generalRegisters[0] = 0;
+}
+    
+     */
 }
 
 /// Implementation functions to be called from anything that understands what
