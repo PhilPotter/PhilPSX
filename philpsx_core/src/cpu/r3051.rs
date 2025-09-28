@@ -768,254 +768,233 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
+    /// This function handles the AND R3051 instruction.
+    fn and_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Bitwise AND rs_val and rt_val, storing result.
+        self.general_registers[rd] = self.general_registers[rs] & self.general_registers[rt];
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the ANDI R3051 instruction.
+    fn andi_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Zero extending immediate is already done for us
+        // so just AND with rsVal and store result.
+        self.general_registers[rt] = immediate & self.general_registers[rs];
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the BC2F R3051 instruction.
+    fn bc2f_instruction(&mut self, instruction: i32) {
+
+        // Get immediate.
+        let immediate = instruction & 0xFFFF;
+
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // Jump if COP2 condition line is false.
+        if !self.gte.get_condition_line_status() {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
+    }
+
+   /// This function handles the BC2T R3051 instruction.
+   fn bc2t_instruction(&mut self, instruction: i32) {
+
+        // Get immediate.
+        let immediate = instruction & 0xFFFF;
+
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // Jump if COP2 condition line is true.
+        if self.gte.get_condition_line_status() {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
+    }
+
+    /// This function handles the BEQ R3051 instruction.
+    fn beq_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // Tells us this is a branch-type instruction.
+        self.is_branch = true;
+
+        // Jump if condition holds true.
+        if self.general_registers[rs] == self.general_registers[rt] {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
+    }
+
+    /// This function handles the BGEZ R3051 instruction.
+    fn bgez_instruction(&mut self, instruction: i32) {
+
+        // Get rs and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // This tells us this is a branch-type instruction.
+        self.is_branch = true;
+
+        // Jump if rs greater than or equal to 0.
+        if self.general_registers[rs] >= 0 {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
+    }
+
+    /// This function handles the BGEZAL R3051 instruction.
+    fn bgezal_instruction(&mut self, instruction: i32) {
+
+        // Get rs and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+
+        // Define target address and return address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
+        let return_address = target_address;
+
+        // Create target address.
+        target_address -= 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // This tells us this is a branch-type instruction.
+        self.is_branch = true;
+
+        // Jump if rs greater than or equal to 0, and save return address in r31.
+        if self.general_registers[rs] >= 0 {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+            self.general_registers[31] = return_address as i32;
+            self.general_registers[0] = 0;
+        }
+    }
+
+    /// This function handles the BGTZ R3051 instruction.
+    fn bgtz_instruction(&mut self, instruction: i32) {
+
+        // Get rs and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // This tells us this is a branch-type instruction.
+        self.is_branch = true;
+
+        // Jump if rs greater than 0.
+        if self.general_registers[rs] > 0 {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
+    }
+
+    /// This function handles the BLEZ R3051 instruction.
+    fn blez_instruction(&mut self, instruction: i32) {
+
+        // Get rs and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // This tells us this is a branch-type instruction.
+        self.is_branch = true;
+
+        // Jump if rs less than or equal to 0.
+        if self.general_registers[rs] <= 0 {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
+    }
+
+    /// This function handles the BLTZ R3051 instruction.
+    fn bltz_instruction(&mut self, instruction: i32) {
+
+        // Get rs and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000u32 as i32;
+        }
+        target_address += offset as i64;
+
+        // This tells us this is a branch-type instruction.
+        self.is_branch = true;
+
+        // Jump if rs less than 0.
+        if self.general_registers[rs] < 0 {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
+    }
+
 /*
-/*
- * This function handles the AND R3051 instruction.
- */
-static void R3051_AND(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-
-    // Bitwise AND rsVal and rtVal, storing result
-    cpu->generalRegisters[rd] =
-            cpu->generalRegisters[rs] & cpu->generalRegisters[rt];
-    cpu->generalRegisters[0] = 0;
-}
-
-/*
- * This function handles the ANDI R3051 instruction.
- */
-static void R3051_ANDI(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Zero extending immediate is already done for us
-    // so just AND with rsVal and store result
-    cpu->generalRegisters[rt] = immediate & cpu->generalRegisters[rs];
-    cpu->generalRegisters[0] = 0;
-}
-
-/*
- * This function handles the BC2F R3051 instruction.
- */
-static void R3051_BC2F(R3051 *cpu, int32_t instruction)
-{
-    // Get immediate
-    int32_t immediate = instruction & 0xFFFF;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // Jump if COP2 condition line is false
-    if (!Cop2_getConditionLineStatus(&cpu->gte)) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
-/*
- * This function handles the BC2T R3051 instruction.
- */
-static void R3051_BC2T(R3051 *cpu, int32_t instruction)
-{
-    // Get immediate
-    int32_t immediate = instruction & 0xFFFF;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // Jump if COP2 condition line is true
-    if (Cop2_getConditionLineStatus(&cpu->gte)) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
-/*
- * This function handles the BEQ R3051 instruction.
- */
-static void R3051_BEQ(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // Tells us this is a branch-type instruction
-    cpu->isBranch = true;
-
-    // Jump if condition holds true
-    if (cpu->generalRegisters[rs] == cpu->generalRegisters[rt]) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
-/*
- * This function handles the BGEZ R3051 instruction.
- */
-static void R3051_BGEZ(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // This tells us this is a branch-type instruction
-    cpu->isBranch = true;
-
-    // Jump if rs greater than or equal to 0
-    if (cpu->generalRegisters[rs] >= 0) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
-/*
- * This function handles the BGEZAL R3051 instruction.
- */
-static void R3051_BGEZAL(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-
-    // Define target address and return address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
-    int64_t returnAddress = targetAddress;
-
-    // Create target address
-    targetAddress -= 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // This tells us this is a branch-type instruction
-    cpu->isBranch = true;
-
-    // Jump if rs greater than or equal to 0, and save return address in r31
-    if (cpu->generalRegisters[rs] >= 0) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-        cpu->generalRegisters[31] = (int32_t)returnAddress;
-        cpu->generalRegisters[0] = 0;
-    }
-}
-
-/*
- * This function handles the BGTZ R3051 instruction.
- */
-static void R3051_BGTZ(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // This tells us this is a branch-type instruction
-    cpu->isBranch = true;
-
-    // Jump if rs greater than 0
-    if (cpu->generalRegisters[rs] > 0) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
-/*
- * This function handles the BLEZ R3051 instruction.
- */
-static void R3051_BLEZ(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // This tells us this is a branch-type instruction
-    cpu->isBranch = true;
-
-    // Jump if rs less than or equal to 0
-    if (cpu->generalRegisters[rs] <= 0) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
-/*
- * This function handles the BLTZ R3051 instruction.
- */
-static void R3051_BLTZ(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // This tells us this is a branch-type instruction
-    cpu->isBranch = true;
-
-    // Jump if rs less than 0
-    if (cpu->generalRegisters[rs] < 0) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
 /*
  * This function handles the BLTZAL R3051 instruction.
  */
