@@ -600,6 +600,67 @@ impl R3051 {
         // Signal that an exception has been processed.
         true
     }
+
+
+    /// This function is for handling interrupts from within the execution loop.
+    fn handle_interrupts(&mut self, bridge: &mut dyn CpuBridge) -> bool {
+
+        // Increment all system interrupt counters.
+        bridge.increment_interrupt_counters(self);
+
+        // Get interrupt status and mask registers.
+        let mut interrupt_status = {
+            let word = bridge.read_word(self, 0x1F801070) & 0x7FF;
+            self.swap_word_endianness(word)
+        };
+        let interrupt_mask = {
+            let word = bridge.read_word(self, 0x1F801074) & 0x7FF;
+            self.swap_word_endianness(word)
+        };
+
+        // Mask the interrupt status register.
+        interrupt_status &= interrupt_mask;
+
+        // Set bit 10 of COP0 cause register if needed.
+        {
+            let mut cause_register = self.sccp.read_reg(13);
+            if interrupt_status != 0 {
+                cause_register |= 0x400;
+            } else {
+                cause_register &= 0xFFFFFBFF_u32 as i32;
+            }
+            self.sccp.write_reg(13, cause_register, true);
+        }
+
+        // Get status reg and cause reg from COP0.
+        let mut status_register = self.sccp.read_reg(12);
+        let mut cause_register = self.sccp.read_reg(13);
+
+        // Check if interrupts are enabled, if not then do nothing.
+        if (status_register & 0x1) == 0x1 {
+
+            // Use IM mask from status register to mask interrupt bits
+            // in cause register.
+            status_register &= 0x0000FF00;
+            cause_register &= 0x0000FF00;
+            cause_register &= status_register;
+
+            // If resulting value is non-zero, trigger interrupt.
+            if cause_register != 0 {
+                self.exception.exception_reason = MIPSExceptionReason::INT;
+                self.exception.program_counter_origin = self.program_counter;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.handle_exception();
+
+                // Signal that interrupt occurred and was handled
+                // by exception routine.
+                return true;
+            }
+        }
+
+        // Signal that no interrupt occurred.
+        false
+    }
 }
 
 /// Implementation functions to be called from anything that understands what
