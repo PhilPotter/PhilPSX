@@ -994,321 +994,283 @@ impl R3051 {
         }
     }
 
-/*
-/*
- * This function handles the BLTZAL R3051 instruction.
- */
-static void R3051_BLTZAL(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    /// This function handles the BLTZAL R3051 instruction.
+    fn bltzal_instruction(&mut self, instruction: i32) {
 
-    // Define target address and return address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
-    int64_t returnAddress = targetAddress;
+        // Get rs and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
 
-    // Create target address
-    targetAddress -= 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
+        // Define target address and return address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
+        let return_address = target_address;
 
-    // This tells us this is a branch-type instruction
-    cpu->isBranch = true;
+        // Create target address.
+        target_address -= 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
 
-    // Jump if rs less than 0, and save return address in r31
-    if (cpu->generalRegisters[rs] < 0) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-        cpu->generalRegisters[31] = (int32_t)returnAddress;
-        cpu->generalRegisters[0] = 0;
-    }
-}
+        // This tells us this is a branch-type instruction.
+        self.is_branch = true;
 
-/*
- * This function handles the BNE R3051 instruction.
- */
-static void R3051_BNE(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Create target address
-    int64_t targetAddress = (cpu->programCounter & 0xFFFFFFFFL) + 4L;
-    int32_t offset = immediate << 2;
-    if ((offset & 0x20000) == 0x20000) {
-        offset |= 0xFFFC0000;
-    }
-    targetAddress += offset;
-
-    // Tells us this is a branch-type instruction
-    cpu->isBranch = true;
-
-    // Jump if condition holds false
-    if (cpu->generalRegisters[rs] != cpu->generalRegisters[rt]) {
-        cpu->jumpAddress = (int32_t)targetAddress;
-        cpu->jumpPending = true;
-    }
-}
-
-/*
- * This function handles the BREAK R3051 instruction.
- */
-static void R3051_BREAK(R3051 *cpu, int32_t instruction)
-{
-    // Trigger Breakpoint Exception
-    int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-    tempAddress -= 4;
-    cpu->exception.exceptionReason = PHILPSX_EXCEPTION_BP;
-    cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-    cpu->exception.programCounterOrigin
-            = cpu->exception.isInBranchDelaySlot ?
-                (int32_t)tempAddress : cpu->programCounter;
-}
-
-/*
- * This function handles the CF2 R3051 instruction.
- */
-static void R3051_CF2(R3051 *cpu, int32_t instruction)
-{
-    // Get rt and rd
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-
-    // Move from COP2 control reg rd to CPU reg rt
-    cpu->generalRegisters[rt] = Cop2_readControlReg(&cpu->gte, rd);
-    cpu->generalRegisters[0] = 0;
-}
-
-/*
- * This function handles the CT2 R3051 instruction.
- */
-static void R3051_CT2(R3051 *cpu, int32_t instruction)
-{
-    // Get rt and rd
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-
-    // Move from CPU reg rt to COP2 control reg rd
-    Cop2_writeControlReg(&cpu->gte, rd, cpu->generalRegisters[rt], false);
-}
-
-/*
- * This function handles the DIV R3051 instruction.
- */
-static void R3051_DIV(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and rt
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Divide rs by rt as signed values
-    int64_t rsVal = cpu->generalRegisters[rs];
-    int64_t rtVal = cpu->generalRegisters[rt];
-    int64_t quotient = 0;
-    int64_t remainder = 0;
-
-    if (rtVal != 0) {
-        quotient = rsVal / rtVal;
-        remainder = rsVal % rtVal;
-    } else {
-        //fprintf(stdout, "PhilPSX: R3051: R3051_DIV: divided by 0\n");
-        quotient = 0xFFFFFFFFL;
-        remainder = rsVal;
+        // Jump if rs less than 0, and save return address in r31.
+        if self.general_registers[rs] < 0 {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+            self.general_registers[31] = return_address as i32;
+            self.general_registers[0] = 0;
+        }
     }
 
-    // Store result
-    cpu->hiReg = (int32_t)remainder;
-    cpu->loReg = (int32_t)quotient;
-}
+    /// This function handles the BNE R3051 instruction.
+    fn bne_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the DIVU R3051 instruction.
- */
-static void R3051_DIVU(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and rt
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+        // Get rs, rt and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
 
-    // Divide rs by rt as unsigned values
-    int64_t rsVal = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    int64_t rtVal = cpu->generalRegisters[rt] & 0xFFFFFFFFL;
-    int64_t quotient = 0;
-    int64_t remainder = 0;
+        // Create target address.
+        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
+        let mut offset = immediate << 2;
+        if (offset & 0x20000) == 0x20000 {
+            offset |= 0xFFFC0000_u32 as i32;
+        }
+        target_address += offset as i64;
 
-    if (rtVal != 0) {
-        quotient = rsVal / rtVal;
-        remainder = rsVal % rtVal;
-    } else {
-        //fprintf(stdout, "PhilPSX: R3051: R3051_DIVU: divided by 0\n");
-        quotient = 0xFFFFFFFFL;
-        remainder = rsVal;
+        // Tells us this is a branch-type instruction.
+        self.is_branch = true;
+
+        // Jump if condition holds false.
+        if self.general_registers[rs] != self.general_registers[rt] {
+            self.jump_address = target_address as i32;
+            self.jump_pending = true;
+        }
     }
 
-    // Store result
-    cpu->hiReg = (int32_t)remainder;
-    cpu->loReg = (int32_t)quotient;
-}
+    /// This function handles the BREAK R3051 instruction.
+    fn break_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the J R3051 instruction.
- */
-static void R3051_J(R3051 *cpu, int32_t instruction)
-{
-    // Get target
-    int32_t target = instruction & 0x3FFFFFF;
-
-    // Create address to jump to
-    cpu->jumpAddress = (target << 2) | (cpu->programCounter & 0xF0000000);
-    cpu->jumpPending = true;
-    cpu->isBranch = true;
-}
-
-/*
- * This function handles the JAL R3051 instruction.
- */
-static void R3051_JAL(R3051 *cpu, int32_t instruction)
-{
-    // Get target
-    int32_t target = instruction & 0x3FFFFFF;
-
-    // Create address to jump to, and place address of instruction
-    // after delay slot in r31
-    cpu->jumpAddress = (target << 2) | (cpu->programCounter & 0xF0000000);
-    cpu->jumpPending = true;
-    cpu->isBranch = true;
-    int64_t newAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
-    cpu->generalRegisters[31] = (int32_t)newAddress;
-    cpu->generalRegisters[0] = 0;
-    
-}
-
-/*
- * This function handles the JALR R3051 instruction.
- */
-static void R3051_JALR(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-
-    // Jump to rs value and place address of instruction
-    // after delay slot into rd
-    cpu->jumpAddress = cpu->generalRegisters[rs];
-    cpu->jumpPending = true;
-    cpu->isBranch = true;
-    int64_t newAddress = (cpu->programCounter & 0xFFFFFFFFL) + 8L;
-    cpu->generalRegisters[rd] = (int32_t)newAddress;
-    cpu->generalRegisters[0] = 0;
-}
-
-/*
- * This function handles the JR R3051 instruction.
- */
-static void R3051_JR(R3051 *cpu, int32_t instruction)
-{
-    // Get rs
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-
-    // Jump to rs value
-    cpu->jumpAddress = cpu->generalRegisters[rs];
-    cpu->jumpPending = true;
-    cpu->isBranch = true;
-}
-
-/*
- * This function handles the LB R3051 instruction.
- */
-static void R3051_LB(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
-    }
-    address += immediate;
-
-    // Check if address is allowed, trigger exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
+        // Trigger Breakpoint Exception.
+        let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+        temp_address -= 4;
+        self.exception.exception_reason = MIPSExceptionReason::BP;
+        self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+        self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+            temp_address as i32
+        } else {
+            self.program_counter
+        };
     }
 
-    // Load byte and sign extend
-    int32_t tempByte = 0xFF & R3051_readDataValue(
-            cpu,
-            PHILPSX_R3051_BYTE,
-            (int32_t)address
-            );
-    if ((tempByte & 0x80) == 0x80) {
-        tempByte |= 0xFFFFFF00;
+    /// This function handles the CF2 R3051 instruction.
+    fn cf2_instruction(&mut self, instruction: i32) {
+
+        // Get rt and rd.
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = instruction.logical_rshift(11) & 0x1F;
+
+        // Move from COP2 control reg rd to CPU reg rt.
+        self.general_registers[rt] = self.gte.read_control_reg(rd);
+        self.general_registers[0] = 0;
     }
 
-    // Write byte to correct register
-    cpu->generalRegisters[rt] = tempByte;
-    cpu->generalRegisters[0] = 0;
-}
+    /// This function handles the CT2 R3051 instruction.
+    fn ct2_instruction(&mut self, instruction: i32) {
+
+        // Get rt and rd.
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = instruction.logical_rshift(11) & 0x1F;
+
+        // Move from CPU reg rt to COP2 control reg rd.
+        self.gte.write_control_reg(rd, self.general_registers[rt], false);
+    }
+
+    /// This function handles the DIV R3051 instruction.
+    fn div_instruction(&mut self, instruction: i32) {
+
+        // Get rs and rt.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Divide rs by rt as signed values.
+        let rs_val = self.general_registers[rs] as i64;
+        let rt_val = self.general_registers[rt] as i64;
+        let mut quotient = 0;
+        let mut remainder = 0;
+
+        if rt_val != 0 {
+            quotient = rs_val / rt_val;
+            remainder = rs_val % rt_val;
+        } else {
+            quotient = 0xFFFFFFFF;
+            remainder = rs_val;
+        }
+
+        // Store result.
+        self.hi_reg = remainder as i32;
+        self.lo_reg = quotient as i32;
+    }
+
+    /// This function handles the DIVU R3051 instruction.
+    fn divu_instruction(&mut self, instruction: i32) {
+
+        // Get rs and rt
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Divide rs by rt as unsigned values.
+        let rs_val = (self.general_registers[rs] as i64) & 0xFFFFFFFF;
+        let rt_val = (self.general_registers[rt] as i64) & 0xFFFFFFFF;
+        let mut quotient = 0;
+        let mut remainder = 0;
+
+        if rt_val != 0 {
+            quotient = rs_val / rt_val;
+            remainder = rs_val % rt_val;
+        } else {
+            quotient = 0xFFFFFFFF;
+            remainder = rs_val;
+        }
+
+        // Store result.
+        self.hi_reg = remainder as i32;
+        self.lo_reg = quotient as i32;
+    }
+
+    /// This function handles the J R3051 instruction.
+    fn j_instruction(&mut self, instruction: i32) {
+
+        // Get target.
+        let target = instruction & 0x3FFFFFF;
+
+        // Create address to jump to.
+        self.jump_address = (target << 2) | (self.program_counter & 0xF0000000_u32 as i32);
+        self.jump_pending = true;
+        self.is_branch = true;
+    }
+
+    /// This function handles the JAL R3051 instruction.
+    fn jal_instruction(&mut self, instruction: i32) {
+
+        // Get target.
+        let target = instruction & 0x3FFFFFF;
+
+        // Create address to jump to, and place address of instruction
+        // after delay slot in r31.
+        self.jump_address = (target << 2) | (self.program_counter & 0xF0000000_u32 as i32);
+        self.jump_pending = true;
+        self.is_branch = true;
+        let new_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
+        self.general_registers[31] = new_address as i32;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the JALR R3051 instruction.
+    fn jalr_instruction(&mut self, instruction: i32) {
+
+        // Get rs and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Jump to rs value and place address of instruction
+        // after delay slot into rd.
+        self.jump_address = self.general_registers[rs];
+        self.jump_pending = true;
+        self.is_branch = true;
+        let new_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
+        self.general_registers[rd] = new_address as i32;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the JR R3051 instruction.
+    fn jr_instruction(&mut self, instruction: i32) {
+
+        // Get rs.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+
+        // Jump to rs value.
+        self.jump_address = self.general_registers[rs];
+        self.jump_pending = true;
+        self.is_branch = true;
+    }
+
+    /// This function handles the LB R3051 instruction.
+    fn lb_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Check if address is allowed, trigger exception if not.
+        if !self.sccp.is_address_allowed(address as i32) {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADEL;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Load byte and sign extend.
+        let temp_byte = self.read_data_value(
+            bridge, R3051Width::BYTE, address as i32
+        ).sign_extend(7);
+
+        // Write byte to correct register
+        self.general_registers[rt] = temp_byte;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the LBU R3051 instruction.
+    fn lbu_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Check if address is allowed, trigger exception if not.
+        if !self.sccp.is_address_allowed(address as i32) {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADEL;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Load byte and zero extend.
+        let temp_byte = 0xFF & self.read_data_value(bridge, R3051Width::BYTE, address as i32);
+
+        // Write byte to correct register.
+        self.general_registers[rt] = temp_byte;
+        self.general_registers[0] = 0;
+    }
 
 /*
- * This function handles the LBU R3051 instruction.
- */
-static void R3051_LBU(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
-    }
-    address += immediate;
-
-    // Check if address is allowed, trigger exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADEL;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
-    }
-
-    // Load byte and zero extend
-    int32_t tempByte = 0xFF & R3051_readDataValue(
-            cpu,
-            PHILPSX_R3051_BYTE,
-            (int32_t)address
-            );
-
-    // Write byte to correct register
-    cpu->generalRegisters[rt] = tempByte;
-    cpu->generalRegisters[0] = 0;
-}
-
 /*
  * This function handles the LH R3051 instruction.
  */
