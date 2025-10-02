@@ -1270,7 +1270,6 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
-
     /// This function handles the LH R3051 instruction.
     fn lh_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
 
@@ -1308,7 +1307,6 @@ impl R3051 {
         self.general_registers[rt] = temp_half_word;
         self.general_registers[0] = 0;
     }
-
 
     /// This function handles the LHU R3051 instruction.
     fn lhu_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
@@ -1349,7 +1347,6 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
-
     /// This function handles the LUI R3051 instruction.
     fn lui_instruction(&mut self, instruction: i32) {
 
@@ -1361,8 +1358,7 @@ impl R3051 {
        // 16 bits as zeroes) and store result.
        self.general_registers[rt] = immediate << 16;
        self.general_registers[0] = 0;
-   }
-
+    }
 
     /// This function handles the LW R3051 instruction.
     fn lw_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
@@ -1539,7 +1535,7 @@ impl R3051 {
         // Write word to correct register.
         self.general_registers[rt] = temp_word;
         self.general_registers[0] = 0;
-}
+    }
 
     /// This function handles the MF0 R3051 instruction.
     fn mf0_instruction(&mut self, instruction: i32) {
@@ -1598,156 +1594,134 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
-/*
-/*
- * This function handles the MFLO R3051 instruction.
- */
-static void R3051_MFLO(R3051 *cpu, int32_t instruction)
-{
-    // Get rd
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+    /// This function handles the MFLO R3051 instruction.
+    fn mflo_instruction(&mut self, instruction: i32) {
 
-    // Move Lo to rd
-    cpu->generalRegisters[rd] = cpu->loReg;
-    cpu->generalRegisters[0] = 0;
-}
+        // Get rd.
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
 
-/*
- * This function handles the MT0 R3051 instruction.
- */
-static void R3051_MT0(R3051 *cpu, int32_t instruction)
-{
-    // Get rt and rd
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+        // Move Lo to rd.
+        self.general_registers[rd] = self.lo_reg;
+        self.general_registers[0] = 0;
+    }
 
-    // Move CPU reg rt to COP0 reg rd
-    Cop0_writeReg(&cpu->sccp, rd, cpu->generalRegisters[rt], false);
-}
+    /// This function handles the MT0 R3051 instruction.
+    fn mt0_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the MT2 R3051 instruction.
- */
-static void R3051_MT2(R3051 *cpu, int32_t instruction)
-{
-    // Get rt and rd
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+        // Get rt and rd.
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = instruction.logical_rshift(11) & 0x1F;
 
-    // Move from CPU reg rt to COP2 data reg rd
-    Cop2_writeDataReg(&cpu->gte, rd, cpu->generalRegisters[rt], false);
-}
+        // Move CPU reg rt to COP0 reg rd.
+        self.sccp.write_reg(rd, self.general_registers[rt], false);
+    }
 
-/*
- * This function handles the MTHI R3051 instruction.
- */
-static void R3051_MTHI(R3051 *cpu, int32_t instruction)
-{
-    // Get rs
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+    /// This function handles the MT2 R3051 instruction.
+    fn mt2_instruction(&mut self, instruction: i32) {
 
-    // Move rs to Hi
-    cpu->hiReg = cpu->generalRegisters[rs];
-}
+        // Get rt and rd.
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = instruction.logical_rshift(11) & 0x1F;
 
-/*
- * This function handles the MTLO R3051 instruction.
- */
-static void R3051_MTLO(R3051 *cpu, int32_t instruction)
-{
-    // Get rs
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
+        // Move from CPU reg rt to COP2 data reg rd.
+        self.gte.write_data_reg(rd, self.general_registers[rt], false);
+    }
 
-    // Move rs to Lo
-    cpu->loReg = cpu->generalRegisters[rs];
-}
+    /// This function handles the MTHI R3051 instruction.
+    fn mthi_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the MULT R3051 instruction.
- */
-static void R3051_MULT(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and rt
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+        // Get rs.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
 
-    // Multiply rs and rt as signed values
-    int64_t rsVal = cpu->generalRegisters[rs];
-    int64_t rtVal = cpu->generalRegisters[rt];
-    int64_t result = rsVal * rtVal;
+        // Move rs to Hi.
+        self.hi_reg = self.general_registers[rs];
+    }
 
-    // Store result
-    cpu->hiReg = (int32_t)logical_rshift(result, 32);
-    cpu->loReg = (int32_t)result;
-}
+    /// This function handles the MTLO R3051 instruction.
+    fn mtlo_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the MULTU R3051 instruction.
- */
-static void R3051_MULTU(R3051 *cpu, int32_t instruction)
-{
-    // Get rs and rt
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+        // Get rs.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
 
-    // Multiply rs and rt as unsigned values
-    int64_t rsVal = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    int64_t rtVal = cpu->generalRegisters[rt] & 0xFFFFFFFFL;
-    int64_t result = rsVal * rtVal;
+        // Move rs to Lo,
+        self.lo_reg = self.general_registers[rs];
+    }
 
-    // Store result
-    cpu->hiReg = (int32_t)logical_rshift(result, 32);
-    cpu->loReg = (int32_t)result;
-}
+    /// This function handles the MULT R3051 instruction.
+    fn mult_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the NOR R3051 instruction.
- */
-static void R3051_NOR(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+        // Get rs and rt.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
 
-    // Bitwise NOR rsVal and rtVal, storing result
-    cpu->generalRegisters[rd] =
-            ~(cpu->generalRegisters[rs] | cpu->generalRegisters[rt]);
-    cpu->generalRegisters[0] = 0;
-}
+        // Multiply rs and rt as signed values.
+        let rs_val = self.general_registers[rs] as i64;
+        let rt_val = self.general_registers[rt] as i64;
+        let result = rs_val * rt_val;
 
-/*
- * This function handles the OR R3051 instruction.
- */
-static void R3051_OR(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+        // Store result.
+        self.hi_reg = result.logical_rshift(32) as i32;
+        self.lo_reg = result as i32;
+    }
 
-    // Bitwise OR rsVal and rtVal, storing result
-    cpu->generalRegisters[rd] =
-            cpu->generalRegisters[rs] | cpu->generalRegisters[rt];
-    cpu->generalRegisters[0] = 0;
-}
+    /// This function handles the MULTU R3051 instruction.
+    fn multu_instruction(&mut self, instruction: i32) {
+
+        // Get rs and rt.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Multiply rs and rt as unsigned values.
+        let rs_val = (self.general_registers[rs] as i64) & 0xFFFFFFFF;
+        let rt_val = (self.general_registers[rt] as i64) & 0xFFFFFFFF;
+        let result = rs_val * rt_val;
+
+        // Store result.
+        self.hi_reg = result.logical_rshift(32) as i32;
+        self.lo_reg = result as i32;
+    }
+
+    /// This function handles the NOR R3051 instruction.
+    fn nor_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Bitwise NOR rs_val and rt_val, storing result.
+        self.general_registers[rd] = !(self.general_registers[rs] | self.general_registers[rt]);
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the OR R3051 instruction.
+    fn or_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Bitwise OR rs_val and rt_val, storing result.
+        self.general_registers[rd] = self.general_registers[rs] | self.general_registers[rt];
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the ORI R3051 instruction.
+    fn ori_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Zero extending immediate is already done for us
+        // so just OR with rs_val and store result.
+        self.general_registers[rt] = immediate | self.general_registers[rs];
+        self.general_registers[0] = 0;
+    }
 
 /*
- * This function handles the ORI R3051 instruction.
- */
-static void R3051_ORI(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Zero extending immediate is already done for us
-    // so just OR with rsVal and store result
-    cpu->generalRegisters[rt] = immediate | cpu->generalRegisters[rs];
-    cpu->generalRegisters[0] = 0;
-}
-
 /*
  * This function handles the RFE R3051 instruction.
  */
