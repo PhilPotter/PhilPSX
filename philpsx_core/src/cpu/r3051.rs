@@ -1052,7 +1052,7 @@ impl R3051 {
     }
 
     /// This function handles the BREAK R3051 instruction.
-    fn break_instruction(&mut self, instruction: i32) {
+    fn break_instruction(&mut self) {
 
         // Trigger Breakpoint Exception.
         let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
@@ -1721,132 +1721,110 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
-/*
-/*
- * This function handles the RFE R3051 instruction.
- */
-static void R3051_RFE(R3051 *cpu, int32_t instruction)
-{
-    Cop0_rfe(&cpu->sccp);
-}
-
-/*
- * This function handles the SB R3051 instruction.
- */
-static void R3051_SB(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
-    }
-    address += immediate;
-
-    // Check if address is allowed, trigger exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
+    /// This function handles the RFE R3051 instruction.
+    fn rfe_instruction(&mut self) {
+        self.sccp.rfe();
     }
 
-    // Load byte from register and write to memory
-    int32_t tempByte = 0xFF & cpu->generalRegisters[rt];
-    R3051_writeDataValue(cpu, PHILPSX_R3051_BYTE, (int32_t)address, tempByte);
-}
+    /// This function handles the SB R3051 instruction.
+    fn sb_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
 
-/*
- * This function handles the SH R3051 instruction.
- */
-static void R3051_SH(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
 
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
-    }
-    address += immediate;
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
-    // Check if address is allowed and half-word aligned, trigger
-    // exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
-            address % 2 != 0) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
+        // Check if address is allowed, trigger exception if not.
+        if !self.sccp.is_address_allowed(address as i32) {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADES;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Load byte from register and write to memory.
+        let temp_byte = 0xFF & self.general_registers[rt];
+        self.write_data_value(bridge, R3051Width::BYTE, address as i32, temp_byte);
     }
 
-    // Load half-word from register and swap endianness, then write to memory
-    // (checking for exceptions and stalls)
-    int32_t tempHalfWord = 0xFFFF & cpu->generalRegisters[rt];
+    /// This function handles the SH R3051 instruction.
+    fn sh_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
 
-    // Swap byte order
-    tempHalfWord = ((tempHalfWord << 8) & 0xFF00) |
-            logical_rshift(tempHalfWord, 8);
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
 
-    R3051_writeDataValue(
-            cpu,
-            PHILPSX_R3051_HALFWORD,
-            (int32_t)address,
-            tempHalfWord
-            );
-}
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Check if address is allowed and half-word aligned, trigger
+        // exception if not.
+        if !self.sccp.is_address_allowed(address as i32) || address % 2 != 0 {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADES;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Load half-word from register and swap endianness, then write to memory
+        // (checking for exceptions and stalls).
+        let mut temp_half_word = 0xFFFF & self.general_registers[rt];
+
+        // Swap byte order and write to memory.
+        temp_half_word = ((temp_half_word << 8) & 0xFF00) | temp_half_word.logical_rshift(8);
+        self.write_data_value(bridge, R3051Width::HALFWORD, address as i32, temp_half_word);
+    }
+
+    /// This function handles the SLL R3051 instruction.
+    fn sll_instruction(&mut self, instruction: i32) {
+
+        // Get rt, rd and shamt.
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let shamt = instruction.logical_rshift(6) & 0x1F;
+
+        // Shift rt value left by shamt bits, inserting zeroes
+        // into low order bits, then store result.
+        self.general_registers[rd] = self.general_registers[rt] << shamt;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the SLLV R3051 instruction.
+    fn sllv_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Shift rt value left by (lowest 5 bits of rs value),
+        // inserting zeroes into low order bits, then
+        // store result.
+        self.general_registers[rd] = self.general_registers[rt] << (self.general_registers[rs] & 0x1F);
+        self.general_registers[0] = 0;
+    }
 
 /*
- * This function handles the SLL R3051 instruction.
- */
-static void R3051_SLL(R3051 *cpu, int32_t instruction)
-{
-    // Get rt, rd and shamt
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-    int32_t shamt = logical_rshift(instruction, 6) & 0x1F;
-
-    // Shift rt value left by shamt bits, inserting zeroes
-    // into low order bits, then store result
-    cpu->generalRegisters[rd] = cpu->generalRegisters[rt] << shamt;
-    cpu->generalRegisters[0] = 0;
-}
-
-/*
- * This function handles the SLLV R3051 instruction.
- */
-static void R3051_SLLV(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-
-    // Shift rt value left by (lowest 5 bits of rs value), 
-    // inserting zeroes into low order bits, then
-    // store result
-    cpu->generalRegisters[rd] = 
-            cpu->generalRegisters[rt] << (cpu->generalRegisters[rs] & 0x1F);
-    cpu->generalRegisters[0] = 0;
-}
-
 /*
  * This function handles the SLT R3051 instruction.
  */
