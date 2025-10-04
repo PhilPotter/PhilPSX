@@ -1824,205 +1824,174 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
-/*
-/*
- * This function handles the SLT R3051 instruction.
- */
-static void R3051_SLT(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+    /// This function handles the SLT R3051 instruction.
+    fn slt_instruction(&mut self, instruction: i32) {
 
-    // Compare rsVal and rtVal, storing result
-    if (cpu->generalRegisters[rs] < cpu->generalRegisters[rt]) {
-        cpu->generalRegisters[rd] = 1;
-    } else {
-        cpu->generalRegisters[rd] = 0;
-    }
-    cpu->generalRegisters[0] = 0;
-}
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
 
-/*
- * This function handles the SLTI R3051 instruction.
- */
-static void R3051_SLTI(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Sign extend immediate
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
+        // Compare rs_val and rt_val, storing result.
+        self.general_registers[rd] = if self.general_registers[rs] < self.general_registers[rt] {
+            1
+        } else {
+            0
+        };
+        self.general_registers[0] = 0;
     }
 
-    // Store result
-    if (cpu->generalRegisters[rs] < immediate) {
-        cpu->generalRegisters[rt] = 1;
-    } else {
-        cpu->generalRegisters[rt] = 0;
-    }
-    cpu->generalRegisters[0] = 0;
-}
+    /// This function handles the SLTI R3051 instruction.
+    fn slti_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the SLTIU R3051 instruction.
- */
-static void R3051_SLTIU(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+        // Get rs, rt and sign-extended immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
 
-    // Sign extend immediate
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000L;
+        // Store result.
+        self.general_registers[rt] = if self.general_registers[rs] < immediate {
+            1
+        } else {
+            0
+        };
+        self.general_registers[0] = 0;
     }
 
-    // Treat rsVal as unsigned
-    int64_t tempRsVal = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
+    /// This function handles the SLTIU R3051 instruction.
+    fn sltiu_instruction(&mut self, instruction: i32) {
 
-    // Store result
-    if (tempRsVal < immediate) {
-        cpu->generalRegisters[rt] = 1;
-    } else {
-        cpu->generalRegisters[rt] = 0;
+        // Get rs, rt and sign-extended immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Treat rs_val as unsigned.
+        let temp_rs_val = (self.general_registers[rs] as i64) & 0xFFFFFFFF;
+
+        // Store result.
+        self.general_registers[rt] = if temp_rs_val < (immediate as i64) {
+            1
+        } else {
+            0
+        };
+        self.general_registers[0] = 0;
     }
-    cpu->generalRegisters[0] = 0;
-}
 
-/*
- * This function handles the SLTU R3051 instruction.
- */
-static void R3051_SLTU(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+    /// This function handles the SLTU R3051 instruction.
+    fn sltu_instruction(&mut self, instruction: i32) {
 
-    // Compare rsVal and rtVal as unsigned values, storing result
-    if ((cpu->generalRegisters[rs] & 0xFFFFFFFFL) <
-            (cpu->generalRegisters[rt] & 0xFFFFFFFFL)) {
-        cpu->generalRegisters[rd] = 1;
-    } else {
-        cpu->generalRegisters[rd] = 0;
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Compare rs_val and rt_val as unsigned values, storing result.
+        self.general_registers[rd] = if ((self.general_registers[rs] as i64) & 0xFFFFFFFF) <
+                                        ((self.general_registers[rt] as i64) & 0xFFFFFFFF) {
+            1
+        } else {
+            0
+        };
+        self.general_registers[0] = 0;
     }
-    cpu->generalRegisters[0] = 0;
-}
 
-/*
- * This function handles the SRA R3051 instruction.
- */
-static void R3051_SRA(R3051 *cpu, int32_t instruction)
-{
-    // Get rt, rd and shamt
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-    int32_t shamt = logical_rshift(instruction, 6) & 0x1F;
+    /// This function handles the SRA R3051 instruction.
+    fn sra_instruction(&mut self, instruction: i32) {
 
-    // Shift rt value right by shamt bits, sign extending
-    // high order bits, then store result
-    cpu->generalRegisters[rd] = cpu->generalRegisters[rt] >> shamt;
-    cpu->generalRegisters[0] = 0;
-}
+        // Get rt, rd and shamt.
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let shamt = instruction.logical_rshift(6) & 0x1F;
 
-/*
- * This function handles the SRAV R3051 instruction.
- */
-static void R3051_SRAV(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+        // Shift rt value right by shamt bits, sign extending
+        // high order bits, then store result.
+        self.general_registers[rd] = self.general_registers[rt] >> shamt;
+        self.general_registers[0] = 0;
+    }
 
-    // Shift rt value right by (lowest 5 bits of rs value), 
-    // sign extending high order bits, then
-    // store result
-    cpu->generalRegisters[rd] =
-            cpu->generalRegisters[rt] >> (cpu->generalRegisters[rs] & 0x1F);
-    cpu->generalRegisters[0] = 0;
-}
+    /// This function handles the SRAV R3051 instruction.
+    fn srav_instruction(&mut self, instruction: i32) {
 
-/*
- * This function handles the SRL R3051 instruction.
- */
-static void R3051_SRL(R3051 *cpu, int32_t instruction)
-{
-    // Get rt, rd and shamt
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-    int32_t shamt = logical_rshift(instruction, 6) & 0x1F;
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
 
-    // Shift rt value right by shamt bits, inserting zeroes
-    // into high order bits, then store result
-    cpu->generalRegisters[rd] =
-            logical_rshift(cpu->generalRegisters[rt], shamt);
-    cpu->generalRegisters[0] = 0;
-}
+        // Shift rt value right by (lowest 5 bits of rs value),
+        // sign extending high order bits, then store result.
+        self.general_registers[rd] = self.general_registers[rt] >> (self.general_registers[rs] & 0x1F);
+        self.general_registers[0] = 0;
+    }
 
-/*
- * This function handles the SRLV R3051 instruction.
- */
-static void R3051_SRLV(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+    /// This function handles the SRL R3051 instruction.
+    fn srl_instruction(&mut self, instruction: i32) {
 
-    // Shift rt value right by (lowest 5 bits of rs value), 
-    // inserting zeroes into high order bits, then
-    // store result
-    cpu->generalRegisters[rd] =
-            logical_rshift(
-            cpu->generalRegisters[rt],
-            (cpu->generalRegisters[rs] & 0x1F)
-            );
-    cpu->generalRegisters[0] = 0;
-}
+        // Get rt, rd and shamt.
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let shamt = instruction.logical_rshift(6) & 0x1F;
 
-/*
- * This function handles the SUB R3051 instruction.
- */
-static void R3051_SUB(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
+        // Shift rt value right by shamt bits, inserting zeroes
+        // into high order bits, then store result.
+        self.general_registers[rd] = self.general_registers[rt].logical_rshift(shamt);
+        self.general_registers[0] = 0;
+    }
 
-    // Subtract rtVal from rsVal
-    int32_t rsVal = cpu->generalRegisters[rs];
-    int32_t rtVal = cpu->generalRegisters[rt];
-    int32_t result = rsVal - rtVal;
+    /// This function handles the SRLV R3051 instruction.
+    fn srlv_instruction(&mut self, instruction: i32) {
 
-    // Check for two's complement overflow
-    if ((rsVal & 0x80000000) != (rtVal & 0x80000000)) {
-        if ((rsVal & 0x80000000) != (result & 0x80000000)) {
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
 
-            // Trigger exception
-            int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-            tempAddress -= 4;
-            cpu->exception.exceptionReason = PHILPSX_EXCEPTION_OVF;
-            cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-            cpu->exception.programCounterOrigin
-                    = cpu->exception.isInBranchDelaySlot ?
-                        (int32_t)tempAddress : cpu->programCounter;
+        // Shift rt value right by (lowest 5 bits of rs value),
+        // inserting zeroes into high order bits, then
+        // store result.
+        self.general_registers[rd] =
+            self.general_registers[rt].logical_rshift(self.general_registers[rs] & 0x1F);
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the SUB R3051 instruction.
+    fn sub_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Subtract rt_val from rs_val.
+        let rs_val = self.general_registers[rs];
+        let rt_val = self.general_registers[rt];
+        let result = rs_val - rt_val;
+
+        // Check for two's complement overflow.
+        let sign_bit = 0x80000000_u32 as i32;
+        if (rs_val & sign_bit) != (rt_val & sign_bit) &&
+           (rs_val & sign_bit) != (result & sign_bit) {
+
+            // Trigger exception.
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.exception_reason = MIPSExceptionReason::OVF;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
             return;
         }
+
+        // Store result.
+        self.general_registers[rd] = result;
+        self.general_registers[0] = 0;
     }
 
-    // Store result
-    cpu->generalRegisters[rd] = result;
-    cpu->generalRegisters[0] = 0;
-}
-
+/*
 /*
  * This function handles the SUBU R3051 instruction.
  */
