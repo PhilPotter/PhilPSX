@@ -1991,160 +1991,147 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
+    /// This function handles the SUBU R3051 instruction.
+    fn subu_instruction(&mut self, instruction: i32) {
+
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+
+        // Subtract rt_val from rs_val.
+        let result = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) -
+            ((self.general_registers[rt] as i64) & 0xFFFFFFFF);
+
+        // Store result.
+        self.general_registers[rd] = result as i32;
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the SW R3051 instruction.
+    fn sw_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Check if address is allowed and word aligned, trigger exception if not.
+        if !self.sccp.is_address_allowed(address as i32) || address % 4 != 0 {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADES;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Load word from register, set byte order and write to memory
+        // (checking for exceptions and stalls).
+        let mut temp_word = self.general_registers[rt];
+
+        // Swap byte order.
+        temp_word = self.swap_word_endianness(temp_word);
+
+        self.write_data_value(bridge, R3051Width::WORD, address as i32, temp_word);
+    }
+
+    /// This function handles the SWC2 R3051 instruction.
+    fn swc2_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = instruction.logical_rshift(16) & 0x1F;
+
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Check if address is allowed and word aligned, trigger exception if not.
+        if !self.sccp.is_address_allowed(address as i32) || address % 4 != 0 {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADES;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Load word from register, set byte order and write to memory.
+        let mut temp_word = self.gte.read_data_reg(rt);
+
+        // Swap byte order.
+        temp_word = self.swap_word_endianness(temp_word);
+
+        self.write_data_value(bridge, R3051Width::WORD, address as i32, temp_word);
+    }
+
+    /// This function handles the SWL R3051 instruction.
+    fn swl_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Check if address is allowed, trigger exception if not.
+        if !self.sccp.is_address_allowed(address as i32) {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADES;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Align address, fetch word, and store shift index - sort byte order too.
+        let temp_address = (address & 0xFFFFFFFC) as i32;
+        let byte_shift_index = (!address & 0x3) as i32;
+        let mut temp_word = self.general_registers[rt];
+
+        // Swap byte order.
+        temp_word = self.swap_word_endianness(temp_word);
+
+        // Shift word value left by required amount.
+        temp_word <<= byte_shift_index * 8;
+
+        // Fetch memory contents, and calculate mask.
+        let mut temp_val = bridge.read_word(self, temp_address);
+        let mask = !((0xFFFFFFFF_u32 as i32) << (byte_shift_index * 8));
+        temp_val &= mask;
+
+        // Merge contents.
+        temp_word |= temp_val;
+
+        // Write word to memory.
+        self.write_data_value(bridge, R3051Width::WORD, temp_address, temp_word);
+    }
+
 /*
-/*
- * This function handles the SUBU R3051 instruction.
- */
-static void R3051_SUBU(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-
-    // Subtract rtVal from rsVal
-    int32_t result = (int32_t)((cpu->generalRegisters[rs] & 0xFFFFFFFFL) -
-            (cpu->generalRegisters[rt] & 0xFFFFFFFFL));
-
-    // Store result
-    cpu->generalRegisters[rd] = result;
-    cpu->generalRegisters[0] = 0;
-}
-
-/*
- * This function handles the SW R3051 instruction.
- */
-static void R3051_SW(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
-    }
-    address += immediate;
-
-    // Check if address is allowed and word aligned, trigger exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
-            address % 4 != 0) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
-    }
-
-    // Load word from register, set byte order and write to memory
-    // (checking for exceptions and stalls)
-    int32_t tempWord = cpu->generalRegisters[rt];
-
-    // Swap byte order
-    tempWord = R3051_swapWordEndianness(cpu, tempWord);
-
-    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, (int32_t)address, tempWord);
-}
-
-/*
- * This function handles the SWC2 R3051 instruction.
- */
-static void R3051_SWC2(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
-    }
-    address += immediate;
-
-    // Check if address is allowed and word aligned, trigger exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address) ||
-            address % 4 != 0) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
-    }
-
-    // Load word from register, set byte order and write to memory
-    int32_t tempWord = Cop2_readDataReg(&cpu->gte, rt);
-
-    // Swap byte order
-    tempWord = R3051_swapWordEndianness(cpu, tempWord);
-
-    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, (int32_t)address, tempWord);
-}
-
-/*
- * This function handles the SWL R3051 instruction.
- */
-static void R3051_SWL(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
-    }
-    address += immediate;
-
-    // Check if address is allowed, trigger exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
-    }
-
-    // Align address, fetch word, and store shift index - sort byte order too
-    int32_t tempAddress = (int32_t)(address & 0xFFFFFFFC);
-    int32_t byteShiftIndex = (int32_t)(~address & 0x3);
-    int32_t tempWord = cpu->generalRegisters[rt];
-
-    // Swap byte order
-    tempWord = R3051_swapWordEndianness(cpu, tempWord);
-
-    // Shift word value left by required amount
-    tempWord = tempWord << (byteShiftIndex * 8);
-
-    // Fetch memory contents, and calculate mask
-    int32_t tempVal = SystemInterlink_readWord(cpu->system, tempAddress);
-    int32_t mask = ~(0xFFFFFFFF << (byteShiftIndex * 8));
-    tempVal &= mask;
-
-    // Merge contents
-    tempWord |= tempVal;
-
-    // Write word to memory
-    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, tempAddress, tempWord);
-}
-
 /*
  * This function handles the SWR R3051 instruction.
  */
@@ -2244,8 +2231,8 @@ static void R3051_XORI(R3051 *cpu, int32_t instruction)
     cpu->generalRegisters[rt] = immediate ^ cpu->generalRegisters[rs];
     cpu->generalRegisters[0] = 0;
 }
-    
-     */
+*/
+
 }
 
 /// Implementation functions to be called from anything that understands what
