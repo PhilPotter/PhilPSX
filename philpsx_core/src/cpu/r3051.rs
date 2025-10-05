@@ -2131,108 +2131,97 @@ impl R3051 {
         self.write_data_value(bridge, R3051Width::WORD, temp_address, temp_word);
     }
 
-/*
-/*
- * This function handles the SWR R3051 instruction.
- */
-static void R3051_SWR(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
+    /// This function handles the SWR R3051 instruction.
+    fn swr_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
 
-    // Calculate address
-    int64_t address = cpu->generalRegisters[rs] & 0xFFFFFFFFL;
-    if ((immediate & 0x8000) == 0x8000) {
-        immediate |= 0xFFFF0000;
+        // Get rs, rt and immediate.
+        let immediate = instruction.sign_extend(15);
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+
+        // Calculate address.
+        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+
+        // Check if address is allowed, trigger exception if not.
+        if !self.sccp.is_address_allowed(address as i32) {
+            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+            temp_address -= 4;
+            self.exception.bad_address = address as i32;
+            self.exception.exception_reason = MIPSExceptionReason::ADES;
+            self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+            self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                temp_address as i32
+            } else {
+                self.program_counter
+            };
+
+            return;
+        }
+
+        // Align address, fetch word, and store shift index - sort byte order too.
+        let temp_address = (address & 0xFFFFFFFC) as i32;
+        let byte_shift_index = (address & 0x3) as i32;
+        let mut temp_word = self.general_registers[rt];
+
+        // Swap byte order.
+        temp_word = self.swap_word_endianness(temp_word);
+
+        // Shift word value right by required amount.
+        temp_word = temp_word.logical_rshift(byte_shift_index * 8);
+
+        // Fetch rt contents, and calculate mask.
+        let mut temp_val = bridge.read_word(self, temp_address);
+        let mask = !(0xFFFFFFFF_u32 as i32).logical_rshift(byte_shift_index * 8);
+        temp_val &= mask;
+
+        // Merge contents.
+        temp_word |= temp_val;
+
+        // Write word to main memory.
+        self.write_data_value(bridge, R3051Width::WORD, temp_address, temp_word);
     }
-    address += immediate;
 
-    // Check if address is allowed, trigger exception if not
-    if (!Cop0_isAddressAllowed(&cpu->sccp, (int32_t)address)) {
-        int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-        tempAddress -= 4;
-        cpu->exception.badAddress = (int32_t)address;
-        cpu->exception.exceptionReason = PHILPSX_EXCEPTION_ADES;
-        cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-        cpu->exception.programCounterOrigin
-                = cpu->exception.isInBranchDelaySlot ?
-                    (int32_t)tempAddress : cpu->programCounter;
-        return;
+    /// This function handles the SYSCALL R3051 instruction.
+    fn syscall_instruction(&mut self) {
+
+        // Trigger System Call Exception.
+        let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
+        temp_address -= 4;
+        self.exception.exception_reason = MIPSExceptionReason::SYS;
+        self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+        self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+            temp_address as i32
+        } else {
+            self.program_counter
+        };
     }
 
-    // Align address, fetch word, and store shift index - sort byte order too
-    int32_t tempAddress = (int32_t)(address & 0xFFFFFFFC);
-    int32_t byteShiftIndex = (int32_t)(address & 0x3);
-    int32_t tempWord = cpu->generalRegisters[rt];
+    /// This function handles the XOR R3051 instruction.
+    fn xor_instruction(&mut self, instruction: i32) {
 
-    // Swap byte order
-    tempWord = R3051_swapWordEndianness(cpu, tempWord);
+        // Get rs, rt and rd.
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
 
-    // Shift word value right by required amount
-    tempWord = logical_rshift(tempWord, (byteShiftIndex * 8));
+        // Bitwise XOR rsVal and rtVal, storing result.
+        self.general_registers[rd] = self.general_registers[rs] ^ self.general_registers[rt];
+        self.general_registers[0] = 0;
+    }
 
-    // Fetch rt contents, and calculate mask
-    int32_t tempVal = SystemInterlink_readWord(cpu->system, tempAddress);
-    int32_t mask = ~logical_rshift(0xFFFFFFFF, (byteShiftIndex * 8));
-    tempVal &= mask;
+    /// This function handles the XORI R3051 instruction.
+    fn xori_instruction(&mut self, instruction: i32) {
 
-    // Merge contents
-    tempWord |= tempVal;
+        // Get rs, rt and immediate.
+        let immediate = instruction & 0xFFFF;
+        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
 
-    // Write word to main memory
-    R3051_writeDataValue(cpu, PHILPSX_R3051_WORD, tempAddress, tempWord);
-}
-
-/*
- * This function handles the SYSCALL R3051 instruction.
- */
-static void R3051_SYSCALL(R3051 *cpu, int32_t instruction)
-{
-    // Trigger System Call Exception
-    int64_t tempAddress = cpu->programCounter & 0xFFFFFFFFL;
-    tempAddress -= 4;
-    cpu->exception.exceptionReason = PHILPSX_EXCEPTION_SYS;
-    cpu->exception.isInBranchDelaySlot = cpu->prevWasBranch;
-    cpu->exception.programCounterOrigin
-            = cpu->exception.isInBranchDelaySlot ?
-                (int32_t)tempAddress : cpu->programCounter;
-}
-
-/*
- * This function handles the XOR R3051 instruction.
- */
-static void R3051_XOR(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and rd
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-    int32_t rd = logical_rshift(instruction, 11) & 0x1F;
-
-    // Bitwise XOR rsVal and rtVal, storing result
-    cpu->generalRegisters[rd] =
-            cpu->generalRegisters[rs] ^ cpu->generalRegisters[rt];
-    cpu->generalRegisters[0] = 0;
-}
-
-/*
- * This function handles the XORI R3051 instruction.
- */
-static void R3051_XORI(R3051 *cpu, int32_t instruction)
-{
-    // Get rs, rt and immediate
-    int32_t immediate = instruction & 0xFFFF;
-    int32_t rs = logical_rshift(instruction, 21) & 0x1F;
-    int32_t rt = logical_rshift(instruction, 16) & 0x1F;
-
-    // Zero extending immediate is already done for us
-    // so just XOR with rsVal and store result
-    cpu->generalRegisters[rt] = immediate ^ cpu->generalRegisters[rs];
-    cpu->generalRegisters[0] = 0;
-}
-*/
-
+        // Zero extending immediate is already done for us
+        // so just XOR with rsVal and store result.
+        self.general_registers[rt] = immediate ^ self.general_registers[rs];
+        self.general_registers[0] = 0;
+    }
 }
 
 /// Implementation functions to be called from anything that understands what
