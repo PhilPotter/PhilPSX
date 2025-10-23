@@ -24,9 +24,16 @@ pub trait Cpu {
 
     /// Implementations must use this to retrieve the system bus holder.
     fn get_system_bus_holder(
-        &self,
+        &mut self,
         bridge: &mut dyn CpuBridge
     ) -> SystemBusHolder;
+
+    /// Implementations must use this to move the whole processor on by
+    /// one block of instructions.
+    fn execute_instructions(
+        &mut self,
+        bridge: &mut dyn CpuBridge
+    ) -> i64;
 }
 
 /// This trait provides an implementation-opaque way of the CPU

@@ -2237,12 +2237,102 @@ impl Cpu for R3051 {
         self.system_bus_holder = holder;
     }
 
-    /// Implementations must use this to retrieve the system bus holder.
+    /// Get the system bus holder.
     fn get_system_bus_holder(
-        &self,
+        &mut self,
         _bridge: &mut dyn CpuBridge
     ) -> SystemBusHolder {
         self.system_bus_holder
+    }
+
+    /// Move the whole processor on by one block of instructions.
+    fn execute_instructions(
+        &mut self,
+        bridge: &mut dyn CpuBridge
+    ) -> i64 {
+
+        // Enter loop.
+        loop {
+            // Setup cycle count.
+            self.cycles = 0;
+
+            // Check address is OK, throwing exception if not.
+            let mut temp_address = (((self.program_counter as i64) & 0xFFFFFFFF) - 4) as i32;
+
+            // Perform read of instruction.
+            let temp_instruction = self.read_instruction_word(bridge, self.program_counter, temp_address);
+            if temp_instruction == -1 {
+                self.cycles += 1;
+                self.total_cycles += 1;
+                let cycles = self.cycles;
+                bridge.append_sync_cycles(self, cycles);
+                continue;
+            }
+
+            // We now have instruction value. Swap the bytes.
+            let instruction = self.swap_word_endianness(temp_instruction as i32);
+
+            // Execute.
+            //R3051_executeOpcode(cpu, instruction, tempAddress);
+
+            // Handle exception if there was one.
+            if self.handle_exception() {
+                self.cycles += 1;
+                self.total_cycles += 1;
+                let cycles = self.cycles;
+                bridge.append_sync_cycles(self, cycles);
+                continue;
+            }
+
+            // Handle interrupt if there was one.
+            if self.is_branch && self.handle_interrupts(bridge) {
+                self.cycles += 1;
+                self.total_cycles += 1;
+                let cycles = self.cycles;
+                bridge.append_sync_cycles(self, cycles);
+                continue;
+            }
+
+            // Jump if pending, else add four to program counter.
+            if self.jump_pending && self.prev_was_branch {
+                self.program_counter = self.jump_address;
+                self.jump_pending = false;
+            } else {
+                temp_address = (((self.program_counter as i64) & 0xFFFFFFFF) + 4) as i32;
+                self.program_counter = temp_address;
+            }
+
+            // Increment cycle count.
+            let cycles_to_add = if self.gte_cycles == 0 {
+                1
+            } else {
+                self.gte_cycles
+            };
+            self.cycles += cycles_to_add;
+            self.total_cycles += cycles_to_add as i64;
+            self.gte_cycles = 0;
+
+            // Setup whether the instruction just gone was a branch, and clear
+            // current branch status.
+            self.prev_was_branch = self.is_branch;
+            self.is_branch = false;
+
+            // Append number of cycles instruction took.
+            {
+                let cycles = self.cycles;
+                bridge.append_sync_cycles(self, cycles);
+            }
+
+            if self.prev_was_branch {
+                break;
+            }
+        }
+
+        // Return cycle count for this block after resetting it in the CPU object.
+        let ret_val = self.total_cycles;
+        self.total_cycles = 0;
+
+        ret_val
     }
 }
 
