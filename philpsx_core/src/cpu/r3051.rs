@@ -2222,6 +2222,550 @@ impl R3051 {
         self.general_registers[rt] = immediate ^ self.general_registers[rs];
         self.general_registers[0] = 0;
     }
+
+    /// This function executes an opcode in interpretive mode.
+    fn execute_opcode(&mut self, bridge: &mut dyn CpuBridge, instruction: i32, temp_branch_address: i32) {
+
+        // Deal with opcode.
+        let opcode = instruction.logical_rshift(26);
+        match opcode {
+
+            0 => { // SPECIAL.
+                let special_val = instruction & 0x3F;
+                match special_val {
+
+                    0 => {
+                        // SLL.
+                        self.sll_instruction(instruction);
+                    },
+
+                    2 => {
+                        // SRL.
+                        self.srl_instruction(instruction);
+                    },
+
+                    3 => {
+                        // SRA.
+                        self.sra_instruction(instruction);
+                    },
+
+                    4 => {
+                        // SLLV.
+                        self.sllv_instruction(instruction);
+                    },
+
+                    6 => {
+                        // SRLV.
+                        self.srlv_instruction(instruction);
+                    },
+
+                    7 => {
+                        // SRAV.
+                        self.srav_instruction(instruction);
+                    },
+
+                    8 => {
+                        // JR.
+                        self.jr_instruction(instruction);
+                    },
+
+                    9 => {
+                        // JALR.
+                        self.jalr_instruction(instruction);
+                    },
+
+                    12 => {
+                        // SYSCALL.
+                        self.syscall_instruction();
+                    },
+
+                    13 => {
+                        // BREAK.
+                        self.break_instruction();
+                    },
+
+                    16 => {
+                        // MFHI.
+                        self.mfhi_instruction(instruction);
+                    },
+
+                    17 => {
+                        // MTHI.
+                        self.mthi_instruction(instruction);
+                    },
+
+                    18 => {
+                        // MFLO.
+                        self.mflo_instruction(instruction);
+                    },
+
+                    19 => {
+                        // MTLO.
+                        self.mtlo_instruction(instruction);
+                    },
+
+                    24 => {
+                        // MULT.
+                        self.mult_instruction(instruction);
+                    },
+
+                    25 => {
+                        // MULTU.
+                        self.multu_instruction(instruction);
+                    },
+
+                    26 => {
+                        // DIV.
+                        self.div_instruction(instruction);
+                    },
+
+                    27 => {
+                        // DIVU.
+                        self.divu_instruction(instruction);
+                    },
+
+                    32 => {
+                        // ADD.
+                        self.add_instruction(instruction);
+                    },
+
+                    33 => {
+                        // ADDU.
+                        self.addu_instruction(instruction);
+                    },
+
+                    34 => {
+                        // SUB.
+                        self.sub_instruction(instruction);
+                    },
+
+                    35 => {
+                        // SUBU.
+                        self.subu_instruction(instruction);
+                    },
+
+                    36 => {
+                        // AND.
+                        self.and_instruction(instruction);
+                    },
+
+                    37 => {
+                        // OR.
+                        self.or_instruction(instruction);
+                    },
+
+                    38 => {
+                        // XOR.
+                        self.xor_instruction(instruction);
+                    },
+
+                    39 => {
+                        // NOR.
+                        self.nor_instruction(instruction);
+                    },
+
+                    42 => {
+                        // SLT.
+                        self.slt_instruction(instruction);
+                    },
+
+                    43 => {
+                        // SLTU.
+                        self.sltu_instruction(instruction);
+                    },
+
+                    _ => {
+                        // Unrecognised - trigger Reserved Instruction Exception
+                        self.exception.exception_reason = MIPSExceptionReason::RI;
+                        self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                        self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                            temp_branch_address
+                        } else {
+                            self.program_counter
+                        };
+                    },
+                }
+            },
+
+            1 => { // BCOND.
+                let bcond_val = instruction.logical_rshift(16) & 0x1F;
+                match bcond_val {
+
+                    0 => {
+                        // BLTZ.
+                        self.bltz_instruction(instruction);
+                    },
+
+                    1 => {
+                        // BGEZ.
+                        self.bgez_instruction(instruction);
+                    },
+
+                    16 => {
+                        // BLTZAL.
+                        self.bltzal_instruction(instruction);
+                    },
+
+                    17 => {
+                        // BGEZAL.
+                        self.bgezal_instruction(instruction);
+                    },
+
+                    _ => (),
+                }
+            },
+
+            2 => {
+                // J.
+                self.j_instruction(instruction);
+            },
+
+            3 => {
+                // JAL.
+                self.jal_instruction(instruction);
+            },
+
+            4 => {
+                // BEQ.
+                self.beq_instruction(instruction);
+            },
+
+            5 => {
+                // BNE.
+                self.bne_instruction(instruction);
+            },
+
+            6 => {
+                // BLEZ.
+                self.blez_instruction(instruction);
+            },
+
+            7 => {
+                // BGTZ.
+                self.bgtz_instruction(instruction);
+            },
+
+            8 => {
+                // ADDI.
+                self.addi_instruction(instruction);
+            },
+
+            9 => {
+                // ADDIU.
+                self.addiu_instruction(instruction);
+            },
+
+            10 => {
+                // SLTI.
+                self.slti_instruction(instruction);
+            },
+
+            11 => {
+                // SLTIU.
+                self.sltiu_instruction(instruction);
+            },
+
+            12 => {
+                // ANDI.
+                self.andi_instruction(instruction);
+            },
+
+            13 => {
+                // ORI.
+                self.ori_instruction(instruction);
+            },
+
+            14 => {
+                // XORI.
+                self.xori_instruction(instruction);
+            },
+
+            15 => {
+                // LUI.
+                self.lui_instruction(instruction);
+            },
+
+            16 => 'cop0: { // COP0.
+                if !self.sccp.is_co_processor_usable(0) && !self.sccp.are_we_in_kernel_mode() {
+                    // COP0 unusbale and we are not in kernel mode - throw exception.
+                    self.exception.co_processor_num = 0;
+                    self.exception.exception_reason = MIPSExceptionReason::CPU;
+                    self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                    self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                        temp_branch_address
+                    } else {
+                        self.program_counter
+                    };
+                    break 'cop0;
+                }
+
+                let rfe = instruction & 0x1F;
+                match rfe {
+
+                    16 => {
+                        // RFE.
+                        self.rfe_instruction();
+                    },
+
+                    _ => {
+                        let cop0_val = instruction.logical_rshift(21) & 0x1F;
+                        match cop0_val {
+
+                            0 => {
+                                // MF.
+                                self.mf0_instruction(instruction);
+                            },
+
+                            4 => {
+                                // MT.
+                                self.mt0_instruction(instruction);
+                            },
+
+                            _ => {
+                                // Throw reserved instruction exception.
+                                self.exception.exception_reason = MIPSExceptionReason::RI;
+                                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                                    temp_branch_address
+                                } else {
+                                    self.program_counter
+                                };
+                            },
+                        }
+                    },
+                }
+            },
+
+            17 => { // COP1.
+                // COP1 unusable - throw exception.
+                self.exception.co_processor_num = 1;
+                self.exception.exception_reason = MIPSExceptionReason::CPU;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+
+            18 => 'cop2: { // COP2.
+                if !self.sccp.is_co_processor_usable(2) {
+                    // COP2 unusable - throw exception.
+                    self.exception.co_processor_num = 2;
+                    self.exception.exception_reason = MIPSExceptionReason::CPU;
+                    self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                    self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                        temp_branch_address
+                    } else {
+                        self.program_counter
+                    };
+                    break 'cop2;
+                }
+
+                let cop2_val = instruction.logical_rshift(21) & 0x1F;
+                match cop2_val {
+
+                    0 => {
+                        // MF.
+                        self.mf2_instruction(instruction);
+                    },
+
+                    2 => {
+                        // CF.
+                        self.cf2_instruction(instruction);
+                    },
+
+                    4 => {
+                        // MT.
+                        self.mt2_instruction(instruction);
+                    },
+
+                    6 => {
+                        // CT.
+                        self.ct2_instruction(instruction);
+                    },
+
+                    8 => { // BC.
+                        let cop2_val_extra = instruction.logical_rshift(16) & 0x1F;
+                        match cop2_val_extra {
+
+                            0 => {
+                                // BC2F.
+                                self.bc2f_instruction(instruction);
+                            },
+
+                            1 => {
+                                // BC2T.
+                                self.bc2t_instruction(instruction);
+                            },
+
+                            _ => (),
+                        }
+                    },
+
+                    16..=31 => {
+                        // Co-processor specific.
+                        self.gte_cycles = self.gte.gte_function(instruction);
+                    },
+
+                    _ => (),
+                }
+            },
+
+            19 => { // COP3.
+                // COP3 unusable - throw exception.
+                self.exception.co_processor_num = 3;
+                self.exception.exception_reason = MIPSExceptionReason::CPU;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+
+            32 => {
+                // LB.
+                self.lb_instruction(bridge, instruction);
+            },
+
+            33 => {
+                // LH.
+                self.lh_instruction(bridge, instruction);
+            },
+
+            34 => {
+                // LWL.
+                self.lwl_instruction(bridge, instruction);
+            },
+
+            35 => {
+                // LW.
+                self.lw_instruction(bridge, instruction);
+            },
+
+            36 => {
+                // LBU.
+                self.lbu_instruction(bridge, instruction);
+            },
+
+            37 => {
+                // LHU.
+                self.lhu_instruction(bridge, instruction);
+            },
+
+            38 => {
+                // LWR.
+                self.lwr_instruction(bridge, instruction);
+            },
+
+            40 => {
+                // SB.
+                self.sb_instruction(bridge, instruction);
+            },
+
+            41 => {
+                // SH.
+                self.sh_instruction(bridge, instruction);
+            },
+
+            42 => {
+                // SWL.
+                self.swl_instruction(bridge, instruction);
+            },
+
+            43 => {
+                // SW.
+                self.sw_instruction(bridge, instruction);
+            },
+
+            46 => {
+                // SWR.
+                self.swr_instruction(bridge, instruction);
+            },
+
+            49 => {
+                // LWC1 (COP1 doesn't exist so throw exception).
+                self.exception.co_processor_num = 1;
+                self.exception.exception_reason = MIPSExceptionReason::CPU;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+
+            50 => {
+                // LWC2.
+                self.lwc2_instruction(bridge, instruction);
+            },
+
+            51 => {
+                // LWC3 (COP3 doesn't exist so throw exception).
+                self.exception.co_processor_num = 3;
+                self.exception.exception_reason = MIPSExceptionReason::CPU;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+
+            48 | 56 => {
+                // LWC0 and SWC0.
+                self.exception.co_processor_num = 0;
+                self.exception.exception_reason = MIPSExceptionReason::CPU;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+
+            57 => {
+                // SWC1 (COP1 doesn't exist so throw exception).
+                self.exception.co_processor_num = 1;
+                self.exception.exception_reason = MIPSExceptionReason::CPU;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+
+            58 => {
+                // SWC2.
+                self.swc2_instruction(bridge, instruction);
+            },
+
+            59 => {
+                // SWC3 (COP3 doesn't exist so throw exception).
+                self.exception.co_processor_num = 3;
+                self.exception.exception_reason = MIPSExceptionReason::CPU;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+
+            _ => {
+                // Unrecognised - trigger Reserved Instruction Exception
+                self.exception.exception_reason = MIPSExceptionReason::RI;
+                self.exception.is_in_branch_delay_slot = self.prev_was_branch;
+                self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
+                    temp_branch_address
+                } else {
+                    self.program_counter
+                };
+            },
+        }
+    }
 }
 
 /// Implementation functions to be called from anything that understands what
@@ -2273,7 +2817,7 @@ impl Cpu for R3051 {
             let instruction = self.swap_word_endianness(temp_instruction as i32);
 
             // Execute.
-            //R3051_executeOpcode(cpu, instruction, tempAddress);
+            self.execute_opcode(bridge, instruction, temp_address);
 
             // Handle exception if there was one.
             if self.handle_exception() {
