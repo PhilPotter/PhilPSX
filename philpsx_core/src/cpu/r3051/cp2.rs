@@ -108,9 +108,14 @@ impl CP2 {
         self.condition_line = false;
     }
 
-    /// This function gets the state of the condition line.
+    /// This function gets the status of the condition line.
     pub fn get_condition_line_status(&self) -> bool {
         self.condition_line
+    }
+
+    /// This function sets the status of the condition line.
+    pub fn set_condition_line_status(&mut self, status: bool) {
+        self.condition_line = status;
     }
 
     /// This function reads from the specified control register.

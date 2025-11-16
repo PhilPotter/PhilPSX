@@ -149,3 +149,188 @@ fn test_andi_instruction_success() {
     // Check register 2 for result.
     assert_eq!(r3051.general_registers[2], 0xFFFF);
 }
+
+#[test]
+fn test_bc2f_condition_line_false() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a false condition line (default) and immediate of
+    // -4 (when left shifted 2 bits and sign extended), jump
+    // address should then be equal to program counter after
+    // execution of BC2F, and jump should be pending.
+    let instruction = 0x4900FFFF;
+    r3051.bc2f_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(!r3051.is_branch);
+}
+
+#[test]
+fn test_bc2f_condition_line_true() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a false condition line (default) and immediate of
+    // -4 (when left shifted 2 bits and sign extended), jump
+    // address should be unset and jump not pending.
+    r3051.gte.set_condition_line_status(true);
+    let instruction = 0x4900FFFF;
+    r3051.bc2f_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0);
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(!r3051.is_branch);
+}
+
+#[test]
+fn test_bc2t_condition_line_false() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a false condition line (default) and immediate of
+    // -4 (when left shifted 2 bits and sign extended), jump
+    // address should be unset and jump not pending.
+    let instruction = 0x4901FFFF;
+    r3051.bc2t_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0);
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(!r3051.is_branch);
+}
+
+#[test]
+fn test_bc2t_condition_line_true() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a false condition line (default) and immediate of
+    // -4 (when left shifted 2 bits and sign extended), jump
+    // address should then be equal to program counter after
+    // execution of BC2F, and jump should be pending.
+    r3051.gte.set_condition_line_status(true);
+    let instruction = 0x4901FFFF;
+    r3051.bc2t_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(!r3051.is_branch);
+}
+
+#[test]
+fn test_beq_registers_not_equal() {
+
+    let mut r3051 = R3051::new();
+
+    // Given unequal registers and an immediate of -4
+    // (when left shifted 2 bits and sign extended), jump
+    // address should be unset and jump not pending.
+    r3051.general_registers[1] = 1;
+    let instruction = 0x1022FFFF;
+    r3051.beq_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0);
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_beq_registers_equal() {
+
+    let mut r3051 = R3051::new();
+
+    // Given equal registers (default) and an immediate of
+    // -4 (when left shifted 2 bits and sign extended), jump
+    // address should then be equal to program counter after
+    // execution of BC2F, and jump should be pending.
+    let instruction = 0x1022FFFF;
+    r3051.beq_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bgez_register_greater_than_or_equal_to_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register greater than or equal to 0 (register
+    // 1, default) and an immediate of -4 (when left shifted 2 bits
+    // and sign extended), jump address should be unset
+    // and jump not pending.
+    let instruction = 0x0421FFFF;
+    r3051.bgez_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bgez_register_less_than_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register less than 0 (register 1, default) and
+    // an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be unset and jump not
+    // pending.
+    r3051.general_registers[1] = -1;
+    let instruction = 0x0421FFFF;
+    r3051.bgez_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0);
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bgezal_register_greater_than_or_equal_to_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register greater than or equal to 0 (register
+    // 1, default) and an immediate of -4 (when left shifted 2 bits
+    // and sign extended), jump address should be unset
+    // and jump not pending. Return address should be program
+    // counter + 8.
+    let instruction = 0x0431FFFF;
+    r3051.bgezal_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
+    assert_eq!(r3051.general_registers[31], r3051.program_counter + 8);
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bgezal_register_less_than_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register less than 0 (register 1, default) and
+    // an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be unset and jump not
+    // pending. Return address should be zero.
+    r3051.general_registers[1] = -1;
+    let instruction = 0x0431FFFF;
+    r3051.bgezal_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0);
+    assert_eq!(r3051.general_registers[31], 0);
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
