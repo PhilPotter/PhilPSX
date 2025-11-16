@@ -673,7 +673,7 @@ impl R3051 {
         // Add rs_val to rt_val.
         let rs_val = self.general_registers[rs];
         let rt_val = self.general_registers[rt];
-        let result = rs_val + rt_val;
+        let result = rs_val.wrapping_add(rt_val);
 
         // Check for two's complement overflow.
         let sign_bit = 0x80000000_u32 as i32;
@@ -709,7 +709,7 @@ impl R3051 {
 
         // Add to rs_val.
         let rs_val = self.general_registers[rs];
-        let result = rs_val + immediate;
+        let result = rs_val.wrapping_add(immediate);
 
         // Check for two's complement overflow.
         let sign_bit = 0x80000000_u32 as i32;
@@ -2886,3 +2886,6 @@ enum R3051Width {
     HALFWORD,
     WORD,
 }
+
+#[cfg(test)]
+mod tests;
