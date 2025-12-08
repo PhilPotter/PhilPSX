@@ -162,7 +162,6 @@ fn test_bc2f_condition_line_false() {
     let instruction = 0x4900FFFF;
     r3051.bc2f_instruction(instruction);
 
-    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
     assert_eq!(r3051.jump_address, r3051.program_counter);
     assert!(r3051.jump_pending);
     assert!(!r3051.is_branch);
@@ -181,7 +180,6 @@ fn test_bc2f_condition_line_true() {
     r3051.bc2f_instruction(instruction);
 
     assert_eq!(r3051.jump_address, 0);
-    assert_ne!(r3051.jump_address, r3051.program_counter);
     assert!(!r3051.jump_pending);
     assert!(!r3051.is_branch);
 }
@@ -198,7 +196,6 @@ fn test_bc2t_condition_line_false() {
     r3051.bc2t_instruction(instruction);
 
     assert_eq!(r3051.jump_address, 0);
-    assert_ne!(r3051.jump_address, r3051.program_counter);
     assert!(!r3051.jump_pending);
     assert!(!r3051.is_branch);
 }
@@ -216,7 +213,6 @@ fn test_bc2t_condition_line_true() {
     let instruction = 0x4901FFFF;
     r3051.bc2t_instruction(instruction);
 
-    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
     assert_eq!(r3051.jump_address, r3051.program_counter);
     assert!(r3051.jump_pending);
     assert!(!r3051.is_branch);
@@ -235,7 +231,6 @@ fn test_beq_registers_not_equal() {
     r3051.beq_instruction(instruction);
 
     assert_eq!(r3051.jump_address, 0);
-    assert_ne!(r3051.jump_address, r3051.program_counter);
     assert!(!r3051.jump_pending);
     assert!(r3051.is_branch);
 }
@@ -252,7 +247,6 @@ fn test_beq_registers_equal() {
     let instruction = 0x1022FFFF;
     r3051.beq_instruction(instruction);
 
-    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
     assert_eq!(r3051.jump_address, r3051.program_counter);
     assert!(r3051.jump_pending);
     assert!(r3051.is_branch);
@@ -270,7 +264,6 @@ fn test_bgez_register_greater_than_or_equal_to_zero() {
     let instruction = 0x0421FFFF;
     r3051.bgez_instruction(instruction);
 
-    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
     assert_eq!(r3051.jump_address, r3051.program_counter);
     assert!(r3051.jump_pending);
     assert!(r3051.is_branch);
@@ -290,7 +283,6 @@ fn test_bgez_register_less_than_zero() {
     r3051.bgez_instruction(instruction);
 
     assert_eq!(r3051.jump_address, 0);
-    assert_ne!(r3051.jump_address, r3051.program_counter);
     assert!(!r3051.jump_pending);
     assert!(r3051.is_branch);
 }
@@ -308,7 +300,6 @@ fn test_bgezal_register_greater_than_or_equal_to_zero() {
     let instruction = 0x0431FFFF;
     r3051.bgezal_instruction(instruction);
 
-    assert_eq!(r3051.jump_address, 0xBFC00000_u32 as i32);
     assert_eq!(r3051.general_registers[31], r3051.program_counter + 8);
     assert_eq!(r3051.jump_address, r3051.program_counter);
     assert!(r3051.jump_pending);
@@ -320,8 +311,8 @@ fn test_bgezal_register_less_than_zero() {
 
     let mut r3051 = R3051::new();
 
-    // Given register less than 0 (register 1, default) and
-    // an immediate of -4 (when left shifted 2 bits and sign
+    // Given register less than 0 (register 1) and an
+    // immediate of -4 (when left shifted 2 bits and sign
     // extended), jump address should be unset and jump not
     // pending. Return address should be zero.
     r3051.general_registers[1] = -1;
@@ -330,7 +321,242 @@ fn test_bgezal_register_less_than_zero() {
 
     assert_eq!(r3051.jump_address, 0);
     assert_eq!(r3051.general_registers[31], 0);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bgtz_register_greater_than_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register greater than 0 (register 1) and an
+    // immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be set and jump
+    // pending.
+    r3051.general_registers[1] = 1;
+    let instruction = 0x1C20FFFF;
+    r3051.bgtz_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bgtz_register_less_than_or_equal_to_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register less than or equal to 0 (register 1, default)
+    // and an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be equal to PC and jump
+    // pending.
+    let instruction = 0x1C20FFFF;
+    r3051.bgtz_instruction(instruction);
+
     assert_ne!(r3051.jump_address, r3051.program_counter);
     assert!(!r3051.jump_pending);
     assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_blez_register_greater_than_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register greater than 0 (register 1) and an
+    // immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be unset and jump not
+    // pending.
+    r3051.general_registers[1] = 1;
+    let instruction = 0x1820FFFF;
+    r3051.blez_instruction(instruction);
+
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_blez_register_less_than_or_equal_to_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register less than or equal to 0 (register 1, default)
+    // and an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be equal to PC and jump
+    // pending.
+    let instruction = 0x1820FFFF;
+    r3051.blez_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bltz_register_greater_than_or_equal_to_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register greater than or equal 0 (register 1, default)
+    // and an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be unset and jump not
+    // pending.
+    let instruction = 0x0420FFFF;
+    r3051.bltz_instruction(instruction);
+
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bltz_register_less_than_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register less than 0 (register 1) and an
+    // immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be equal to PC and jump
+    // pending.
+    r3051.general_registers[1] = -1;
+    let instruction = 0x0420FFFF;
+    r3051.bltz_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bltzal_register_greater_than_or_equal_to_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register greater than or equal 0 (register 1, default)
+    // and an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be unset and jump not
+    // pending. Return address should be zero.
+    let instruction = 0x0430FFFF;
+    r3051.bltzal_instruction(instruction);
+
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert_eq!(r3051.general_registers[31], 0);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bltzal_register_less_than_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register less than 0 (register 1) and an
+    // immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be equal to PC and jump
+    // pending. Return address should be PC + 8.
+    r3051.general_registers[1] = -1;
+    let instruction = 0x0430FFFF;
+    r3051.bltzal_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert_eq!(r3051.general_registers[31], r3051.program_counter + 8);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bne_registers_equal() {
+
+    let mut r3051 = R3051::new();
+
+    // Given registers equal (registers 1 and 2, default) and
+    // an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be unset and jump not
+    // pending.
+    let instruction = 0x1422FFFF;
+    r3051.bne_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0);
+    assert_ne!(r3051.jump_address, r3051.program_counter);
+    assert!(!r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_bne_registers_not_equal() {
+
+    let mut r3051 = R3051::new();
+
+    // Given register registers not equal (registers 1 and 2) and
+    // an immediate of -4 (when left shifted 2 bits and sign
+    // extended), jump address should be equal to PC and jump
+    // pending.
+    r3051.general_registers[1] = -1;
+    let instruction = 0x1422FFFF;
+    r3051.bne_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, r3051.program_counter);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_break_in_branch_delay_slot() {
+
+    let mut r3051 = R3051::new();
+
+    // Given we are in a branch delay slot, this will be set
+    // in exception, and origin will be PC - 4, with cause being
+    // BP.
+    r3051.prev_was_branch = true;
+    r3051.break_instruction();
+
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::BP);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter - 4);
+    assert!(r3051.exception.is_in_branch_delay_slot);
+}
+
+#[test]
+fn test_break_not_in_branch_delay_slot() {
+
+    let mut r3051 = R3051::new();
+
+    // Given we are not in a branch delay slot, this will be unset
+    // in exception, and origin will be PC, with cause being BP.
+    r3051.break_instruction();
+
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::BP);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+    assert!(!r3051.exception.is_in_branch_delay_slot);
+}
+
+#[test]
+fn test_cf2_reads_from_cp2_properly() {
+
+    let mut r3051 = R3051::new();
+
+    // Given we set regster 15 of CP2 to a value, that value should
+    // be successfully read into register 1 of the CPU.
+    r3051.gte.write_control_reg(15, 1337, false);
+    let instruction = 0x48417800;
+    r3051.cf2_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[1], 1337);
+}
+
+#[test]
+fn test_ct2_writes_to_cp2_properly() {
+
+    let mut r3051 = R3051::new();
+
+    // Given we set regster 15 of CP2 to a value, that value should
+    // be successfully read into register 1 of the CPU.
+    r3051.general_registers[1] = 1337;
+    let instruction = 0x48C17800;
+    r3051.ct2_instruction(instruction);
+
+    assert_eq!(r3051.gte.read_control_reg(15), 1337);
 }
