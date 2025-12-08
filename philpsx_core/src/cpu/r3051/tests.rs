@@ -1,9 +1,80 @@
 // SPDX-License-Identifier: GPL-3.0
 // tests.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
 
-use crate::cpu::r3051::mips_exception::MIPSExceptionReason;
+use philpsx_utility::CustomInteger;
+
+use crate::{
+    cpu::Cpu,
+    cpu::CpuBridge,
+    cpu::r3051::mips_exception::MIPSExceptionReason
+};
 
 use super::R3051;
+
+// Implementation of CPU bridge specfically just for testing R3051 functionality.
+
+const TEST_RAM_SIZE: usize = 2097152;
+
+struct TestCpuBridge {
+    ram: Vec<i8>
+}
+
+impl TestCpuBridge {
+    fn new() -> Self {
+        Self {
+            ram: vec![0; TEST_RAM_SIZE],
+        }
+    }
+}
+
+impl CpuBridge for TestCpuBridge {
+
+    fn append_sync_cycles(&mut self, _cpu: &mut dyn Cpu, _cycles: i32) {}
+
+    fn how_how_many_stall_cycles(&self, _cpu: &mut dyn Cpu, _address: i32) -> i32 {
+        0
+    }
+
+    fn ok_to_increment(&self, _cpu: &mut dyn Cpu, _address: i64) -> bool {
+        true
+    }
+
+    fn scratchpad_enabled(&self, _cpu: &mut dyn Cpu) -> bool {
+        true
+    }
+
+    fn instruction_cache_enabled(&self, _cpu: &mut dyn Cpu) -> bool {
+        true
+    }
+
+    fn read_byte(&self, _cpu: &mut dyn Cpu, address: i32) -> i8 {
+        self.ram[address as usize]
+    }
+
+    fn read_word(&self, _cpu: &mut dyn Cpu, address: i32) -> i32 {
+        let temp_address = ((address as i64) & 0xFFFFFFFC) as usize;
+
+        (((self.ram[temp_address] as i32) & 0xFF) << 24) |
+        (((self.ram[temp_address + 1] as i32) & 0xFF) << 16) |
+        (((self.ram[temp_address + 2] as i32) & 0xFF) << 8) |
+        ((self.ram[temp_address + 3] as i32) & 0xFF)
+    }
+
+    fn write_byte(&mut self, _cpu: &mut dyn Cpu, address: i32, value: i8) {
+        self.ram[address as usize] = value;
+    }
+
+    fn write_word(&mut self, cpu: &mut dyn Cpu, address: i32, value: i32) {
+        let temp_address = ((address as i64) & 0xFFFFFFFC) as usize;
+
+        self.ram[temp_address] = value.logical_rshift(24) as i8;
+        self.ram[temp_address + 1] = value.logical_rshift(16) as i8;
+        self.ram[temp_address + 2] = value.logical_rshift(8) as i8;
+        self.ram[temp_address + 3] = value as i8;
+    }
+
+    fn increment_interrupt_counters(&mut self, cpu: &mut dyn Cpu) {}
+}
 
 // Tests for the R3051 CPU core.
 
@@ -559,4 +630,250 @@ fn test_ct2_writes_to_cp2_properly() {
     r3051.ct2_instruction(instruction);
 
     assert_eq!(r3051.gte.read_control_reg(15), 1337);
+}
+
+#[test]
+fn test_div_when_not_dividing_by_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given dividend of -26 and divisor of 5, we should expect
+    // a quotient of -5 and a remainder of -1.
+    r3051.general_registers[1] = -26;
+    r3051.general_registers[2] = 5;
+    let instruction = 0x0022001A;
+    r3051.div_instruction(instruction);
+
+    assert_eq!(r3051.hi_reg, -1);
+    assert_eq!(r3051.lo_reg, -5);
+}
+
+#[test]
+fn test_div_when_dividing_by_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given dividend of -26 and divisor of 0, we should expect
+    // a quotient of -1 and a remainder of -26.
+    r3051.general_registers[1] = -26;
+    r3051.general_registers[2] = 0;
+    let instruction = 0x0022001A;
+    r3051.div_instruction(instruction);
+
+    assert_eq!(r3051.hi_reg, -26);
+    assert_eq!(r3051.lo_reg, -1);
+}
+
+#[test]
+fn test_divu_when_not_dividing_by_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given dividend of -26 and divisor of 5, we should expect
+    // a quotient of 858,993,454 and a remainder of 0.
+    r3051.general_registers[1] = -26;
+    r3051.general_registers[2] = 5;
+    let instruction = 0x0022001B;
+    r3051.divu_instruction(instruction);
+
+    assert_eq!(r3051.hi_reg, 0);
+    assert_eq!(r3051.lo_reg, 858_993_454);
+}
+
+#[test]
+fn test_divu_when_dividing_by_zero() {
+
+    let mut r3051 = R3051::new();
+
+    // Given dividend of -26 and divisor of 0, we should expect
+    // a quotient of -1 and a remainder of -26 (as interpreted from i32).
+    r3051.general_registers[1] = -26;
+    r3051.general_registers[2] = 0;
+    let instruction = 0x0022001B;
+    r3051.divu_instruction(instruction);
+
+    assert_eq!(r3051.hi_reg, -26);
+    assert_eq!(r3051.lo_reg, -1);
+}
+
+#[test]
+fn test_j_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a target value of 0x2000000, we should end up with a jump address
+    // of 0xB8000000 and a pending jump.
+    let instruction = 0x0A000000;
+    r3051.j_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xB8000000_u32 as i32);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_jal_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given an encoded target value of 0x2000000, we should end up with a jump address
+    // of 0xB8000000 and a pending jump. Also, we should have address of instruction
+    // after branch delay slot in register 31.
+    let instruction = 0x0E000000;
+    r3051.jal_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xB8000000_u32 as i32);
+    assert_eq!(r3051.general_registers[31], r3051.program_counter + 8);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_jalr_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a target value of 0xB8000000 in register 1, we should end up with a jump
+    // address of 0xB8000000 and a pending jump. Also, we should have address of instruction
+    // after branch delay slot in register 2.
+    r3051.general_registers[1] = 0xB8000000_u32 as i32;
+    let instruction = 0x00201009;
+    r3051.jalr_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xB8000000_u32 as i32);
+    assert_eq!(r3051.general_registers[2], r3051.program_counter + 8);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_jr_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a target value of 0xB8000000 in register 1, we should end up with a jump
+    // address of 0xB8000000 and a pending jump.
+    r3051.general_registers[1] = 0xB8000000_u32 as i32;
+    let instruction = 0x00200008;
+    r3051.jr_instruction(instruction);
+
+    assert_eq!(r3051.jump_address, 0xB8000000_u32 as i32);
+    assert!(r3051.jump_pending);
+    assert!(r3051.is_branch);
+}
+
+#[test]
+fn test_lb_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFF, we should attempt to read a byte from address 0x8000 and
+    // store it to register 2, and that byte should be sign extended to
+    // 0xFFFFFFFF.
+    r3051.general_registers[1] = 0xFFFF;
+    test_bridge.ram[0x8000] = 0xFF_u8 as i8;
+    let instruction = 0x80228001_u32 as i32;
+    r3051.lb_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0xFFFFFFFF_u32 as i32);
+}
+
+#[test]
+fn test_lb_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to read a byte from address 0x80000000 and this
+    // should trigger an exception as we are in 'user' mode.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0x80220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.lb_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0);
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADEL);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_lbu_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFF, we should attempt to read a byte from address 0x8000 and
+    // store it to register 2, and that byte should not be sign extended.
+    r3051.general_registers[1] = 0xFFFF;
+    test_bridge.ram[0x8000] = 0xFF_u8 as i8;
+    let instruction = 0x90228001_u32 as i32;
+    r3051.lbu_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0xFF);
+}
+
+#[test]
+fn test_lbu_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to read a byte from address 0x80000000 and this
+    // should trigger an exception as we are in 'user' mode.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0x90220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.lbu_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0);
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADEL);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_lh_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFF, we should attempt to read a half word from address 0x8000 and
+    // store it to register 2, and it should be sign extended.
+    r3051.general_registers[1] = 0xFFFF;
+    test_bridge.ram[0x8000] = 0xFE_u8 as i8;
+    test_bridge.ram[0x8001] = 0xFF_u8 as i8;
+    let instruction = 0x84228001_u32 as i32;
+    r3051.lh_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0xFFFFFFFE_u32 as i32);
+}
+
+#[test]
+fn test_lh_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to read a byte from address 0x80000000 and this
+    // should trigger an exception as we are in 'user' mode.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0x84220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.lh_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0);
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADEL);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
 }

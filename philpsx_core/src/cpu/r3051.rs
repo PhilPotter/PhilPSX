@@ -1301,7 +1301,7 @@ impl R3051 {
         // Load half-word and swap endianness, sign extend.
         let mut temp_half_word = 0xFFFF & self.read_data_value(bridge, R3051Width::HALFWORD, address as i32);
         temp_half_word = ((temp_half_word << 8) & 0xFF00) | temp_half_word.logical_rshift(8);
-        temp_half_word.sign_extend(15);
+        temp_half_word = temp_half_word.sign_extend(15);
 
         // Write half-word to correct register.
         self.general_registers[rt] = temp_half_word;
