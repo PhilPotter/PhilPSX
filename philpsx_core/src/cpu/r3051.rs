@@ -1521,7 +1521,7 @@ impl R3051 {
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
 
-        // Shift word value left by required amount.
+        // Shift word value right by required amount.
         temp_word = temp_word.logical_rshift(byte_shift_index * 8);
 
         // Fetch rt contents, and calculate mask.
