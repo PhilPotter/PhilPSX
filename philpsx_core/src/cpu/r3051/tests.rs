@@ -1100,3 +1100,159 @@ fn test_lwr_instruction_banned_address() {
     assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADEL);
     assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
 }
+
+#[test]
+fn test_mf0_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CP0 register 8, we should read it to CPU register 1.
+    r3051.sccp.write_reg(8, 0x12345678, false);
+    let instruction = 0x40014000;
+    r3051.mf0_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[1], 0x12345678);
+}
+
+#[test]
+fn test_mf0_instruction_banned_cp0_registers() {
+
+    // Reading a value from CP0 registers 0, 1, 2, 4 or 10
+    // should trigger an exception.
+    for i in [0, 1, 2, 4, 10] {
+        let mut r3051 = R3051::new();
+    
+        let masked_i = i & 0x1F;
+        let instruction = 0x40010000 | (masked_i << 11);
+        r3051.mf0_instruction(instruction);
+
+        assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::RI);
+        assert!(!r3051.exception.is_in_branch_delay_slot);
+        assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+    }
+}
+
+#[test]
+fn test_mf2_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CP2 data register 15, we should read it to CPU register 1.
+    r3051.gte.write_data_reg(15, 0x12345678, false);
+    let instruction = 0x48017800;
+    r3051.mf2_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[1], 0x12345678);
+}
+
+#[test]
+fn test_mfhi_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CPU 'hi' register, we should read it to CPU register 1.
+    r3051.hi_reg = 0x12345678;
+    let instruction = 0x00000810;
+    r3051.mfhi_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[1], 0x12345678);
+}
+
+#[test]
+fn test_mflo_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CPU 'lo' register, we should read it to CPU register 1.
+    r3051.lo_reg = 0x12345678;
+    let instruction = 0x00000812;
+    r3051.mflo_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[1], 0x12345678);
+}
+
+#[test]
+fn test_mt0_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CPU register 1, we should write it to CP0 register 8.
+    r3051.general_registers[1] = 0x12345678;
+    let instruction = 0x40814000;
+    r3051.mt0_instruction(instruction);
+
+    assert_eq!(r3051.sccp.read_reg(8), 0x12345678);
+}
+
+#[test]
+fn test_mt2_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CPU register 1, we should write it to CP2 data register 12.
+    r3051.general_registers[1] = 0x12345678;
+    let instruction = 0x48816000;
+    r3051.mt2_instruction(instruction);
+
+    assert_eq!(r3051.gte.read_data_reg(12), 0x12345678);
+}
+
+#[test]
+fn test_mthi_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CPU register 1, we should read it to CPU 'hi' register.
+    r3051.general_registers[1] = 0x12345678;
+
+    let instruction = 0x00200011;
+    r3051.mthi_instruction(instruction);
+
+    assert_eq!(r3051.hi_reg, 0x12345678);
+}
+
+#[test]
+fn test_mtlo_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in CPU 'lo' register, we should read it to CPU register 1.
+    r3051.general_registers[1] = 0x12345678;
+    let instruction = 0x00200013;
+    r3051.mtlo_instruction(instruction);
+
+    assert_eq!(r3051.lo_reg, 0x12345678);
+}
+
+#[test]
+fn test_mult_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two signed values in registers 1 and 2, we should store
+    // the multiplied 64-bit result into the 'hi' and 'lo' registers.
+    r3051.general_registers[1] = 1337;
+    r3051.general_registers[2] = -1;
+    let instruction = 0x00220018;
+    r3051.mult_instruction(instruction);
+
+    assert_eq!(r3051.hi_reg, 0xFFFFFFFF_u32 as i32);
+    assert_eq!(r3051.lo_reg, 0xFFFFFAC7_u32 as i32);
+}
+
+#[test]
+fn test_multu_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two signed values in registers 1 and 2, both interpreted
+    // as unsigned, we should store the multiplied 64-bit result into
+    // the 'hi' and 'lo' registers.
+    r3051.general_registers[1] = 1337;
+    r3051.general_registers[2] = -1;
+    let instruction = 0x00220019;
+    r3051.multu_instruction(instruction);
+
+    assert_eq!(r3051.hi_reg, 0x00000538);
+    assert_eq!(r3051.lo_reg, 0xFFFFFAC7_u32 as i32);
+}
