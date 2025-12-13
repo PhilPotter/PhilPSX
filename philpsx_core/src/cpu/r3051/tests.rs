@@ -1256,3 +1256,204 @@ fn test_multu_instruction_success() {
     assert_eq!(r3051.hi_reg, 0x00000538);
     assert_eq!(r3051.lo_reg, 0xFFFFFAC7_u32 as i32);
 }
+
+#[test]
+fn test_nor_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in register 1 and 2, we should store the result
+    // of NOR-ing them in register 3.
+    r3051.general_registers[1] = 0xAAAA0000_u32 as i32;
+    r3051.general_registers[2] = 0x55550000;
+    let instruction = 0x00221827;
+    r3051.nor_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0x0000FFFF);
+}
+
+#[test]
+fn test_or_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in register 1 and 2, we should store the result
+    // of OR-ing them in register 3.
+    r3051.general_registers[1] = 0xAAAAAAAA_u32 as i32;
+    r3051.general_registers[2] = 0x55555555;
+    let instruction = 0x00221825;
+    r3051.or_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0xFFFFFFFF_u32 as i32);
+}
+
+#[test]
+fn test_ori_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in register 1 and the immediate value, we should
+    // store the result of OR-ing them in register 2.
+    r3051.general_registers[1] = 0xFFFF0000_u32 as i32;
+    let instruction = 0x3422FFFF;
+    r3051.ori_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 0xFFFFFFFF_u32 as i32);
+}
+
+#[test]
+fn test_rfe_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given that the bits 5-2 of the CP0 status register are set and
+    // bits 1-0 unset, after RFE we should shuffle right two bits, such
+    // that bits 3-0 are then set and bits 5-4 are also still.
+    let new_status_reg = (r3051.sccp.read_reg(12) & (0xFFFFFFC0_u32 as i32)) | 0x3C;
+    r3051.sccp.write_reg(12, new_status_reg, false);
+    r3051.rfe_instruction();
+
+    assert_eq!(r3051.sccp.read_reg(12) & 0x3F, 0x3F);
+}
+
+#[test]
+fn test_sb_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFF, we should attempt to store a byte to address 0x8000 from
+    // the lowest byte of register 2.
+    r3051.general_registers[1] = 0xFFFF;
+    r3051.general_registers[2] = 0x12345678;
+    let instruction = 0xA0228001_u32 as i32;
+    r3051.sb_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(test_bridge.ram[0x8000], 0x78);
+}
+
+#[test]
+fn test_sb_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to read a byte from address 0x80000000 and this
+    // should trigger an exception as we are in 'user' mode.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0xA0220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.sb_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0);
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADES);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_sh_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFF, we should attempt to store a half word to address 0x8000
+    // from the lower half word of register 2.
+    r3051.general_registers[1] = 0xFFFF;
+    r3051.general_registers[2] = 0x12345678;
+    let instruction = 0xA4228001_u32 as i32;
+    r3051.sh_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(test_bridge.ram[0x8000], 0x78);
+    assert_eq!(test_bridge.ram[0x8001], 0x56);
+}
+
+#[test]
+fn test_sh_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to read a byte from address 0x80000000 and this
+    // should trigger an exception as we are in 'user' mode.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0xA4220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.sh_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.general_registers[2], 0);
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADES);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_sll_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given an initial value in register 1 and shift value encoded in
+    // the instruction, we should shift this value left by the required
+    // number of bits and store it in register 2.
+    r3051.general_registers[1] = 0x12345678;
+    let instruction = 0x00011100;
+    r3051.sll_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 0x23456780);
+}
+
+#[test]
+fn test_sllv_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given an initial value in register 2 and shift value encoded in
+    // register 1, we should shift this value left by the required
+    // number of bits and store it in register 3.
+    r3051.general_registers[1] = 4;
+    r3051.general_registers[2] = 0x12345678;
+    let instruction = 0x00221804;
+    r3051.sllv_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0x23456780);
+}
+
+#[test]
+fn test_slt_instruction_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in registers 1 and 2 and a burneer value in
+    // register 3, if the first is lower than the second then we
+    // should set register 3 to 1.
+    r3051.general_registers[1] = 4;
+    r3051.general_registers[2] = 5;
+    r3051.general_registers[3] = 6;
+    let instruction = 0x0022182A;
+    r3051.slt_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 1);
+}
+
+#[test]
+fn test_slt_instruction_not_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in registers 1 and 2 and a burneer value in
+    // register 3, if the first is not lower than the second then we
+    // should set register 3 to 0.
+    r3051.general_registers[1] = 5;
+    r3051.general_registers[2] = 5;
+    r3051.general_registers[3] = 6;
+    let instruction = 0x0022182A;
+    r3051.slt_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0);
+}
