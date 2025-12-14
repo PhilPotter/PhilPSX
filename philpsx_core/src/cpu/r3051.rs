@@ -1862,7 +1862,7 @@ impl R3051 {
     fn sltiu_instruction(&mut self, instruction: i32) {
 
         // Get rs, rt and sign-extended immediate.
-        let immediate = instruction.sign_extend(15);
+        let immediate = (instruction.sign_extend(15) as i64) & 0xFFFFFFFF;
         let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
         let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
 
@@ -1870,7 +1870,7 @@ impl R3051 {
         let temp_rs_val = (self.general_registers[rs] as i64) & 0xFFFFFFFF;
 
         // Store result.
-        self.general_registers[rt] = if temp_rs_val < (immediate as i64) {
+        self.general_registers[rt] = if temp_rs_val < immediate {
             1
         } else {
             0

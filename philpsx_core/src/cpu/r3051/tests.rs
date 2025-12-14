@@ -1429,7 +1429,7 @@ fn test_slt_instruction_less_than() {
 
     let mut r3051 = R3051::new();
 
-    // Given two values in registers 1 and 2 and a burneer value in
+    // Given two values in registers 1 and 2 and a burner value in
     // register 3, if the first is lower than the second then we
     // should set register 3 to 1.
     r3051.general_registers[1] = 4;
@@ -1446,7 +1446,7 @@ fn test_slt_instruction_not_less_than() {
 
     let mut r3051 = R3051::new();
 
-    // Given two values in registers 1 and 2 and a burneer value in
+    // Given two values in registers 1 and 2 and a burner value in
     // register 3, if the first is not lower than the second then we
     // should set register 3 to 0.
     r3051.general_registers[1] = 5;
@@ -1456,4 +1456,68 @@ fn test_slt_instruction_not_less_than() {
     r3051.slt_instruction(instruction);
 
     assert_eq!(r3051.general_registers[3], 0);
+}
+
+#[test]
+fn test_slti_instruction_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in register 1 and the immediate, and a burner value in
+    // register 2, if the first is lower than the second then we
+    // should set register 2 to 1.
+    r3051.general_registers[1] = 0x7FFE;
+    r3051.general_registers[2] = 6;
+    let instruction = 0x28227FFF;
+    r3051.slti_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 1);
+}
+
+#[test]
+fn test_slti_instruction_not_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in register 1 and the immediate, and a burner value in
+    // register 2, if the first is not lower than the second then we
+    // should set register 2 to 0.
+    r3051.general_registers[1] = 0x7FFE;
+    r3051.general_registers[2] = 6;
+    let instruction = 0x2822FFFF;
+    r3051.slti_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 0);
+}
+
+#[test]
+fn test_sltiu_instruction_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in register 1 and the immediate, and a burner value in
+    // register 2, if the first is lower than the second then we
+    // should set register 2 to 1.
+    r3051.general_registers[1] = 0x7FFE;
+    r3051.general_registers[2] = 6;
+    let instruction = 0x2C227FFF;
+    r3051.sltiu_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 1);
+}
+
+#[test]
+fn test_sltiu_instruction_not_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in register 1 and the immediate, and a burner value in
+    // register 2, if the first is not lower than the second then we
+    // should set register 2 to 0.
+    r3051.general_registers[1] = 0xFFFFFFFF_u32 as i32;
+    r3051.general_registers[2] = 6;
+    let instruction = 0x2C227FFF;
+    r3051.sltiu_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 0);
 }
