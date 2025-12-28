@@ -1521,3 +1521,133 @@ fn test_sltiu_instruction_not_less_than() {
 
     assert_eq!(r3051.general_registers[2], 0);
 }
+
+#[test]
+fn test_sltu_instruction_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in registers 1 and 2 and a burner value in register 3,
+    // register 3 should be set to 1.
+    r3051.general_registers[1] = 1;
+    r3051.general_registers[2] = -1; // -1 is 0xFFFFFFFF so is larger than 1 when treated as unsigned.
+    r3051.general_registers[3] = 3;
+    let instruction = 0x0022182B;
+    r3051.sltu_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 1);
+}
+
+#[test]
+fn test_sltu_instruction_not_less_than() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in registers 1 and 2 and a burner value in register 3,
+    // register 3 should be set to 0.
+    r3051.general_registers[1] = -1;
+    r3051.general_registers[2] = -1;
+    r3051.general_registers[3] = 3;
+    let instruction = 0x0022182B;
+    r3051.sltu_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0);
+}
+
+#[test]
+fn test_sra_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in register 1 and a shift value in the instruction,
+    // register 2 should be set to register 1 right-shifted and sign extended
+    // by the relevant amount.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0x000117C3;
+    r3051.sra_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], -1);
+}
+
+#[test]
+fn test_srav_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a shift value in register 1 and a value in register 2,
+    // register 3 should be set to register 2 right-shifted and sign extended
+    // by the relevant amount.
+    r3051.general_registers[1] = 31;
+    r3051.general_registers[2] = 0x80000000_u32 as i32;
+    let instruction = 0x00221807;
+    r3051.srav_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], -1);
+}
+
+#[test]
+fn test_srl_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a value in register 1 and a shift value in the instruction,
+    // register 2 should be set to register 1 right-shifted and zero extended
+    // by the relevant amount.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0x000117C2;
+    r3051.srl_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 1);
+}
+
+#[test]
+fn test_srlv_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given a shift value in register 1 and a value in register 2,
+    // register 3 should be set to register 2 right-shifted and zero extended
+    // by the relevant amount.
+    r3051.general_registers[1] = 31;
+    r3051.general_registers[2] = 0x80000000_u32 as i32;
+    let instruction = 0x00221806;
+    r3051.srlv_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 1);
+}
+
+#[test]
+fn test_sub_instruction_overflow() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in registers 1 and 2, attempting to subtract register 2 from
+    // register 1 should trigger an overflow exception. The destination register should
+    // be untouched.
+    r3051.general_registers[1] = 0x80000000_u32 as i32; // −2,147,483,648.
+    r3051.general_registers[2] = 1;
+    r3051.general_registers[3] = 1337;
+    let instruction = 0x00221822;
+    r3051.sub_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 1337);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::OVF);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_sub_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in registers 1 and 2, attempting to subtract register 2 from
+    // register 1 should cause the result to be stored to register 3.
+    r3051.general_registers[1] = 0x80000001_u32 as i32; // −2,147,483,647.
+    r3051.general_registers[2] = 1;
+    r3051.general_registers[3] = 1337;
+    let instruction = 0x00221822;
+    r3051.sub_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::NULL);
+}

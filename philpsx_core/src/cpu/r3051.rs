@@ -1965,7 +1965,7 @@ impl R3051 {
         // Subtract rt_val from rs_val.
         let rs_val = self.general_registers[rs];
         let rt_val = self.general_registers[rt];
-        let result = rs_val - rt_val;
+        let result = rs_val.wrapping_sub(rt_val);
 
         // Check for two's complement overflow.
         let sign_bit = 0x80000000_u32 as i32;
