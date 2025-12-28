@@ -979,7 +979,7 @@ fn test_lwc2_instruction_success() {
 
     // Given an initial address of 0xFFFF in register 1 and an offset of
     // -0x7FFF, we should attempt to read a word from address 0x8000 and
-    // store it to CP2 register 2.
+    // store it to CP2 register 15.
     r3051.general_registers[1] = 0xFFFF;
     test_bridge.ram[0x8000] = 0x78;
     test_bridge.ram[0x8001] = 0x56;
@@ -1617,6 +1617,23 @@ fn test_srlv_instruction_success() {
 }
 
 #[test]
+fn test_sub_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Given two values in registers 1 and 2, attempting to subtract register 2 from
+    // register 1 should cause the result to be stored to register 3.
+    r3051.general_registers[1] = 0x80000001_u32 as i32; // −2,147,483,647.
+    r3051.general_registers[2] = 1;
+    r3051.general_registers[3] = 1337;
+    let instruction = 0x00221822;
+    r3051.sub_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::NULL);
+}
+
+#[test]
 fn test_sub_instruction_overflow() {
 
     let mut r3051 = R3051::new();
@@ -1636,18 +1653,101 @@ fn test_sub_instruction_overflow() {
 }
 
 #[test]
-fn test_sub_instruction_success() {
+fn test_subu_instruction_success() {
 
     let mut r3051 = R3051::new();
 
     // Given two values in registers 1 and 2, attempting to subtract register 2 from
-    // register 1 should cause the result to be stored to register 3.
-    r3051.general_registers[1] = 0x80000001_u32 as i32; // −2,147,483,647.
+    // register 1 should cause the result to be stored to register 3 as if the calculation
+    // had been performed unsigned.
+    r3051.general_registers[1] = 0x80000000_u32 as i32; // 2,147,483,648 (unsigned).
     r3051.general_registers[2] = 1;
     r3051.general_registers[3] = 1337;
-    let instruction = 0x00221822;
-    r3051.sub_instruction(instruction);
+    let instruction = 0x00221823;
+    r3051.subu_instruction(instruction);
 
-    assert_eq!(r3051.general_registers[3], 0x80000000_u32 as i32);
+    assert_eq!(r3051.general_registers[3], 0x7FFFFFFF);
     assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::NULL);
+}
+
+#[test]
+fn test_sw_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFF, we should attempt to store a word to address 0x8000 from
+    // register 2.
+    r3051.general_registers[1] = 0xFFFF;
+    r3051.general_registers[2] = 0x12345678;
+    let instruction = 0xAC228001_u32 as i32;
+    r3051.sw_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(test_bridge.ram[0x8000], 0x78);
+    assert_eq!(test_bridge.ram[0x8001], 0x56);
+    assert_eq!(test_bridge.ram[0x8002], 0x34);
+    assert_eq!(test_bridge.ram[0x8003], 0x12);
+}
+
+#[test]
+fn test_sw_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to store a word to address 0x80000000 and this
+    // should trigger an exception as we are in 'user' mode.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    r3051.general_registers[2] = 0x12345678;
+    let instruction = 0xAC220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.sw_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADES);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_swc2_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFF, we should attempt to store a word to address 0x8000 from
+    // CP2 register 2.
+    r3051.general_registers[1] = 0xFFFF;
+    r3051.gte.write_data_reg(15, 0x12345678, false);
+    let instruction = 0xE82F8001_u32 as i32;
+    r3051.swc2_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(test_bridge.ram[0x8000], 0x78);
+    assert_eq!(test_bridge.ram[0x8001], 0x56);
+    assert_eq!(test_bridge.ram[0x8002], 0x34);
+    assert_eq!(test_bridge.ram[0x8003], 0x12);
+}
+
+#[test]
+fn test_swc2_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to store a word to address 0x80000000 and this
+    // should trigger an exception as we are in 'user' mode.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    r3051.gte.write_data_reg(15, 0x12345678, false);
+    let instruction = 0xE82F0000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.swc2_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADES);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
 }
