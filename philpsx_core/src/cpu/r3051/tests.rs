@@ -1751,3 +1751,138 @@ fn test_swc2_instruction_banned_address() {
     assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADES);
     assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
 }
+
+#[test]
+fn test_swl_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFE, we should attempt to read a word from aligned address 0x8000
+    // and merge it with the contents of register 2 after left shifting with
+    // the inverted lowest two bits of the address, then store it back to the
+    // same address.
+    r3051.general_registers[1] = 0xFFFF;
+    r3051.general_registers[2] = 0x56780000;
+    test_bridge.ram[0x8002] = 0x34;
+    test_bridge.ram[0x8003] = 0x12;
+    let instruction = 0xA8228002_u32 as i32;
+    r3051.swl_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(test_bridge.ram[0x8000], 0x78);
+    assert_eq!(test_bridge.ram[0x8001], 0x56);
+    assert_eq!(test_bridge.ram[0x8002], 0x34);
+    assert_eq!(test_bridge.ram[0x8003], 0x12);
+}
+
+#[test]
+fn test_swl_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to read a word from aligned address 0x8000 and
+    // merge it with the contents of register 2 after left shifting with the
+    // the inverted lowest two bits of the address, then store it back to the
+    // same address. We should never get this far, and instead trigger an
+    // exception due to the banned address.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0xA8220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.swl_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADES);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_swr_instruction_success() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0xFFFF in register 1 and an offset of
+    // -0x7FFE, we should attempt to read a word from aligned address 0x8000
+    // and merge it with the contents of register 2 after right shifting with
+    // the lowest two bits of the address, then store it back to the same
+    // address.
+    r3051.general_registers[1] = 0xFFFF;
+    r3051.general_registers[2] = 0x00001234;
+    test_bridge.ram[0x8000] = 0x78;
+    test_bridge.ram[0x8001] = 0x56;
+    let instruction = 0xB8228003_u32 as i32;
+    r3051.swr_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(test_bridge.ram[0x8000], 0x78);
+    assert_eq!(test_bridge.ram[0x8001], 0x56);
+    assert_eq!(test_bridge.ram[0x8002], 0x34);
+    assert_eq!(test_bridge.ram[0x8003], 0x12);
+}
+
+#[test]
+fn test_swr_instruction_banned_address() {
+
+    let mut r3051 = R3051::new();
+    let mut test_bridge = TestCpuBridge::new();
+
+    // Given an initial address of 0x80000000 in register 1 and an offset of
+    // 0, we should attempt to read a word from aligned address 0x8000 and
+    // merge it with the contents of register 2 after right shifting with the
+    // the lowest two bits of the address, then store it back to the same
+    // address. We should never get this far, and instead trigger an exception
+    // due to the banned address.
+    r3051.general_registers[1] = 0x80000000_u32 as i32;
+    let instruction = 0xB8220000_u32 as i32;
+    let cp0_status_reg_with_user_mode = r3051.sccp.read_reg(12) | 0x2;
+    r3051.sccp.write_reg(12, cp0_status_reg_with_user_mode, false);
+    r3051.swr_instruction(&mut test_bridge, instruction);
+
+    assert_eq!(r3051.exception.bad_address, 0x80000000_u32 as i32);
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::ADES);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_syscall_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Invoking SYSCALL should trigger a system call exception for us.
+    r3051.syscall_instruction();
+
+    assert_eq!(r3051.exception.exception_reason, MIPSExceptionReason::SYS);
+    assert_eq!(r3051.exception.program_counter_origin, r3051.program_counter);
+}
+
+#[test]
+fn test_xor_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Bitwise XOR-ing registers 1 and 2 should store the expected result in
+    // register 3 for us.
+    r3051.general_registers[1] = 0x95511559_u32 as i32;
+    r3051.general_registers[2] = 0x87654321_u32 as i32;
+    let instruction = 0x00221826;
+    r3051.xor_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[3], 0x12345678);
+}
+
+#[test]
+fn test_xori_instruction_success() {
+
+    let mut r3051 = R3051::new();
+
+    // Bitwise XOR-ing registers 1 and zero extended immmediate should store the
+    // expected result in register 2 for us.
+    r3051.general_registers[1] = 0x12341559;
+    let instruction = 0x38224321;
+    r3051.xori_instruction(instruction);
+
+    assert_eq!(r3051.general_registers[2], 0x12345678);
+}
