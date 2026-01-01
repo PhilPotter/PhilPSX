@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 // motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use super::cpu::Cpu;
+use super::{
+    cpu::Cpu,
+    spu::Spu,
+};
 
 /// This module contains the default motherboard implementation. There
 /// may be others in future.
@@ -15,4 +18,5 @@ pub trait Motherboard {}
 /// operating from the context of a motherboard call.
 pub struct MotherboardComponents<'a> {
     cpu: &'a mut dyn Cpu,
+    spu: &'a mut dyn Spu,
 }

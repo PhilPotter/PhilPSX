@@ -17,3 +17,6 @@ pub mod cpu;
 
 /// This module contains PlayStation motherboard related functionality.
 pub mod motherboard;
+
+/// This module contains PlayStation sound chip related functionality.
+pub mod spu;
