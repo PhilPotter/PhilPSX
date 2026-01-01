@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-// tests.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
+// tests.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use super::CP2;
 use super::InstructionVariant;

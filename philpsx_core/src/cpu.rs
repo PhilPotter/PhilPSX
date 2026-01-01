@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-// cpu.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
+// cpu.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use philpsx_utility::SystemBusHolder;
 

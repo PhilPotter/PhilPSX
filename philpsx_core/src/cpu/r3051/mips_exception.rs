@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-// mips_exception.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
+// mips_exception.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 /// This structure models exceptions within the R3051 CPU.
 pub struct MIPSException {

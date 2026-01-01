@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-// lib.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
+// lib.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 // This crate contains useful utility functions that can be used throughout the codebase.
 

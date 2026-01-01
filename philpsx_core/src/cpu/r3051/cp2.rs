@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-// cp2.rs - Copyright Phillip Potter, 2025, under GPLv3 only.
+// cp2.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use philpsx_utility::{CustomInteger, min};
 use math::{CP2Matrix, CP2Vector};
