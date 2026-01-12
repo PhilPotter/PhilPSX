@@ -5,3 +5,6 @@ edition = "2024"
 authors = [
     "Phillip Potter <phil@philpotter.co.uk>"
 ]
+
+[dependencies]
+clap = { version = "4.5.54", features = ["derive"] }
