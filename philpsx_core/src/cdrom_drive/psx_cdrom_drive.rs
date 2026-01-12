@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 // psx_cdrom_drive.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
+/// This module contains an implementation of the CD-ROM disc format itself, specific to
+/// the primary PsxCdromDrive implementation below.
+mod psx_cd;
+
+use psx_cd::PsxCd;
+
 /// This struct models the CD-ROM drive of the PlayStation.
 pub struct PsxCdromDrive {
 
@@ -22,7 +28,7 @@ pub struct PsxCdromDrive {
     data_index: i32,
 
     // This references the actual CD.
-    // cd: CD
+    cd: PsxCd,
 
     // Interrupt registers.
     interrupt_enable_register: i32,
@@ -89,6 +95,9 @@ impl PsxCdromDrive {
             data_count: 0,
             data_index: 0,
 
+            // Setup CD object itself.
+            cd: PsxCd::new(),
+
             // Setup interrupt registers.
             interrupt_enable_register: 0,
             interrupt_flag_register: 0,
@@ -127,7 +136,7 @@ impl PsxCdromDrive {
             setloc_processed: false,
 
             // Handle read retry in ReadN command.
-            been_read: true
+            been_read: true,
         }
     }
 }
