@@ -23,3 +23,6 @@ pub mod spu;
 
 /// This module contains PlayStation controller related functionality.
 pub mod controllers;
+
+/// This module contains PlayStation CD-ROM drive related functionality.
+pub mod cdrom_drive;

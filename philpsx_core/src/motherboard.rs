@@ -4,6 +4,8 @@
 use super::{
     cpu::Cpu,
     spu::Spu,
+    controllers::Controllers,
+    cdrom_drive::CdromDrive,
 };
 
 /// This module contains the default motherboard implementation. There
@@ -19,4 +21,6 @@ pub trait Motherboard {}
 pub struct MotherboardComponents<'a> {
     cpu: &'a mut dyn Cpu,
     spu: &'a mut dyn Spu,
+    controllers: &'a mut dyn Controllers,
+    cdrom_drive: &'a mut dyn CdromDrive,
 }
