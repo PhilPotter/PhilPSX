@@ -1,0 +1,7 @@
+[package]
+name = "philpsx_basic_bin"
+version = "0.1.0"
+edition = "2024"
+authors = [
+    "Phillip Potter <phil@philpotter.co.uk>"
+]

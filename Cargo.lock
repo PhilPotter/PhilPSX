@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "philpsx_basic_bin"
+version = "0.1.0"
+
+[[package]]
 name = "philpsx_core"
 version = "0.1.0"
 dependencies = [
