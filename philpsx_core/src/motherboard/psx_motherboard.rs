@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 // psx_motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
+use std::{
+    ffi::OsStr,
+    fs::File,
+    io::Read,
+};
 use super::Motherboard;
 
 /// Size of the RAM area in bytes.
@@ -25,8 +30,10 @@ pub struct PsxMotherboard {
     scratchpad: Vec<i8>,
 
     // 512 KiB of BIOS (heap allocated). This stores the BIOS once
-    // it is copied into memory.
-    bios: Vec<i8>,
+    // it is copied into memory. Store in unsigned byte form despite
+    // original C version using i8 (because it was in turn based on)
+    // the Java version that used byte (which is signed).
+    bios: Vec<u8>,
 
     // Register declarations.
     cache_control_reg: i32,
@@ -83,7 +90,7 @@ pub struct PsxMotherboard {
 impl PsxMotherboard {
 
     /// Creates a new motherboard object with the correct initial state.
-    pub fn new(bios_data: &[i8]) -> Self {
+    pub fn new(bios_path: &OsStr) -> Result<Self, std::io::Error> {
 
         let mut motherboard = PsxMotherboard {
 
@@ -140,14 +147,16 @@ impl PsxMotherboard {
         };
 
         // Populate BIOS with passed in data.
-        motherboard.load_bios_data_to_memory(bios_data);
+        motherboard.load_bios_data_to_memory(bios_path)?;
 
-        motherboard
+        Ok(motherboard)
     }
 
     /// Copies the bytes from the passed in slice to our BIOS memory area.
-    fn load_bios_data_to_memory(&mut self, bios_data: &[i8]) {
-        self.bios.copy_from_slice(bios_data);
+    fn load_bios_data_to_memory(&mut self, bios_path: &OsStr) -> Result<(), std::io::Error> {
+
+        let mut bios_file = File::open(bios_path)?;
+        bios_file.read_exact(self.bios.as_mut_slice())
     }
 }
 

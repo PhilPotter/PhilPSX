@@ -8,3 +8,4 @@ authors = [
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
+philpsx_core = { path = "../philpsx_core" }
