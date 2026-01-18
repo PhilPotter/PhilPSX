@@ -8,4 +8,7 @@ authors = [
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
+colog = "1.4.0"
+log = "0.4.29"
 philpsx_core = { path = "../philpsx_core" }
+sdl3 = "0.17.3"
