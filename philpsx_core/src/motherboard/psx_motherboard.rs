@@ -2,6 +2,7 @@
 // psx_motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use std::{
+    error::Error,
     ffi::OsStr,
     fs::File,
     io::Read,
@@ -90,7 +91,7 @@ pub struct PsxMotherboard {
 impl PsxMotherboard {
 
     /// Creates a new motherboard object with the correct initial state.
-    pub fn new(bios_path: &OsStr) -> Result<Self, std::io::Error> {
+    pub fn new(bios_path: &OsStr) -> Result<Self, Box<dyn Error>> {
 
         let mut motherboard = PsxMotherboard {
 
@@ -153,10 +154,10 @@ impl PsxMotherboard {
     }
 
     /// Copies the bytes from the passed in slice to our BIOS memory area.
-    fn load_bios_data_to_memory(&mut self, bios_path: &OsStr) -> Result<(), std::io::Error> {
+    fn load_bios_data_to_memory(&mut self, bios_path: &OsStr) -> Result<(), Box<dyn Error>> {
 
         let mut bios_file = File::open(bios_path)?;
-        bios_file.read_exact(self.bios.as_mut_slice())
+        Ok(bios_file.read_exact(self.bios.as_mut_slice())?)
     }
 }
 

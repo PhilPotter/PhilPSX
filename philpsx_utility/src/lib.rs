@@ -3,6 +3,9 @@
 
 // This crate contains useful utility functions that can be used throughout the codebase.
 
+/// This module contains basic error-handling functionality.
+pub mod error;
+
 /// Exists to allow us to define custom trait operations on `i32`.
 type CustomInt32 = i32;
 

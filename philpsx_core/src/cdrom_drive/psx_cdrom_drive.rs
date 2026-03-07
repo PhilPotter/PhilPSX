@@ -6,6 +6,11 @@
 mod psx_cd;
 
 use psx_cd::PsxCd;
+use super::{CdromDrive, CdromDriveBridge};
+use std::{
+    error::Error,
+    ffi::OsStr,
+};
 
 /// This struct models the CD-ROM drive of the PlayStation.
 pub struct PsxCdromDrive {
@@ -138,5 +143,18 @@ impl PsxCdromDrive {
             // Handle read retry in ReadN command.
             been_read: true,
         }
+    }
+}
+
+/// Implementation functions to be called from anything that understands what
+/// a CdromDrive object is.
+impl CdromDrive for PsxCdromDrive {
+
+    /// Load the CD from the image file referenced by the supplied path.
+    fn load_cd(
+        &mut self,
+        path: &OsStr,
+    ) -> Result<(), Box<dyn Error>> {
+        self.cd.load_cd(path)
     }
 }

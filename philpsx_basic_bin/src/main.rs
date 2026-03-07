@@ -7,7 +7,7 @@
 
 use clap::Parser;
 use philpsx_core::{
-    cdrom_drive::psx_cdrom_drive::PsxCdromDrive,
+    cdrom_drive::{CdromDrive, psx_cdrom_drive::PsxCdromDrive},
     controllers::psx_controllers::PsxControllers,
     cpu::r3051::R3051,
     motherboard::psx_motherboard::PsxMotherboard,
@@ -75,8 +75,25 @@ fn main() -> ExitCode {
     let mut cdrom_drive = PsxCdromDrive::new();
     let mut controllers = PsxControllers::new();
     let mut cpu = R3051::new();
-    let mut motherboard = PsxMotherboard::new(&philpsx_args.bios);
+    let mut motherboard = match PsxMotherboard::new(&philpsx_args.bios) {
+        Ok(motherboard) => motherboard,
+        Err(error) => {
+            log::error!("Failed to initialise motherboard: {}, exiting...", error);
+            return ExitCode::FAILURE;
+        }
+    };
     let mut spu = PsxSpu::new();
+
+    // If the CD was specified as an argument, then load it now.
+    if let Some(path) = &philpsx_args.cd {
+        match cdrom_drive.load_cd(path) {
+            Ok(()) => {},
+            Err(error) => {
+                log::error!("Failed to load CD path: {}, exiting...", error);
+                return ExitCode::FAILURE;
+            },
+        }
+    }
 
     // Create a dummy window for now, just to make sure SDL works.
     let sdl_window = match sdl_video_subsystem.window(
@@ -98,8 +115,6 @@ fn main() -> ExitCode {
     sdl_canvas.set_draw_color(Color::RGB(0, 0, 255));
     sdl_canvas.clear();
     sdl_canvas.present();
-
-    std::thread::sleep(Duration::from_secs(30));
 
     // We finished normally, return success code therefore.
     log::info!("PhilPSX exiting...");

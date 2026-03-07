@@ -7,4 +7,5 @@ authors = [
 ]
 
 [dependencies]
+log = "0.4.29"
 philpsx_utility = { path = "../philpsx_utility" }
