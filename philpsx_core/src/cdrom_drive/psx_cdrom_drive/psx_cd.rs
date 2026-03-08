@@ -5,7 +5,12 @@ use std::{
     error::Error,
     ffi::OsStr,
     fs::File,
-    io::BufReader,
+    io::{
+        BufReader,
+        Read,
+        SeekFrom,
+        Seek,
+    },
     path::Path,
 };
 
@@ -97,8 +102,43 @@ impl PsxCd {
 
         log::info!("CD: Cue file path is {}", string_path);
 
-        let cue_file = File::open(Path::new(path))?;
+        // Open the cue file.
+        let mut cue_file = File::open(Path::new(path))?;
+
+        // Handle the UTF-8 BOM in the cue file if present.
+        handle_utf8_bom(&mut cue_file)?;
 
         Ok(())
     }
+}
+
+/// This function detects a UTF-8 BOM and moves the file position past it if
+/// need be. If this process fails, we bubble up the error.
+fn handle_utf8_bom(cue_file: &mut File) -> Result<(), Box<dyn Error>> {
+
+    // First, set position to start of cue file.
+    cue_file.seek(SeekFrom::Start(0))?;
+
+    // Now declare a three bye array and check for the BOM. If it's there,
+    // we will thus move past it.
+    let mut bom_array = [0u8; 3];
+    let bytes_read = cue_file.read(&mut bom_array)?;
+    if bytes_read != 3 {
+        return Err(PhilPSXError::error("CD: Could not check for UTF-8 BOM, unable to read cue file"));
+    }
+    match bom_array {
+
+        // BOM found, do nothing.
+        [0xEF, 0xBB, 0xBF] => {
+            log::debug!("CD: cue file contained UTF-8 BOM");
+        },
+
+        // BOM not found, set file position to start.
+        _ => {
+            log::debug!("CD: cue file contained no UTF-8 BOM, resetting position...");
+            cue_file.seek(SeekFrom::Start(0))?;
+        },
+    };
+
+    Ok(())
 }
