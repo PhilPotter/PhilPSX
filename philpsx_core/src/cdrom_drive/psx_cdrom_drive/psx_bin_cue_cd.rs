@@ -26,7 +26,7 @@ const INITIAL_GAP_SIZE: usize = 2352 * 150; // Two seconds worth (at 75 frames p
 
 /// This enum represents all possible track types.
 /// It is intentionally incomplete for now to keep things simpler.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum PsxCdTrackType {
     AUDIO,
     MODE2_2352,
@@ -162,7 +162,6 @@ impl PsxBinCueCd {
         // Now just read all the lines from the cue file - it's fine to just pull them
         // all into memory.
         let cue_file_lines = get_lines_from_cue(&mut cue_file)?;
-        let cue_file_lines = sanitise_lines_from_cue(cue_file_lines);
 
         // Now that we have the lines, let's parse them to get our BIN file and track listing.
         let mut bin_file_reader = get_bin_file_reader(&cue_file_lines, cue_file_path)?;
@@ -252,6 +251,7 @@ impl Cdrom for PsxBinCueCd {
 
     /// This function reads a byte from the specified real CD address.
     fn read_byte(&mut self, address: usize) -> Result<u8, Box<dyn Error>> {
+
         // Iterate through all tracks and indexes until we find what we need.
         let track_containing_address = self.track_list
             .iter()
@@ -330,7 +330,7 @@ fn get_lines_from_cue(cue_file: &mut File) -> Result<Vec<String>, Box<dyn Error>
 
 /// This function takes the original lines we read from the cue file, and then
 /// trims them of whitespace and strips all empty lines.
-fn sanitise_lines_from_cue(lines: Vec<String>) -> Vec<String> {
+fn sanitise_lines_from_cue(lines: &[String]) -> Vec<String> {
 
     lines
         .iter()
@@ -401,6 +401,9 @@ fn get_bin_file_size(bin_file_reader: &mut BufReader<File>) -> Result<usize, Box
 /// other than INDEX 01. PREGAP and INDEX 00 are not yet supported but will
 /// be in due course.
 fn get_track_listings(cue_file_lines: &[String], bin_size: usize) -> Result<Vec<PsxCdTrack>, Box<dyn Error>> {
+
+    // Sanitise lines here first.
+    let cue_file_lines = sanitise_lines_from_cue(cue_file_lines);
 
     // Variables here will track our state as we move through each line.
     let mut current_state = PsxCdTrackDetectionState::PreTrackListings;
@@ -694,3 +697,6 @@ fn get_bytes_from_mm_ss_ff(time_str: &str) -> Result<usize, Box<dyn Error>> {
 
     Ok(start_position)
 }
+
+#[cfg(test)]
+mod tests;
