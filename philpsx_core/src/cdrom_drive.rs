@@ -14,13 +14,13 @@ pub mod psx_cdrom_drive;
 /// elsewhere in the system.
 pub trait CdromDrive {
 
-    /*/// Implementations must use this to read chunks into the supplied buffer.
+    /// Implementations must use this to read chunks into the supplied buffer.
     fn chunk_copy(
         &mut self,
-        buffer: &mut Vec<i8>,
+        destination: &mut [u8],
         start_index: i32,
         length: i32
-    );*/
+    );
 
     /// Implementations must load the CD from the image file referenced by the
     /// supplied path.

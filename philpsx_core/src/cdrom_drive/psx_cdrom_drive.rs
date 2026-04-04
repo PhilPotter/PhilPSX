@@ -38,16 +38,16 @@ pub struct PsxCdromDrive {
     port_index: i32,
 
     // This stores parameters for commands.
-    parameter_fifo: [i8; 16],
+    parameter_fifo: [u8; 16],
     parameter_count: i32,
 
     // This stores command responses.
-    response_fifo: [i8; 16],
+    response_fifo: [u8; 16],
     response_count: i32,
     response_index: i32,
 
     // This stores data from the CD.
-    data_fifo: Vec<i8>,
+    data_fifo: Vec<u8>,
     data_count: i32,
     data_index: i32,
 
@@ -169,12 +169,56 @@ impl PsxCdromDrive {
 /// a CdromDrive object is.
 impl CdromDrive for PsxCdromDrive {
 
+    /// This function reads chunks at a time from the data fifo into the supplied buffer.
+    fn chunk_copy(
+        &mut self,
+        mut destination: &mut [u8],
+        start_index: i32,
+        mut length: i32
+    ) {
+
+        // Setup the destination buffer and data fifo to the correct offsets.
+        let temp_data_fifo = &mut self.data_fifo[(self.data_index as usize)..];
+        destination = &mut destination[(start_index as usize)..];
+
+        // Check if length would bring us over the data fifo bounds.
+        if self.data_index + length > self.data_count {
+
+            // Copy as much as we can.
+            let copyable_amount = (self.data_count - self.data_index) as usize;
+            destination[..copyable_amount].copy_from_slice(&temp_data_fifo[..copyable_amount]);
+
+            // Now copy the rest as specified.
+            destination = &mut destination[copyable_amount..];
+            length -= copyable_amount as i32;
+            self.data_index = self.data_count;
+            let fill_value = if self.whole_sector {
+                self.data_fifo[0x920]
+            } else {
+                self.data_fifo[0x7F8]
+            };
+            destination[..(length as usize)].fill(fill_value);
+        }
+        // We are fine, just do the copy.
+        else {
+            destination[..(length as usize)].copy_from_slice(&temp_data_fifo[..(length as usize)]);
+            self.data_index += length;
+        }
+
+        self.been_read = true;
+    }
+
     /// Load the CD from the image file referenced by the supplied path.
     fn load_cd(
         &mut self,
         path: &OsStr,
     ) -> Result<(), Box<dyn Error>> {
+
+        // For now, just assume bin/cue as we don't support anything else.
         self.cd = Box::new(PsxBinCueCd::new(path)?);
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;
