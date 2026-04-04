@@ -3,14 +3,33 @@
 
 /// This module contains an implementation of the CD-ROM disc format itself, specific to
 /// the primary PsxCdromDrive implementation below.
-mod psx_cd;
+mod psx_bin_cue_cd;
 
-use psx_cd::PsxCd;
+/// This module contains a stub implementation, intended for use when the drive is empty.
+mod empty_cd;
+
+use empty_cd::EmptyCd;
+use psx_bin_cue_cd::PsxBinCueCd;
 use super::{CdromDrive, CdromDriveBridge};
 use std::{
     error::Error,
     ffi::OsStr,
 };
+
+/// This trait provides a way of supporting different types of CD image in such a way
+/// that the rest of the system doesn't have to care about the details.
+trait Cdrom {
+
+    /// Implementations must use this to signal whether the drive is loaded with a disc.
+    fn is_loaded(&self) -> bool;
+
+    /// Implementations must read a byte from the specified real CD address
+    /// using the supplied address.
+    fn read_byte(
+        &mut self,
+        address: usize,
+    ) -> Result<u8, Box<dyn Error>>;
+}
 
 /// This struct models the CD-ROM drive of the PlayStation.
 pub struct PsxCdromDrive {
@@ -33,7 +52,7 @@ pub struct PsxCdromDrive {
     data_index: i32,
 
     // This references the actual CD.
-    cd: PsxCd,
+    cd: Box<dyn Cdrom>,
 
     // Interrupt registers.
     interrupt_enable_register: i32,
@@ -101,7 +120,7 @@ impl PsxCdromDrive {
             data_index: 0,
 
             // Setup CD object itself.
-            cd: PsxCd::new(),
+            cd: Box::new(EmptyCd::new()),
 
             // Setup interrupt registers.
             interrupt_enable_register: 0,
@@ -155,6 +174,7 @@ impl CdromDrive for PsxCdromDrive {
         &mut self,
         path: &OsStr,
     ) -> Result<(), Box<dyn Error>> {
-        self.cd.load_cd(path)
+        self.cd = Box::new(PsxBinCueCd::new(path)?);
+        Ok(())
     }
 }

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
-// psx_cd.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
+// psx_bin_cue_cd.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use std::{
     error::Error,
     ffi::OsStr,
+    fmt,
     fs::File,
     io::{
         BufReader, Read, Seek, SeekFrom
@@ -12,6 +13,11 @@ use std::{
         MAIN_SEPARATOR_STR, Path
     },
 };
+use log::{
+    log_enabled,
+    Level,
+};
+use super::Cdrom;
 
 use philpsx_utility::error::PhilPSXError;
 
@@ -26,6 +32,22 @@ enum PsxCdTrackType {
     MODE2_2352,
 }
 
+/// Lets us pretty print the track type.
+impl fmt::Display for PsxCdTrackType {
+
+    // Prints human-readable track type.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                PsxCdTrackType::AUDIO => "Audio",
+                PsxCdTrackType::MODE2_2352 => "Mode 2 (2352 byte sectors)",
+            }
+        )
+    }
+}
+
 /// This enum represents the possible states whilst detecting tracks
 /// from a cue file.
 enum PsxCdTrackDetectionState {
@@ -37,11 +59,10 @@ enum PsxCdTrackDetectionState {
 
 /// This struct models a CD itself, and abstracts image type away from the emulator,
 /// allowing different image types to be supported.
-#[derive(Debug)]
-pub struct PsxCd {
+pub struct PsxBinCueCd {
 
     // This stores the file reference for the CD image.
-    cd_file: Option<BufReader<File>>,
+    cd_file: BufReader<File>,
 
     // This stores the size of the CD image in bytes.
     cd_file_size: usize,
@@ -54,7 +75,6 @@ pub struct PsxCd {
 /// mapping the entire file with mmap as this requires unsafe and I want to see how far I can
 /// get without it. For now, we simply use an optional buffered file descriptor and seek/read
 /// using it.
-#[derive(Debug)]
 struct PsxCdTrack {
 
     // Track properties.
@@ -66,17 +86,25 @@ struct PsxCdTrack {
 }
 
 /// This struct models a track's various sections that appear as INDEX in a cue file.
-#[derive(Debug)]
 struct PsxCdTrackIndex {
 
     // Index properties - these are the first and last byte index
     // within the CD, without offset applied.
-    track_start: usize,
-    track_end: usize,
+    index_start: usize,
+    index_end: usize,
+}
+
+/// Utility functions for the track indexes themselves.
+impl PsxCdTrackIndex {
+
+    /// This function tells us if the specified address is inside this index.
+    fn contains(&self, address: usize) -> bool {
+        address >= self.index_start && address <= self.index_end
+    }
 }
 
 /// This struct models a track's pregap (if it has one).
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 struct PsxCdTrackPregap {
 
     // Pregap properties.
@@ -91,36 +119,11 @@ struct IntermediateTrack {
     track_indexes: Vec<usize>,
 }
 
-/// Implementation functions for PsxCd.
-impl PsxCd {
-
-    /// Creates a new CD object with the correct initial state.
-    pub fn new() -> Self {
-        PsxCd {
-
-            // Set file descriptor as unset for now.
-            cd_file: None,
-
-            // Set file size as 0 for now.
-            cd_file_size: 0,
-
-            // Set track listing as empty for now.
-            track_list: vec![],
-        }
-    }
-
-    /// This function tells us if the CD object is currently associated with a
-    /// loaded image file.
-    pub fn is_empty(&self) -> bool {
-        self.cd_file.is_none()
-    }
+/// Implementation functions for PsxBinCueCd.
+impl PsxBinCueCd {
 
     /// This function opens a cue file specified by cd_path and then maps it.
-    /// In future, it will support other image types as well.
-    pub fn load_cd(
-        &mut self,
-        path: &OsStr
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn new(path: &OsStr) -> Result<Self, Box<dyn Error>> {
 
         log::info!("CD: Loading CD image...");
 
@@ -159,6 +162,7 @@ impl PsxCd {
         // Now just read all the lines from the cue file - it's fine to just pull them
         // all into memory.
         let cue_file_lines = get_lines_from_cue(&mut cue_file)?;
+        let cue_file_lines = sanitise_lines_from_cue(cue_file_lines);
 
         // Now that we have the lines, let's parse them to get our BIN file and track listing.
         let mut bin_file_reader = get_bin_file_reader(&cue_file_lines, cue_file_path)?;
@@ -169,12 +173,111 @@ impl PsxCd {
         // Now calculate our track listings properly.
         let track_list = get_track_listings(&cue_file_lines, bin_size)?;
 
-        // Set everything in our CD.
-        self.cd_file = Some(bin_file_reader);
-        self.cd_file_size = bin_size;
-        self.track_list = track_list;
+        // Instantiate our CD.
+        let cd = PsxBinCueCd {
+            cd_file: bin_file_reader,
+            cd_file_size: bin_size,
+            track_list,
+        };
 
-        Ok(())
+        // Log out the state of the CD.
+        if log_enabled!(Level::Debug) {
+            log::debug!("CD: State of loaded CD: {}", cd);
+        }
+
+        Ok(cd)
+    }
+}
+
+/// Allows us to display a loaded CD in nicely printed format.
+impl fmt::Display for PsxBinCueCd {
+    /// Print a CD object nicely.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let output_str = {
+            // File is loaded, so construct nicely formatted properties.
+            let mut displayed_cd_str = String::new();
+
+            displayed_cd_str.push_str("{\n");
+            displayed_cd_str.push_str(&format!(
+                "  Size in bytes of emulated CD: {}\n",
+                // Unwraps safe based on invariant.
+                self.track_list
+                    .last()
+                    .unwrap()
+                    .track_indexes
+                    .last()
+                    .unwrap()
+                    .index_end
+                    + 1
+            ));
+            displayed_cd_str.push_str(&format!("  Tracks: {}\n", self.track_list.len()));
+
+            self.track_list.iter().for_each(|track| {
+                // Print track number.
+                displayed_cd_str.push_str(&format!(
+                    "\n  Track {} ({}):\n",
+                    track.track_number, track.track_type,
+                ));
+
+                // Print pregap info if there is one.
+                if let Some(pregap) = track.track_pregap {
+                    displayed_cd_str.push_str(&format!("  Pregap bytes: {}\n", pregap.pregap_size));
+                }
+
+                // Now print indexes.
+                track.track_indexes.iter().for_each(|index| {
+                    displayed_cd_str.push_str(&format!(
+                        "  Index start: {}, Index end: {}\n",
+                        index.index_start, index.index_end,
+                    ));
+                });
+            });
+
+            displayed_cd_str.push_str("}\n");
+
+            displayed_cd_str
+        };
+
+        write!(f, "{}", &output_str)
+    }
+}
+
+/// Functions to satisy Cdrom trait.
+impl Cdrom for PsxBinCueCd {
+
+    /// This function tells us the drive is loaded.
+    fn is_loaded(&self) -> bool {
+        true
+    }
+
+    /// This function reads a byte from the specified real CD address.
+    fn read_byte(&mut self, address: usize) -> Result<u8, Box<dyn Error>> {
+        // Iterate through all tracks and indexes until we find what we need.
+        let track_containing_address = self.track_list
+            .iter()
+            .find(|track| {
+                track.track_indexes
+                    .iter()
+                    .any(|index| index.contains(address))
+            });
+
+        // If we found the track, great, otherwise just return 0.
+        match track_containing_address {
+
+            Some(track) => {
+                // Offset our address by the offset of the given track.
+                let bin_address = address - track.offset;
+
+                // Now read the byte.
+                self.cd_file.seek(SeekFrom::Start(bin_address as u64))?;
+                let mut byte_array = [0];
+                self.cd_file.read_exact(&mut byte_array)?;
+
+                Ok(byte_array[0])
+            },
+
+            None => Ok(0),
+        }
     }
 }
 
@@ -196,12 +299,12 @@ fn handle_utf8_bom(cue_file: &mut File) -> Result<(), Box<dyn Error>> {
 
         // BOM found, do nothing.
         [0xEF, 0xBB, 0xBF] => {
-            log::debug!("CD: cue file contained UTF-8 BOM");
+            log::debug!("CD: Cue file contained UTF-8 BOM");
         },
 
         // BOM not found, set file position to start.
         _ => {
-            log::debug!("CD: cue file contained no UTF-8 BOM, resetting position...");
+            log::debug!("CD: Cue file contained no UTF-8 BOM, resetting position...");
             cue_file.seek(SeekFrom::Start(0))?;
         },
     };
@@ -220,10 +323,20 @@ fn get_lines_from_cue(cue_file: &mut File) -> Result<Vec<String>, Box<dyn Error>
     Ok(
         cue_contents
             .lines()
-            .map(|line| String::from(line.trim()))
-            .filter(|line| !line.is_empty())
+            .map(String::from)
             .collect()
     )
+}
+
+/// This function takes the original lines we read from the cue file, and then
+/// trims them of whitespace and strips all empty lines.
+fn sanitise_lines_from_cue(lines: Vec<String>) -> Vec<String> {
+
+    lines
+        .iter()
+        .map(|line| String::from(line.trim()))
+        .filter(|line| !line.is_empty())
+        .collect()
 }
 
 /// This function reads our BIN file path from the cue file and returns a BufReader
@@ -433,8 +546,8 @@ fn get_track_listings(cue_file_lines: &[String], bin_size: usize) -> Result<Vec<
                     let index = j_and_index.1;
 
                     PsxCdTrackIndex {
-                        track_start: index + current_offset,
-                        track_end: if j == track.track_indexes.len() - 1 {
+                        index_start: index + current_offset,
+                        index_end: if j == track.track_indexes.len() - 1 {
 
                             // This is the last index, we either need to get the beginning of the next track - 1 byte
                             // as our end position, or we need the BIN file size itself.
