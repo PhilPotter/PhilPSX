@@ -35,7 +35,7 @@ trait Cdrom {
 pub struct PsxCdromDrive {
 
     // This controls what we are reading/writing.
-    port_index: i32,
+    port_index: u8,
 
     // This stores parameters for commands.
     parameter_fifo: [u8; 16],
@@ -59,7 +59,7 @@ pub struct PsxCdromDrive {
     interrupt_flag_register: i32,
 
     // Busy flag and current command.
-    busy: i32,
+    busy: bool,
     current_command: i32,
     needs_second_response: bool,
 
@@ -128,7 +128,7 @@ impl PsxCdromDrive {
 
             // Set status to non-busy and current command to 0, as well as
             // second response flag.
-            busy: 0,
+            busy: false,
             current_command: 0,
             needs_second_response: false,
 
@@ -162,6 +162,14 @@ impl PsxCdromDrive {
             // Handle read retry in ReadN command.
             been_read: true,
         }
+    }
+
+    fn get_interrupt_enable_register(&self) -> u8 {
+        (self.interrupt_enable_register | 0xE0) as u8
+    }
+
+    fn get_interrupt_flag_register(&self) -> u8 {
+        (0xE0 | (self.interrupt_flag_register & 0x7)) as u8
     }
 }
 
@@ -217,6 +225,78 @@ impl CdromDrive for PsxCdromDrive {
         // For now, just assume bin/cue as we don't support anything else.
         self.cd = Box::new(PsxBinCueCd::new(path)?);
         Ok(())
+    }
+
+    /// This function reads a byte from the index/status register.
+    fn read_1800(&self) -> u8 {
+
+        let mut ret_val = self.port_index & 0x3;
+
+        let bit3 = if self.parameter_count == 0 { 1u8 } else { 0 };
+        let bit4 = if self.parameter_count == 16 { 0u8 } else { 1 };
+        let bit5 = if self.response_count == 0 { 0u8 } else { 1 };
+        let bit6 = if self.data_count == 0 { 0u8 } else { 1 };
+
+        ret_val |= bit3 << 3;
+        ret_val |= bit4 << 4;
+        ret_val |= bit5 << 5;
+        ret_val |= bit6 << 6;
+        ret_val |= if self.busy { 1u8 } else { 0 } << 7;
+
+        ret_val
+    }
+
+    /// This function reads a byte from port 0x1F801801.
+    fn read_1801(&mut self) -> u8 {
+
+        // Return fifo byte, regardless of port index, as this is
+        // mirrored on all four ports.
+        let ret_val = self.response_fifo[self.response_index as usize];
+        self.response_index += 1;
+
+        if self.response_index == self.response_count {
+            self.response_count = 0;
+        }
+        if self.response_index > 15 {
+            self.response_index = 0;
+        }
+
+        ret_val
+    }
+
+    /// This function reads a byte from port 0x1F801802.
+    fn read_1802(&mut self) -> u8 {
+
+        // All port indexes to this port read from data fifo.
+        let ret_val = if self.data_index < self.data_count {
+            let temp = self.data_fifo[self.data_index as usize];
+            self.data_index += 1;
+            temp
+        }
+        else {
+            if self.whole_sector {
+                self.data_fifo[0x920]
+            } else {
+                self.data_fifo[0x7F8]
+            }
+        };
+
+        self.been_read = true;
+
+        ret_val
+    }
+
+    /// This function reads a byte from port 0x1F801803.
+    fn read_1803(&self) -> u8 {
+
+        // Act depending on port index.
+        match self.port_index {
+            0 | 2 => self.get_interrupt_enable_register(),
+
+            1 | 3 => self.get_interrupt_flag_register(),
+
+            _ => 0,
+        }
     }
 }
 

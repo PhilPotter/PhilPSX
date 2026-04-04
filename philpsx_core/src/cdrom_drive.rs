@@ -29,19 +29,19 @@ pub trait CdromDrive {
         path: &OsStr,
     ) -> Result<(), Box<dyn Error>>;
 
-    /*/// Implementations must return a byte from the index/status register.
-    fn read_1800(&self) -> i8;
+    /// Implementations must return a byte from the index/status register.
+    fn read_1800(&self) -> u8;
 
     /// Implementations must return a byte from port 0x1F801801.
-    fn read_1801(&self) -> i8;
+    fn read_1801(&mut self) -> u8;
 
     /// Implementations must return a byte from port 0x1F801802.
-    fn read_1802(&self) -> i8;
+    fn read_1802(&mut self) -> u8;
 
     /// Implementations must return a byte from port 0x1F801803.
-    fn read_1803(&self) -> i8;
+    fn read_1803(&self) -> u8;
 
-    /// Implementations must set the interrupt flag register contents.
+    /*/// Implementations must set the interrupt flag register contents.
     fn set_interrupt_number(&mut self, interrupt_num: i32);
 
     /// Implementations must write a byte to port 0x1F801800.
