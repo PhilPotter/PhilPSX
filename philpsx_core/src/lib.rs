@@ -12,6 +12,9 @@
 // C source more closely.
 #![allow(clippy::upper_case_acronyms)]
 
+// I like single match style sometimes. No other reason.
+#![allow(clippy::single_match)]
+
 /// This module contains PlayStation CPU-related functionality.
 pub mod cpu;
 

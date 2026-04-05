@@ -55,19 +55,18 @@ pub struct PsxCdromDrive {
     cd: Box<dyn Cdrom>,
 
     // Interrupt registers.
-    interrupt_enable_register: i32,
-    interrupt_flag_register: i32,
+    interrupt_enable_register: u8,
+    interrupt_flag_register: u8,
 
     // Busy flag and current command.
     busy: bool,
-    current_command: i32,
+    current_command: u8,
     needs_second_response: bool,
 
     // These flags allow the composition of a status byte.
     cdda_playing: bool,
     is_seeking: bool,
     is_reading: bool,
-    shell_open: bool,
     id_error: bool,
     seek_error: bool,
     motor_status: bool,
@@ -136,7 +135,6 @@ impl PsxCdromDrive {
             cdda_playing: false,
             is_seeking: false,
             is_reading: false,
-            shell_open: false,
             id_error: false,
             seek_error: false,
             motor_status: false,
@@ -164,12 +162,161 @@ impl PsxCdromDrive {
         }
     }
 
+    /// Retrieve the interrupt enable register.
     fn get_interrupt_enable_register(&self) -> u8 {
-        (self.interrupt_enable_register | 0xE0) as u8
+        0xE0 | self.interrupt_enable_register
     }
 
+    /// Retrieve the interrupt flag register.
     fn get_interrupt_flag_register(&self) -> u8 {
-        (0xE0 | (self.interrupt_flag_register & 0x7)) as u8
+        0xE0 | (self.interrupt_flag_register & 0x7)
+    }
+
+    /// This function clears the response fifo.
+    fn clear_response_fifo(&mut self) {
+        
+        // Set to all zeroes and reset count and index too.
+        self.response_fifo.fill(0);
+        self.response_count = 0;
+        self.response_index = 0;
+    }
+
+    /// This function clears the parameter fifo.
+    fn clear_parameter_fifo(&mut self) {
+
+        // Set to all zeroes and reset and too.
+        self.parameter_fifo.fill(0);
+        self.parameter_count = 0;
+    }
+
+    /// This function handles the Getstat command.
+    fn command_getstat(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge
+    ) {
+
+        // Store state byte to response fifo.
+        self.response_fifo[self.response_count as usize] = self.get_status_code();
+        self.response_count += 1;
+        self.busy = false;
+        self.response_received = 3;
+        self.trigger_interrupt(bridge, 3, 16000);
+    }
+
+    /// This function handles the Setloc command.
+    fn command_setloc(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge
+    ) {
+
+        // Get location from parameters.
+        let mut minutes = (self.parameter_fifo[0] as i64) & 0xFF;
+        let mut seconds = (self.parameter_fifo[1] as i64) & 0xFF;
+        let mut frames = (self.parameter_fifo[2] as i64) & 0xFF;
+
+        // Convert from BCD to actual numbers.
+        minutes = (minutes & 0xF) + (((minutes >> 4) & 0xF) * 10);
+        seconds = (seconds & 0xF) + (((seconds >> 4) & 0xF) * 10);
+        frames = (frames & 0xF) + (((frames >> 4) & 0xF) * 10);
+
+        // Get byte position of the above.
+        self.setloc_position =
+            (frames * 2352) + (seconds * 176400) + (minutes * 10584000);
+        self.setloc_processed = false;
+
+        // Deal with response code etc.
+        self.response_fifo[self.response_count as usize] = self.get_status_code();
+        self.response_count += 1;
+        self.busy = false;
+        self.response_received = 3;
+        self.trigger_interrupt(bridge, 3, 16000);
+    }
+
+    /// This function returns the status code.
+    fn get_status_code(&self) -> u8 {
+
+        // Declare return value.
+        let mut ret_val = 0;
+
+        // Test each bit.
+        if self.cdda_playing {
+            ret_val |= 0x80;
+        }
+        if self.is_seeking {
+            ret_val |= 0x40;
+        }
+        if self.is_reading {
+            ret_val |= 0x20;
+        }
+        if !self.cd.is_loaded() {
+            ret_val |= 0x10;
+        }
+        if self.id_error {
+            ret_val |= 0x8;
+        }
+        if self.seek_error {
+            ret_val |= 0x4;
+        }
+        if self.motor_status {
+            ret_val |= 0x2;
+        }
+        if self.command_error {
+            ret_val |= 0x1;
+        }
+
+        ret_val
+    }
+
+    /// This function triggers a CD-ROM interrupt.
+    fn trigger_interrupt(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        interrupt_num: u8,
+        delay: i32
+    ) {
+
+        self.clear_parameter_fifo();
+
+        if interrupt_num != 0 && (self.interrupt_enable_register & interrupt_num) == interrupt_num {
+            bridge.set_cdrom_interrupt_enabled(self, true);
+        }
+        else {
+            bridge.set_cdrom_interrupt_enabled(self, false);
+        }
+
+        // Set interrupt delay and number.
+        bridge.set_cdrom_interrupt_delay(self, delay);
+        bridge.set_cdrom_interrupt_number(self, interrupt_num);
+    }
+
+    /// This function executes a CD-ROM command.
+    fn execute_command(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        command_num: u8,
+        second_response: bool
+    ) {
+
+        // Execute command or deal with second response.
+        if !second_response {
+            match command_num {
+
+                // Getstat.
+                0x01 => self.command_getstat(bridge),
+
+                // Setloc.
+                0x02 => self.command_setloc(bridge),
+
+                // Unimplemented command.
+                _ => log::error!("CD-ROM Drive: Unimplemented command: {:#02X}", command_num),
+            };
+        }
+        else {
+            match command_num {
+
+                _ => (),
+            };
+        }
     }
 }
 
@@ -297,6 +444,112 @@ impl CdromDrive for PsxCdromDrive {
 
             _ => 0,
         }
+    }
+
+    /// This function lets us set the interrupt flag register contents manually.
+    fn set_interrupt_number(&mut self, interrupt_num: u8) {
+        self.interrupt_flag_register = interrupt_num;
+    }
+
+    /// This function writes a byte to the index/status register.
+    fn write_1800(&mut self, value: u8) {
+        self.port_index = value & 0x3;
+    }
+
+    /// This function writes a byte to port 0x1F801801.
+    fn write_1801(&mut self, value: u8) {
+
+        // Act depending on port index.
+        if self.port_index == 0 {
+
+            // Execute command byte.
+            if self.busy {
+                self.clear_response_fifo();
+                self.busy = true;
+                self.current_command = value;
+                self.execute_command(value, self.needs_second_response);
+            }
+            else if value == 0x9 {
+                self.current_command = value;
+                self.needs_second_response = false;
+                self.execute_command(value, self.needs_second_response);
+            }
+        }
+    }
+
+    /// This function writes a byte to port 0x1F801802.
+    fn write_1802(&mut self, value: u8) {
+
+        // Act depending on port index.
+        match self.port_index {
+
+            // Add byte to parameter fifo.
+            0 => {
+                self.parameter_fifo[self.parameter_count as usize] = value;
+                self.parameter_count += 1;
+            },
+
+            // Write interrupt enable flags.
+            1 => {
+                self.interrupt_enable_register = value & 0x1F;
+            },
+
+            _ => (),
+        };
+    }
+
+    /// This function writes a byte to port 0x1F801803.
+    fn write_1803(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        value: u8
+    ) {
+
+        // Act depending on port index.
+        match self.port_index {
+
+            // This is the request register port.
+            0 => {
+                match value & 0x80 {
+
+                    // Reset data fifo.
+                    0 => {
+                        self.data_index = 0;
+                    },
+
+                    // Wants data.
+                    // We have already filled fifo so do nothing.
+                    _ => (),
+                };
+            },
+
+            // Deal with interrupt acknowledgement.
+            1 => {
+
+                // Clear parameter fifop if specified.
+                if value & 0x40 == 0x40 {
+                    self.clear_parameter_fifo();
+                }
+
+                // Define reset mask.
+                let mut interrupt_reset_mask = value;
+                interrupt_reset_mask = !interrupt_reset_mask & 0x1F;
+                self.interrupt_flag_register &= interrupt_reset_mask;
+
+                // Check if command has to issue a second response or not.
+                self.response_received = 0;
+                if self.needs_second_response {
+                    self.clear_response_fifo();
+                    self.execute_command(
+                        bridge,
+                        self.current_command,
+                        self.needs_second_response
+                    );
+                }
+            },
+
+            _ => (),
+        };
     }
 }
 

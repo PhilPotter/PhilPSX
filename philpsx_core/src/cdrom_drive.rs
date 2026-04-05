@@ -41,20 +41,24 @@ pub trait CdromDrive {
     /// Implementations must return a byte from port 0x1F801803.
     fn read_1803(&self) -> u8;
 
-    /*/// Implementations must set the interrupt flag register contents.
-    fn set_interrupt_number(&mut self, interrupt_num: i32);
+    /// Implementations must set the interrupt flag register contents.
+    fn set_interrupt_number(&mut self, interrupt_num: u8);
 
     /// Implementations must write a byte to port 0x1F801800.
-    fn write_1800(&mut self, value: i8);
+    fn write_1800(&mut self, value: u8);
 
     /// Implementations must write a byte to port 0x1F801801.
-    fn write_1801(&mut self, value: i8);
+    fn write_1801(&mut self, value: u8);
 
     /// Implementations must write a byte to port 0x1F801802.
-    fn write_1802(&mut self, value: i8);
+    fn write_1802(&mut self, value: u8);
 
     /// Implementations must write a byte to port 0x1F801803.
-    fn write_1803(&mut self, value: i8);*/
+    fn write_1803(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        value: u8
+    );
 }
 
 /// This trait provides an implementation-opaque way of the CD-DROM drive calling
@@ -68,5 +72,5 @@ pub trait CdromDriveBridge {
     fn set_cdrom_interrupt_delay(&mut self, cdrom_drive: &mut dyn CdromDrive, delay: i32);
 
     /// The CD-ROM drive must call this to specify its interrupt number.
-    fn set_cdrom_interrupt_number(&mut self, cdrom_drive: &mut dyn CdromDrive, number: i32);
+    fn set_cdrom_interrupt_number(&mut self, cdrom_drive: &mut dyn CdromDrive, number: u8);
 }
