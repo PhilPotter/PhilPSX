@@ -48,7 +48,11 @@ pub trait CdromDrive {
     fn write_1800(&mut self, value: u8);
 
     /// Implementations must write a byte to port 0x1F801801.
-    fn write_1801(&mut self, value: u8);
+    fn write_1801(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        value: u8
+    );
 
     /// Implementations must write a byte to port 0x1F801802.
     fn write_1802(&mut self, value: u8);

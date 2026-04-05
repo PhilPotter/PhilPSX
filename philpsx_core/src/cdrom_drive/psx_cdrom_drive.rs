@@ -184,9 +184,18 @@ impl PsxCdromDrive {
     /// This function clears the parameter fifo.
     fn clear_parameter_fifo(&mut self) {
 
-        // Set to all zeroes and reset and too.
+        // Set to all zeroes and reset count too.
         self.parameter_fifo.fill(0);
         self.parameter_count = 0;
+    }
+
+    /// This function clears the data fifo.
+    fn clear_data_fifo(&mut self) {
+
+        // Set to all zeroes and reset count and index too.
+        self.data_fifo.fill(0);
+        self.data_count = 0;
+        self.data_index = 0;
     }
 
     /// This function handles the Getstat command.
@@ -230,6 +239,316 @@ impl PsxCdromDrive {
         self.busy = false;
         self.response_received = 3;
         self.trigger_interrupt(bridge, 3, 16000);
+    }
+
+    /// This function handles the ReadN command.
+    fn command_readn(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        second_response: bool
+    ) {
+
+        // Determine what to do.
+        // First response, just send state byte.
+        if !second_response {
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.is_reading = true;
+            self.needs_second_response = true;
+            self.been_read = true;
+            self.response_received = 3;
+            self.trigger_interrupt(bridge, 3, 16000);
+        }
+        // Second response, read sector into fifo and send stat byte.
+        else {
+            if self.been_read {
+                self.clear_data_fifo();
+
+                // Modify Setloc position if needed.
+                if self.setloc_processed {
+                    self.setloc_position += 2352;
+                } else {
+                    self.setloc_processed = true;
+                }
+
+                let mut start_address = self.setloc_position;
+                start_address += if self.whole_sector { 12 } else { 24 };
+                let sector_size = if self.whole_sector { 0x924 } else { 0x800 };
+
+                for i in 0..sector_size {
+                    let byte = match self.cd.read_byte(start_address as usize) {
+                        Ok(byte) => byte,
+
+                        // Panic for now, passing this up is not really worthit,
+                        // as not much we can do about it anyway. Perhaps worth
+                        // reconsidering this later when I actually optimise/
+                        // make this fast.
+                        Err(error) => panic!(
+                            "CD-ROM Drive: Unable to read byte from CD at {:#8X}: {}", start_address, error
+                        ),
+                    };
+
+                    self.data_fifo[self.data_count as usize] = byte;
+                    self.data_count += 1;
+                    start_address += 1;
+                }
+
+                self.been_read = false;
+            }
+
+            // Send stat byte.
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+
+            // TODO: This should probably be false - leaving it this way for now as that's how
+            // my original version from 10 years ago does it, and I can go back and figure out
+            // why later on.
+            self.needs_second_response = true;
+            self.response_received = 0;
+            self.trigger_interrupt(bridge, 1, 16000);
+        }
+    }
+
+    /// This function handles the Pause command.
+    fn command_pause(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        second_response: bool
+    ) {
+
+        // Determine what to do.
+        // First response, send stat byte.
+        if !second_response {
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.needs_second_response = true;
+            self.response_received = 3;
+            self.trigger_interrupt(bridge, 3, 16000);
+        }
+        // Second response, send stat byte.
+        else {
+            self.is_reading = false;
+            self.cdda_playing = false;
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.busy = true;
+            self.needs_second_response = false;
+            self.response_received = 2;
+            self.trigger_interrupt(bridge, 2, 16000);
+        }
+    }
+
+    /// This function handles the Init command.
+    fn command_init(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        second_response: bool
+    ) {
+
+        // Determine what to do.
+        // First response, send stat byte.
+        if !second_response {
+
+            // Nuke all mode bits.
+            self.double_speed = false;
+            self.xa_adpcm = false;
+            self.whole_sector = false;
+            self.ignore_bit = false;
+            self.xa_filter = false;
+            self.enable_report_interrupts = false;
+            self.auto_pause = false;
+            self.allow_cdda_read = false;
+
+            // Store status byte to response fifo.
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.response_received = 3;
+            self.trigger_interrupt(bridge, 3, 16000);
+            self.needs_second_response = true;
+        }
+        // Second response, send stat byte.
+        else {
+
+            // Store status byte to response fifo.
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.response_received = 2;
+            self.trigger_interrupt(bridge, 2, 16000);
+            self.needs_second_response = false;
+            self.busy = false;
+        }
+    }
+
+    /// This function handles the Demute command.
+    fn command_demute(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge
+    ) {
+
+        // Do nothing other than return status at the moment.
+
+        // Store status byte to response fifo.
+        self.response_fifo[self.response_count as usize] = self.get_status_code();
+        self.response_count += 1;
+        self.busy = false;
+        self.response_received = 3;
+        self.trigger_interrupt(bridge, 3, 16000);
+    }
+
+    /// This function handles the Setmode command.
+    fn command_setmode(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge
+    ) {
+
+        // Set flags using parameter byte.
+        let mode_flags = self.parameter_fifo[0];
+
+        self.double_speed = (mode_flags & 0x80) != 0;
+        self.xa_adpcm = (mode_flags & 0x40) != 0;
+        self.whole_sector = (mode_flags & 0x20) != 0;
+        self.ignore_bit = (mode_flags & 0x10) != 0;
+        self.xa_filter = (mode_flags & 0x8) != 0;
+        self.enable_report_interrupts = (mode_flags & 0x4) != 0;
+        self.auto_pause = (mode_flags & 0x2) != 0;
+        self.allow_cdda_read = (mode_flags & 0x1) != 0;
+
+        // Store status byte to response fifo.
+        self.response_fifo[self.response_count as usize] = self.get_status_code();
+        self.response_count += 1;
+        self.busy = false;
+        self.response_received = 3;
+        self.trigger_interrupt(bridge, 3, 16000);
+    }
+
+    /// This function handles the SeekL command.
+    fn command_seekl(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        second_response: bool
+    ) {
+
+        // Determine what to do.
+        // First response, send stat byte.
+        if !second_response {
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.is_seeking = true;
+            self.needs_second_response = true;
+            self.response_received = 3;
+            self.trigger_interrupt(bridge, 3, 16000);
+        }
+        // Second response, send stat byte.
+        else {
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.is_seeking = false;
+            self.needs_second_response = false;
+            self.response_received = 2;
+            self.trigger_interrupt(bridge, 2, 16000);
+            self.busy = false;
+        }
+    }
+
+    /// This function handles the Test command.
+    fn command_test(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge
+    ) {
+
+        // Get parameter from fifo.
+        let parameter1 = self.parameter_fifo[0];
+        self.clear_parameter_fifo();
+
+        match parameter1 {
+
+            // Get the date (y/m/d) in BCD and also the version of
+            // the CD-ROM controller BIOS. Use the fake version of
+            // PSX/PSone (PU-23, PM-41).
+            0x20 => {
+                self.response_fifo[self.response_count as usize] = 0x99; // (1999).
+                self.response_count += 1;
+                self.response_fifo[self.response_count as usize] = 0x02; // (February).
+                self.response_count += 1;
+                self.response_fifo[self.response_count as usize] = 0x01; // (1st).
+                self.response_count += 1;
+                self.response_fifo[self.response_count as usize] = 0xC3; // (version vC3).
+                self.response_count += 1;
+                self.busy = false;
+                self.response_received = 3;
+                self.trigger_interrupt(bridge, 3, 16000);
+            },
+
+            _ => (),
+        };
+    }
+
+    /// This function handles the GetID command.
+    fn command_getid(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        second_response: bool
+    ) {
+
+        // Determine what to do.
+        // First response, send stat byte.
+        if !second_response {
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.needs_second_response = true;
+            self.response_received = 3;
+            self.trigger_interrupt(bridge, 3, 16000);
+        }
+        // Second response, send licensed mode 2 response.
+        else {
+            self.response_fifo[self.response_count as usize] = 0x00;
+            self.response_count += 1;
+		    self.response_fifo[self.response_count as usize] = 0x20;
+            self.response_count += 1;
+            self.response_fifo[self.response_count as usize] = 0x02;
+            self.response_count += 1;
+		    self.response_fifo[self.response_count as usize] = 0x00;
+            self.response_count += 1;
+		    self.response_fifo[self.response_count as usize] = 0x53;
+            self.response_count += 1;
+		    self.response_fifo[self.response_count as usize] = 0x43;
+            self.response_count += 1;
+		    self.response_fifo[self.response_count as usize] = 0x45;
+            self.response_count += 1;
+		    self.response_fifo[self.response_count as usize] = 0x45;
+            self.response_count += 1;
+            self.busy = false;
+            self.needs_second_response = false;
+            self.response_received = 2;
+            self.trigger_interrupt(bridge, 2, 16000);
+        }
+    }
+
+    /// This handles the ReadTOC command.
+    fn command_readtoc(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        second_response: bool
+    ) {
+
+        // Determine what to do.
+        // First response, send stat byte.
+        if !second_response {
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.needs_second_response = true;
+            self.response_received = 3;
+            self.trigger_interrupt(bridge, 3, 16000);
+        }
+        // Second response, send stat byte.
+        else {
+            self.response_fifo[self.response_count as usize] = self.get_status_code();
+            self.response_count += 1;
+            self.response_received = 2;
+            self.trigger_interrupt(bridge, 2, 16000);
+            self.needs_second_response = false;
+            self.busy = false;
+        }
     }
 
     /// This function returns the status code.
@@ -307,12 +626,57 @@ impl PsxCdromDrive {
                 // Setloc.
                 0x02 => self.command_setloc(bridge),
 
+                // ReadN.
+                0x06 => self.command_readn(bridge, second_response),
+
+                // Pause.
+                0x09 => self.command_pause(bridge, second_response),
+
+                // Init.
+                0x0A => self.command_init(bridge, second_response),
+
+                // Demute.
+                0x0C => self.command_demute(bridge),
+
+                // Setmode.
+                0x0E => self.command_setmode(bridge),
+
+                // SeekL.
+                0x15 => self.command_seekl(bridge, second_response),
+
+                // Test.
+                0x19 => self.command_test(bridge),
+
+                // GetID.
+                0x1A => self.command_getid(bridge, second_response),
+
+                // ReadTOC.
+                0x1E => self.command_readtoc(bridge, second_response),
+
                 // Unimplemented command.
                 _ => log::error!("CD-ROM Drive: Unimplemented command: {:#02X}", command_num),
             };
         }
         else {
             match command_num {
+
+                // ReadN.
+                0x06 => self.command_readn(bridge, second_response),
+
+                // Pause.
+                0x09 => self.command_pause(bridge, second_response),
+
+                // Init.
+                0x0A => self.command_init(bridge, second_response),
+
+                // SeekL.
+                0x15 => self.command_seekl(bridge, second_response),
+
+                // GetID.
+                0x1A => self.command_getid(bridge, second_response),
+
+                // ReadTOC.
+                0x1E => self.command_readtoc(bridge, second_response),
 
                 _ => (),
             };
@@ -457,7 +821,11 @@ impl CdromDrive for PsxCdromDrive {
     }
 
     /// This function writes a byte to port 0x1F801801.
-    fn write_1801(&mut self, value: u8) {
+    fn write_1801(
+        &mut self,
+        bridge: &mut dyn CdromDriveBridge,
+        value: u8
+    ) {
 
         // Act depending on port index.
         if self.port_index == 0 {
@@ -467,12 +835,12 @@ impl CdromDrive for PsxCdromDrive {
                 self.clear_response_fifo();
                 self.busy = true;
                 self.current_command = value;
-                self.execute_command(value, self.needs_second_response);
+                self.execute_command(bridge, value, self.needs_second_response);
             }
             else if value == 0x9 {
                 self.current_command = value;
                 self.needs_second_response = false;
-                self.execute_command(value, self.needs_second_response);
+                self.execute_command(bridge, value, self.needs_second_response);
             }
         }
     }
