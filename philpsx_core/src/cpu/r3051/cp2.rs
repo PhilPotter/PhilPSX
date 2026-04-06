@@ -83,10 +83,10 @@ use SaturatedFlagRegisterField::*;
 pub struct CP2 {
 
     // Control registers.
-    control_registers: [i32; CONTROL_REGISTER_COUNT],
+    control_registers: [u32; CONTROL_REGISTER_COUNT],
 
     // Data registers.
-    data_registers: [i32; DATA_REGISTER_COUNT],
+    data_registers: [u32; DATA_REGISTER_COUNT],
 
     // Condition line.
     condition_line: bool,
@@ -123,7 +123,7 @@ impl CP2 {
     }
 
     /// This function reads from the specified control register.
-    pub fn read_control_reg(&self, reg: i32) -> i32 {
+    pub fn read_control_reg(&self, reg: i32) -> u32 {
 
         // Determine which register we are reading.
         let array_index = reg as usize;
@@ -147,7 +147,7 @@ impl CP2 {
     }
 
     /// This function reads from the specified data register.
-    pub fn read_data_reg(&self, reg: i32) -> i32 {
+    pub fn read_data_reg(&self, reg: i32) -> u32 {
 
         // Determine which register we are reading.
         let array_index = reg as usize;
@@ -168,11 +168,11 @@ impl CP2 {
 
                 // Determine whether we are counting leading 1s of 0s.
                 let mut lzcs = self.data_registers[30];
-                let bit = lzcs & 0x80000000_u32 as i32;
+                let bit = lzcs & 0x80000000;
 
                 let mut temp = 0;
                 for _ in 0..32 {
-                    if (lzcs & 0x80000000u32 as i32) == bit {
+                    if (lzcs & 0x80000000) == bit {
                         temp += 1;
                     } else {
                         break;
@@ -190,14 +190,14 @@ impl CP2 {
     }
 
     /// This function writes to the specified control register.
-    pub fn write_control_reg(&mut self, reg: i32, value: i32, _write_override: bool) {
+    pub fn write_control_reg(&mut self, reg: i32, value: u32, _write_override: bool) {
 
         // For now, ignore override and just write to anywhere requested.
         self.control_registers[reg as usize] = value;
     }
 
     /// This function writes to the specified data register.
-    pub fn write_data_reg(&mut self, reg: i32, value: i32, write_override: bool) {
+    pub fn write_data_reg(&mut self, reg: i32, value: u32, write_override: bool) {
 
         // Determine which register we are writing.
         let array_index = reg as usize;
@@ -251,12 +251,12 @@ impl CP2 {
 
     /// This function retrieves values from IR1, IR2 and IR3 and transforms them for display
     /// via IRGB (data register 28) or ORGB (data register 29).
-    fn calculate_orgb(&self) -> i32 {
+    fn calculate_orgb(&self) -> u32 {
 
         // Divide IR1, IR2 and IR3 by 0x80 after sign-extending.
-        let ir1_divided = (self.data_registers[9] & 0xFFFF).sign_extend(15) / 0x80;
-        let ir2_divided = (self.data_registers[10] & 0xFFFF).sign_extend(15) / 0x80;
-        let ir3_divided = (self.data_registers[11] & 0xFFFF).sign_extend(15) / 0x80;
+        let ir1_divided = ((self.data_registers[9] as i32) & 0xFFFF).sign_extend(15) / 0x80;
+        let ir2_divided = ((self.data_registers[10] as i32) & 0xFFFF).sign_extend(15) / 0x80;
+        let ir3_divided = ((self.data_registers[11] as i32) & 0xFFFF).sign_extend(15) / 0x80;
 
         // Now saturate them.
         let ir1_saturated = ir1_divided.clamp(0, 0x1F);
@@ -265,27 +265,27 @@ impl CP2 {
 
         // Now arrange them in order - no bitmasking needed given they are saturated
         // already to 0 - 0x1F.
-        (ir3_saturated << 10) | (ir2_saturated << 5) | ir1_saturated
+        ((ir3_saturated << 10) | (ir2_saturated << 5) | ir1_saturated) as u32
     }
 
     /// This function receives values from IRGB and transforms/writes them to IR1, IR2 and IR3.
-    fn calculate_and_write_irgb(&mut self, value: i32) {
+    fn calculate_and_write_irgb(&mut self, value: u32) {
 
         // Extract value into constituent parts, multiplying each one by 0x80.
-        let ir1_multiplied = (value & 0x1F) * 0x80;
-        let ir2_multiplied = ((value >> 5) & 0x1F) * 0x80;
-        let ir3_multiplied = ((value >> 10) & 0x1F) * 0x80;
+        let ir1_multiplied = ((value as i32) & 0x1F) * 0x80;
+        let ir2_multiplied = (((value as i32) >> 5) & 0x1F) * 0x80;
+        let ir3_multiplied = (((value as i32) >> 10) & 0x1F) * 0x80;
 
         // Save this into the correct registers.
-        self.data_registers[9] = ir1_multiplied;
-        self.data_registers[10] = ir2_multiplied;
-        self.data_registers[11] = ir3_multiplied;
+        self.data_registers[9] = ir1_multiplied as u32;
+        self.data_registers[10] = ir2_multiplied as u32;
+        self.data_registers[11] = ir3_multiplied as u32;
     }
 
     /// This function deals with GTE functions that are invoked on CP2 from the CPU.
     /// It calls the correct private function and determines the number of cycles it
     /// should take.
-    pub fn gte_function(&mut self, opcode: i32) -> i32 {
+    pub fn gte_function(&mut self, opcode: u32) -> i32 {
 
         // Match on the correct function and call it, returning the
         // correct number of cycles.
@@ -409,20 +409,19 @@ impl CP2 {
 
     /// This function implements the functionality for the RTPS and RTPT instructions.
     /// Figured I'm porting/re-writing from C anyway and these are largely identical.
-    fn handle_common_rtp(&mut self, opcode: i32, variant: InstructionVariant) {
+    fn handle_common_rtp(&mut self, opcode: u32, variant: InstructionVariant) {
 
         // Filter out sf bit.
         let sf = opcode.bit_value(19);
 
-        // Setup translation vector - no sign-extension necessary as we are treating these
-        // values as full-width 32-bit values anyway, so sign-extension will happen automatically
-        // upon conversion from i32 to i64.
+        // Setup translation vector - cast to i32 first so that when we cast to i64, sign
+        // extension still happens.
         //
         // In addition, multiply each element by 0x1000.
         let translation_vector = CP2Vector::new(
-            (self.control_registers[5] as i64) * 0x1000, // TRX
-            (self.control_registers[6] as i64) * 0x1000, // TRY
-            (self.control_registers[7] as i64) * 0x1000  // TRZ
+            ((self.control_registers[5] as i32) as i64) * 0x1000, // TRX
+            ((self.control_registers[6] as i32) as i64) * 0x1000, // TRY
+            ((self.control_registers[7] as i32) as i64) * 0x1000  // TRZ
         );
 
         // Setup rotation matrix, sign-extending values as needed.
@@ -430,32 +429,32 @@ impl CP2 {
 
             // Top row.
             [
-                ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // RT11.
-                ((self.control_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT12.
-                ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // RT13.
+                ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15),         // RT11.
+                (((self.control_registers[0] >> 16) & 0xFFFF) as i64).sign_extend(15), // RT12.
+                ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)          // RT13.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[1].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT21.
-                ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15),                    // RT22.
-                ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // RT23.
+                (((self.control_registers[1] >> 16) & 0xFFFF) as i64).sign_extend(15), // RT21.
+                ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15),         // RT22.
+                (((self.control_registers[2] >> 16) & 0xFFFF) as i64).sign_extend(15)  // RT23.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15),                    // RT31.
-                ((self.control_registers[3].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT32.
-                ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15)                     // RT33.
+                ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15),         // RT31.
+                (((self.control_registers[3] >> 16) & 0xFFFF) as i64).sign_extend(15), // RT32.
+                ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15)          // RT33.
             ]
         );
 
-        // Setup offset and distance values - again only sign-extending when needed.
-        let ofx = self.control_registers[24] as i64;
-        let ofy = self.control_registers[25] as i64;
+        // Setup offset and distance values, sign-extending as needed.
+        let ofx = (self.control_registers[24] as i32) as i64;
+        let ofy = (self.control_registers[25] as i32) as i64;
         let h = (self.control_registers[26] & 0xFFFF) as i64; // Explicitly avoid sign-extension here.
         let dqa = ((self.control_registers[27] & 0xFFFF) as i64).sign_extend(15);
-        let dqb = self.control_registers[28] as i64;
+        let dqb = (self.control_registers[28] as i32) as i64;
 
         // Now, we perform the remaining tasks based on the specified number of iterations.
         let iterations = match variant {
@@ -469,9 +468,9 @@ impl CP2 {
 
             // Setup vector with one of V0, V1 or V2, sign-extending values as needed.
             let v_any = CP2Vector::new(
-                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15), // VX.
-                ((self.data_registers[i * 2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY.
-                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15), // VZ.
+                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15),         // VX.
+                (((self.data_registers[i * 2] >> 16) & 0xFFFF) as i64).sign_extend(15), // VY.
+                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15),     // VZ.
             );
 
             // Rotate vector and translate it too. Then, right shift all result values
@@ -501,12 +500,12 @@ impl CP2 {
             let ir3 = self.handle_saturated_result(mac3, IR3Quirk, false, sf);
 
             // Write back to real registers.
-            self.data_registers[25] = mac1 as i32; // MAC1.
-            self.data_registers[26] = mac2 as i32; // MAC2.
-            self.data_registers[27] = mac3 as i32; // MAC3.
-            self.data_registers[9] = ir1 as i32; // IR1.
-            self.data_registers[10] = ir2 as i32; // IR2.
-            self.data_registers[11] = ir3 as i32; // IR3.
+            self.data_registers[25] = mac1 as u32; // MAC1.
+            self.data_registers[26] = mac2 as u32; // MAC2.
+            self.data_registers[27] = mac3 as u32; // MAC3.
+            self.data_registers[9] = ir1 as u32;   // IR1.
+            self.data_registers[10] = ir2 as u32;  // IR2.
+            self.data_registers[11] = ir3 as u32;  // IR3.
 
             // Calculate SZ3 and move FIFO along, also setting SZ3 flag if needed.
             self.data_registers[16] = self.data_registers[17]; // SZ1 to SZ0.
@@ -515,7 +514,7 @@ impl CP2 {
 
             let shift_by = (1 - sf) * 12;
             let temp_sz3 = self.handle_saturated_result(mac3 >> shift_by, SZ3, false, sf);
-            self.data_registers[19] = temp_sz3 as i32;
+            self.data_registers[19] = temp_sz3 as u32;
 
             // Begin second phase of calculations - use Unsigned Newton-Raphson
             // division algorithm from NOPSX documentation.
@@ -561,37 +560,37 @@ impl CP2 {
             // Store values back to correct registers.
 
             // SXY FIFO registers.
-            self.data_registers[12] = self.data_registers[13]; // SXY1 to SXY0.
-            self.data_registers[13] = self.data_registers[14]; // SXY2 to SXY1.
-            self.data_registers[14] = (((sy2 as i32) & 0xFFFF) << 16) | ((sx2 as i32) & 0xFFFF); // SXY2.
-            self.data_registers[15] = self.data_registers[14]; // SXYP mirror of SXY2.
+            self.data_registers[12] = self.data_registers[13];                                   // SXY1 to SXY0.
+            self.data_registers[13] = self.data_registers[14];                                   // SXY2 to SXY1.
+            self.data_registers[14] = (((sy2 as u32) & 0xFFFF) << 16) | ((sx2 as u32) & 0xFFFF); // SXY2.
+            self.data_registers[15] = self.data_registers[14];                                   // SXYP mirror of SXY2.
 
             // MAC0.
-            self.data_registers[24] = mac0 as i32;
+            self.data_registers[24] = mac0 as u32;
 
             // IR0.
-            self.data_registers[8] = ir0 as i32;
+            self.data_registers[8] = ir0 as u32;
         }
 
         // Calculate bit 31 of flag register.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
     }
 
     /// This function handles the NCLIP GTE function.
-    fn handle_nclip(&mut self, opcode: i32) {
+    fn handle_nclip(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
 
         // Retrieve SXY values, sign extending if necessary.
-        let sx0 = ((self.data_registers[12] & 0xFFFF) as i64).sign_extend(15); // SX0.
-        let sy0 = ((self.data_registers[12].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15); // SY0.
-        let sx1 = ((self.data_registers[13] & 0xFFFF) as i64).sign_extend(15); // SX1.
-        let sy1 = ((self.data_registers[13].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15); // SY1.
-        let sx2 = ((self.data_registers[14] & 0xFFFF) as i64).sign_extend(15); // SX2.
-        let sy2 = ((self.data_registers[14].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15); // SY2.
+        let sx0 = ((self.data_registers[12] & 0xFFFF) as i64).sign_extend(15);         // SX0.
+        let sy0 = (((self.data_registers[12] >> 16) & 0xFFFF) as i64).sign_extend(15); // SY0.
+        let sx1 = ((self.data_registers[13] & 0xFFFF) as i64).sign_extend(15);         // SX1.
+        let sy1 = (((self.data_registers[13] >> 16) & 0xFFFF) as i64).sign_extend(15); // SY1.
+        let sx2 = ((self.data_registers[14] & 0xFFFF) as i64).sign_extend(15);         // SX2.
+        let sy2 = (((self.data_registers[14] >> 16) & 0xFFFF) as i64).sign_extend(15); // SY2.
 
         // Perform calculation.
         let mut mac0 = sx0 * sy1 + sx1 * sy2 + sx2 * sy0 - sx0 * sy2 - sx1 * sy0 - sx2 * sy1;
@@ -601,15 +600,15 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store MAC0 result back to register.
-        self.data_registers[24] = mac0 as i32;
+        self.data_registers[24] = mac0 as u32;
     }
 
     /// This function handles the OP GTE function.
-    fn handle_op(&mut self, opcode: i32) {
+    fn handle_op(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -621,7 +620,7 @@ impl CP2 {
         let lm = opcode.bit_is_set(10);
 
         // Fetch IR values, sign extending as necessary.
-        let ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15); // IR1.
+        let ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15);  // IR1.
         let ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15); // IR2.
         let ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15); // IR3.
 
@@ -636,9 +635,9 @@ impl CP2 {
         let mut temp3 = (ir2 * d1 - ir1 * d2) >> (sf * 12);
 
         // Store results in MAC1, MAC2 and MAC3 registers.
-        self.data_registers[25] = temp1 as i32; // MAC1.
-        self.data_registers[26] = temp2 as i32; // MAC2.
-        self.data_registers[27] = temp3 as i32; // MAC3.
+        self.data_registers[25] = temp1 as u32; // MAC1.
+        self.data_registers[26] = temp2 as u32; // MAC2.
+        self.data_registers[27] = temp3 as u32; // MAC3.
 
         // Set relevant MAC1, MAC2 and MAC3 flag bits.
         temp1 = self.handle_unsaturated_result_and_truncate(temp1, MAC1);
@@ -648,19 +647,19 @@ impl CP2 {
         // Set IR1, IR2 and IR3 registers and saturation flag bits.
         // Determine the lower saturation bound using lm bit status.
         // Upper bound is always 0x7FFF.
-        self.data_registers[9] = self.handle_saturated_result(temp1, IR1, lm, sf) as i32;
-        self.data_registers[10] = self.handle_saturated_result(temp2, IR2, lm, sf) as i32;
-        self.data_registers[11] = self.handle_saturated_result(temp3, IR3, lm, sf) as i32;
+        self.data_registers[9] = self.handle_saturated_result(temp1, IR1, lm, sf) as u32;
+        self.data_registers[10] = self.handle_saturated_result(temp2, IR2, lm, sf) as u32;
+        self.data_registers[11] = self.handle_saturated_result(temp3, IR3, lm, sf) as u32;
 
         // Calculate bit 31 of flag register.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
     }
 
     /// This function implements the functionality for the DPCS and DPCT instructions.
     /// Figured I'm porting/re-writing from C anyway and these are largely identical.
-    fn handle_common_dpc(&mut self, opcode: i32, variant: InstructionVariant) {
+    fn handle_common_dpc(&mut self, opcode: u32, variant: InstructionVariant) {
 
         // Filter out sf bit.
         let sf = opcode.bit_value(19);
@@ -671,10 +670,10 @@ impl CP2 {
         // Retrieve IR0 value, sign extending as needed.
         let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15); // IR0.
 
-        // Retrieve far colour values - let natural sign extension happen.
-        let rfc = self.control_registers[21] as i64;
-        let gfc = self.control_registers[22] as i64;
-        let bfc = self.control_registers[23] as i64;
+        // Retrieve far colour values - sign extend by casting to i32 first.
+        let rfc = (self.control_registers[21] as i32) as i64;
+        let gfc = (self.control_registers[22] as i32) as i64;
+        let bfc = (self.control_registers[23] as i32) as i64;
 
         // Now, we perform the remaining tasks based on the specified number of iterations.
         let iterations = match variant {
@@ -694,10 +693,10 @@ impl CP2 {
                 InstructionVariant::Triple => 20,
             };
             let (r, g, b, code) = (
-                (self.data_registers[colour_register_index] & 0xFF) as i64, // R or R0.
-                ((self.data_registers[colour_register_index].logical_rshift(8) & 0xFF) as i64), // G or G0.
-                ((self.data_registers[colour_register_index].logical_rshift(16) & 0xFF) as i64), // B or B0.
-                ((self.data_registers[6].logical_rshift(24) & 0xFF) as i64) // CODE.
+                (self.data_registers[colour_register_index] & 0xFF) as i64,           // R or R0.
+                (((self.data_registers[colour_register_index] >> 8) & 0xFF) as i64),  // G or G0.
+                (((self.data_registers[colour_register_index] >> 16) & 0xFF) as i64), // B or B0.
+                (((self.data_registers[6] >> 24) & 0xFF) as i64)                      // CODE.
             );
 
             // This left-shifting should happen for both DPCS and DPCT,
@@ -750,26 +749,26 @@ impl CP2 {
 
             // Calculate flag bit 31.
             if (self.control_registers[31] & 0x7F87E000) != 0 {
-                self.control_registers[31] |= 0x80000000_u32 as i32;
+                self.control_registers[31] |= 0x80000000;
             }
 
             // Store values back to registers.
-            self.data_registers[25] = mac1 as i32; // MAC1.
-            self.data_registers[26] = mac2 as i32; // MAC2.
-            self.data_registers[27] = mac3 as i32; // MAC3.
+            self.data_registers[25] = mac1 as u32; // MAC1.
+            self.data_registers[26] = mac2 as u32; // MAC2.
+            self.data_registers[27] = mac3 as u32; // MAC3.
 
-            self.data_registers[9] = ir1 as i32;   // IR1.
-            self.data_registers[10] = ir2 as i32;  // IR2.
-            self.data_registers[11] = ir3 as i32;  // IR3.
+            self.data_registers[9] = ir1 as u32;  // IR1.
+            self.data_registers[10] = ir2 as u32; // IR2.
+            self.data_registers[11] = ir3 as u32; // IR3.
 
-            self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-            self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; //RGB2.
+            self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+            self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; //RGB2.
         }
     }
 
     /// This function handles the INTPL GTE function.
-    fn handle_intpl(&mut self, opcode: i32) {
+    fn handle_intpl(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -786,13 +785,13 @@ impl CP2 {
         let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15);
         let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
 
-        // Retrieve far colour values, sign extending naturally.
-        let rfc = self.control_registers[21] as i64;
-        let gfc = self.control_registers[22] as i64;
-        let bfc = self.control_registers[23] as i64;
+        // Retrieve far colour values - sign extend by casting to i32 first.
+        let rfc = (self.control_registers[21] as i32) as i64;
+        let gfc = (self.control_registers[22] as i32) as i64;
+        let bfc = (self.control_registers[23] as i32) as i64;
 
         // Fetch code value from RGBC.
-        let code = self.data_registers[6].logical_rshift(24) as i64;
+        let code = (self.data_registers[6] >> 24) as i64;
 
         // Perform INTPL-only calculation.
         let mut mac1 = ir1 << 12;
@@ -847,25 +846,25 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store all values back.
-        self.data_registers[25] = mac1 as i32; // MAC1.
-        self.data_registers[26] = mac2 as i32; // MAC2.
-        self.data_registers[27] = mac3 as i32; // MAC3.
+        self.data_registers[25] = mac1 as u32; // MAC1.
+        self.data_registers[26] = mac2 as u32; // MAC2.
+        self.data_registers[27] = mac3 as u32; // MAC3.
 
-        self.data_registers[9] = ir1 as i32;  // IR1.
-        self.data_registers[10] = ir2 as i32; // IR2.
-        self.data_registers[11] = ir3 as i32; // IR3.
+        self.data_registers[9] = ir1 as u32;  // IR1.
+        self.data_registers[10] = ir2 as u32; // IR2.
+        self.data_registers[11] = ir3 as u32; // IR3.
 
-        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+        self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
     }
 
     /// This function handles the MVMVA GTE function.
-    fn handle_mvmva(&mut self, opcode: i32) {
+    fn handle_mvmva(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -877,37 +876,37 @@ impl CP2 {
         let lm = opcode.bit_is_set(10);
 
         // Filter out translation vector value.
-        let t_vec = (opcode & 0x6000).logical_rshift(13);
+        let t_vec = ((opcode & 0x6000) >> 13) as i32;
 
         // Filter out multiply vector value.
-        let m_vec = (opcode & 0x18000).logical_rshift(15);
+        let m_vec = ((opcode & 0x18000) >> 15) as i32;
 
         // Filter out multiply matrix value.
-        let m_matrix = (opcode & 0x60000).logical_rshift(17);
+        let m_matrix = ((opcode & 0x60000) >> 17) as i32;
 
         // Declare and store correct translation vector values, allowing for
-        // natural sign extension.
+        // sign extension by casting to i32 first.
         let mut translation_vector = match t_vec {
 
             // TR.
             0 => CP2Vector::new(
-                self.control_registers[5] as i64, // TRX.
-                self.control_registers[6] as i64, // TRY.
-                self.control_registers[7] as i64  // TRZ.
+                (self.control_registers[5] as i32) as i64, // TRX.
+                (self.control_registers[6] as i32) as i64, // TRY.
+                (self.control_registers[7] as i32) as i64  // TRZ.
             ),
 
             // BK.
             1 => CP2Vector::new(
-                self.control_registers[13] as i64, // RBK.
-                self.control_registers[14] as i64, // GBK.
-                self.control_registers[15] as i64  // BBK.
+                (self.control_registers[13] as i32) as i64, // RBK.
+                (self.control_registers[14] as i32) as i64, // GBK.
+                (self.control_registers[15] as i32) as i64  // BBK.
             ),
 
             // FC.
             2 => CP2Vector::new(
-                self.control_registers[21] as i64, // RFC.
-                self.control_registers[22] as i64, // GFC.
-                self.control_registers[23] as i64  // BFC.
+                (self.control_registers[21] as i32) as i64, // RFC.
+                (self.control_registers[22] as i32) as i64, // GFC.
+                (self.control_registers[23] as i32) as i64  // BFC.
             ),
 
             // None, use empty vector. In C version we checked for 3 here, but just used break.
@@ -933,23 +932,23 @@ impl CP2 {
 
             // V0.
             0 => CP2Vector::new(
-                ((self.data_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // VX0.
-                ((self.data_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY0.
-                ((self.data_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // VZ0.
+                ((self.data_registers[0] & 0xFFFF) as i64).sign_extend(15),         // VX0.
+                (((self.data_registers[0] >> 16) & 0xFFFF) as i64).sign_extend(15), // VY0.
+                ((self.data_registers[1] & 0xFFFF) as i64).sign_extend(15)          // VZ0.
             ),
 
             // V1.
             1 => CP2Vector::new(
-                ((self.data_registers[2] & 0xFFFF) as i64).sign_extend(15),                    // VX1.
-                ((self.data_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY1.
-                ((self.data_registers[3] & 0xFFFF) as i64).sign_extend(15),                    // VZ1.
+                ((self.data_registers[2] & 0xFFFF) as i64).sign_extend(15),         // VX1.
+                (((self.data_registers[2] >> 16) & 0xFFFF) as i64).sign_extend(15), // VY1.
+                ((self.data_registers[3] & 0xFFFF) as i64).sign_extend(15),         // VZ1.
             ),
 
             // V2.
             2 => CP2Vector::new(
-                ((self.data_registers[4] & 0xFFFF) as i64).sign_extend(15),                    // VX2.
-                ((self.data_registers[4].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY2.
-                ((self.data_registers[5] & 0xFFFF) as i64).sign_extend(15),                    // VZ2.
+                ((self.data_registers[4] & 0xFFFF) as i64).sign_extend(15),         // VX2.
+                (((self.data_registers[4] >> 16) & 0xFFFF) as i64).sign_extend(15), // VY2.
+                ((self.data_registers[5] & 0xFFFF) as i64).sign_extend(15),         // VZ2.
             ),
 
             // [IR1, IR2, IR3]. If we get here, then m_vec must be 3 due to the math above.
@@ -969,23 +968,23 @@ impl CP2 {
 
                 // Top row.
                 [
-                    ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15),                    // RT11.
-                    ((self.control_registers[0].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT12.
-                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)                     // RT13.
+                    ((self.control_registers[0] & 0xFFFF) as i64).sign_extend(15),         // RT11.
+                    (((self.control_registers[0] >> 16) & 0xFFFF) as i64).sign_extend(15), // RT12.
+                    ((self.control_registers[1] & 0xFFFF) as i64).sign_extend(15)          // RT13.
                 ],
 
                 // Middle row.
                 [
-                    ((self.control_registers[1].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT21.
-                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15),                    // RT22.
-                    ((self.control_registers[2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // RT23.
+                    (((self.control_registers[1] >> 16) & 0xFFFF) as i64).sign_extend(15), // RT21.
+                    ((self.control_registers[2] & 0xFFFF) as i64).sign_extend(15),         // RT22.
+                    (((self.control_registers[2] >> 16) & 0xFFFF) as i64).sign_extend(15)  // RT23.
                 ],
 
                 // Bottom row.
                 [
-                    ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15),                    // RT31.
-                    ((self.control_registers[3].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // RT32.
-                    ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15)                     // RT33.
+                    ((self.control_registers[3] & 0xFFFF) as i64).sign_extend(15),         // RT31.
+                    (((self.control_registers[3] >> 16) & 0xFFFF) as i64).sign_extend(15), // RT32.
+                    ((self.control_registers[4] & 0xFFFF) as i64).sign_extend(15)          // RT33.
                 ]
             ),
 
@@ -994,23 +993,23 @@ impl CP2 {
 
                 // Top row.
                 [
-                    ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),                    // L11.
-                    ((self.control_registers[8].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L12.
-                    ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)                     // L13.
+                    ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),         // L11.
+                    (((self.control_registers[8] >> 16) & 0xFFFF) as i64).sign_extend(15), // L12.
+                    ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)          // L13.
                 ],
 
                 // Middle row.
                 [
-                    ((self.control_registers[9].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L21.
-                    ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),                   // L22.
-                    ((self.control_registers[10].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // L23.
+                    (((self.control_registers[9] >> 16) & 0xFFFF) as i64).sign_extend(15), // L21.
+                    ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),        // L22.
+                    (((self.control_registers[10] >> 16) & 0xFFFF) as i64).sign_extend(15) // L23.
                 ],
 
                 // Bottom row.
                 [
-                    ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),                    // L31.
-                    ((self.control_registers[11].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L32.
-                    ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)                     // L33.
+                    ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),         // L31.
+                    (((self.control_registers[11] >> 16) & 0xFFFF) as i64).sign_extend(15), // L32.
+                    ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)          // L33.
                 ]
             ),
 
@@ -1019,23 +1018,23 @@ impl CP2 {
 
                 // Top row.
                 [
-                    ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),                    // LR1.
-                    ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
-                    ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)                     // LR3.
+                    ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),         // LR1.
+                    (((self.control_registers[16] >> 16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                    ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)          // LR3.
                 ],
 
                 // Middle row.
                 [
-                    ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
-                    ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),                    // LG2.
-                    ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
+                    (((self.control_registers[17] >> 16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                    ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),         // LG2.
+                    (((self.control_registers[18] >> 16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
                 ],
 
                 // Bottom row.
                 [
-                    ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),                    // LB1.
-                    ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
-                    ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)                     // LB3.
+                    ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),         // LB1.
+                    (((self.control_registers[19] >> 16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                    ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)          // LB3.
                 ]
             ),
 
@@ -1090,9 +1089,9 @@ impl CP2 {
         );
 
         // Set MAC1, MAC2 and MAC3 registers, handling flags too.
-        self.data_registers[25] = result_vector.top() as i32;    // MAC1.
-        self.data_registers[26] = result_vector.middle() as i32; // MAC2.
-        self.data_registers[27] = result_vector.bottom() as i32; // MAC3.
+        self.data_registers[25] = result_vector.top() as u32;    // MAC1.
+        self.data_registers[26] = result_vector.middle() as u32; // MAC2.
+        self.data_registers[27] = result_vector.bottom() as u32; // MAC3.
 
         result_vector = CP2Vector::new(
             self.handle_unsaturated_result_and_truncate(result_vector.top(), MAC1),
@@ -1101,19 +1100,19 @@ impl CP2 {
         );
 
         // Set IR1, IR2 and IR3 registers and saturation flag bits.
-        self.data_registers[9] = self.handle_saturated_result(result_vector.top(), IR1, lm, sf) as i32;
-        self.data_registers[10] = self.handle_saturated_result(result_vector.middle(), IR2, lm, sf) as i32;
-        self.data_registers[11] = self.handle_saturated_result(result_vector.bottom(), IR3, lm, sf) as i32;
+        self.data_registers[9] = self.handle_saturated_result(result_vector.top(), IR1, lm, sf) as u32;
+        self.data_registers[10] = self.handle_saturated_result(result_vector.middle(), IR2, lm, sf) as u32;
+        self.data_registers[11] = self.handle_saturated_result(result_vector.bottom(), IR3, lm, sf) as u32;
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
     }
 
     /// This function implements the functionality for the NCDS and NCDT instructions.
     /// Figured I'm porting/re-writing from C anyway and these are largely identical.
-    fn handle_common_ncd(&mut self, opcode: i32, variant: InstructionVariant) {
+    fn handle_common_ncd(&mut self, opcode: u32, variant: InstructionVariant) {
 
         // Filter out sf bit.
         let sf = opcode.bit_value(19);
@@ -1126,23 +1125,23 @@ impl CP2 {
 
             // Top row.
             [
-                ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),                    // L11.
-                ((self.control_registers[8].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L12.
-                ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)                     // L13.
+                ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),         // L11.
+                (((self.control_registers[8] >> 16) & 0xFFFF) as i64).sign_extend(15), // L12.
+                ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)          // L13.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[9].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L21.
-                ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),                   // L22.
-                ((self.control_registers[10].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // L23.
+                (((self.control_registers[9] >> 16) & 0xFFFF) as i64).sign_extend(15), // L21.
+                ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),        // L22.
+                (((self.control_registers[10] >> 16) & 0xFFFF) as i64).sign_extend(15) // L23.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),                    // L31.
-                ((self.control_registers[11].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L32.
-                ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)                     // L33.
+                ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),         // L31.
+                (((self.control_registers[11] >> 16) & 0xFFFF) as i64).sign_extend(15), // L32.
+                ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)          // L33.
             ]
         );
 
@@ -1151,49 +1150,49 @@ impl CP2 {
 
             // Top row.
             [
-                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),                    // LR1.
-                ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
-                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)                     // LR3.
+                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),         // LR1.
+                (((self.control_registers[16] >> 16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)          // LR3.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
-                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),                    // LG2.
-                ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
+                (((self.control_registers[17] >> 16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),         // LG2.
+                (((self.control_registers[18] >> 16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),                    // LB1.
-                ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
-                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)                     // LB3.
+                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),         // LB1.
+                (((self.control_registers[19] >> 16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)          // LB3.
             ]
         );
 
-        // Retrieve background colour vector values and sign extend naturally.
+        // Retrieve background colour vector values and sign extend by casting to i32 first.
         // Also multiply by 0x1000 for usage in the second stage calculation.
         let background_colour_vector = CP2Vector::new(
-            (self.control_registers[13] as i64) * 0x1000, // RBK.
-            (self.control_registers[14] as i64) * 0x1000, // GBK.
-            (self.control_registers[15] as i64) * 0x1000  // BBK.
+            ((self.control_registers[13] as i32) as i64) * 0x1000, // RBK.
+            ((self.control_registers[14] as i32) as i64) * 0x1000, // GBK.
+            ((self.control_registers[15] as i32) as i64) * 0x1000  // BBK.
         );
 
-        // Retrieve far colour vector values, naturally sign extending.
+        // Retrieve far colour vector values, sign extending by casting to i32 first.
         let far_colour_vector = CP2Vector::new(
-            self.control_registers[21] as i64, // RFC.
-            self.control_registers[22] as i64, // GFC.
-            self.control_registers[23] as i64  // BFC.
+            (self.control_registers[21] as i32) as i64, // RFC.
+            (self.control_registers[22] as i32) as i64, // GFC.
+            (self.control_registers[23] as i32) as i64  // BFC.
         );
 
         // Retrieve IR0 value, sign extending as needed.
         let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15); // IR0.
 
         // Retrieve RGBC values.
-        let r = (self.data_registers[6] & 0xFF) as i64;                       // R.
-        let g = (self.data_registers[6].logical_rshift(8) & 0xFF) as i64;     // G.
-        let b = (self.data_registers[6].logical_rshift(16) & 0xFF) as i64;    // B.
-        let code = (self.data_registers[6].logical_rshift(24) & 0xFF) as i64; // CODE.
+        let r = (self.data_registers[6] & 0xFF) as i64;            // R.
+        let g = ((self.data_registers[6] >> 8) & 0xFF) as i64;     // G.
+        let b = ((self.data_registers[6] >> 16) & 0xFF) as i64;    // B.
+        let code = ((self.data_registers[6] >> 24) & 0xFF) as i64; // CODE.
 
         // Now, we perform the remaining tasks based on the specified number of iterations.
         let iterations = match variant {
@@ -1207,9 +1206,9 @@ impl CP2 {
 
             // Retrieve V0, V1 or V2 values depending on iteration.
             let vx_vector = CP2Vector::new(
-                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15),                    // VX0/VX1/VX2.
-                ((self.data_registers[i * 2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY0/VY1/VY2.
-                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15)                 // VZ0/VZ1/VZ2.
+                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15),         // VX0/VX1/VX2.
+                (((self.data_registers[i * 2] >> 16) & 0xFFFF) as i64).sign_extend(15), // VY0/VY1/VY2.
+                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15)      // VZ0/VZ1/VZ2.
             );
 
             // Perform first stage of calculation, then shift right by (sf * 12) bits,
@@ -1337,26 +1336,26 @@ impl CP2 {
 
             // Calculate flag bit 31.
             if (self.control_registers[31] & 0x7F87E000) != 0 {
-                self.control_registers[31] |= 0x80000000_u32 as i32;
+                self.control_registers[31] |= 0x80000000;
             }
 
             // Store all values back.
-            self.data_registers[25] = mac_results.top() as i32;    // MAC1.
-            self.data_registers[26] = mac_results.middle() as i32; // MAC2.
-            self.data_registers[27] = mac_results.bottom() as i32; // MAC3.
+            self.data_registers[25] = mac_results.top() as u32;    // MAC1.
+            self.data_registers[26] = mac_results.middle() as u32; // MAC2.
+            self.data_registers[27] = mac_results.bottom() as u32; // MAC3.
 
-            self.data_registers[9] = ir_vector.top() as i32;     // IR1.
-            self.data_registers[10] = ir_vector.middle() as i32; // IR2.
-            self.data_registers[11] = ir_vector.bottom() as i32; // IR3.
+            self.data_registers[9] = ir_vector.top() as u32;     // IR1.
+            self.data_registers[10] = ir_vector.middle() as u32; // IR2.
+            self.data_registers[11] = ir_vector.bottom() as u32; // IR3.
 
-            self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-            self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+            self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+            self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
         }
     }
 
     /// This function handles the CDP GTE function.
-    fn handle_cdp(&mut self, opcode: i32) {
+    fn handle_cdp(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -1367,19 +1366,19 @@ impl CP2 {
         // Get lm bit status.
         let lm = opcode.bit_is_set(10);
 
-        // Retrieve background colour values - let natural sign extension happen,
+        // Retrieve background colour values - sign extend by casting to i32 first,
         // and store them inside a vector. Also, multiple each one by 0x1000.
         let background_colour_vector = CP2Vector::new(
-            (self.control_registers[13] as i64) * 0x1000, // RBK.
-            (self.control_registers[14] as i64) * 0x1000, // GBK.
-            (self.control_registers[15] as i64) * 0x1000  // BBK.
+            ((self.control_registers[13] as i32) as i64) * 0x1000, // RBK.
+            ((self.control_registers[14] as i32) as i64) * 0x1000, // GBK.
+            ((self.control_registers[15] as i32) as i64) * 0x1000  // BBK.
         );
 
-        // Retrieve far colour values - let natural sign extension happen.
+        // Retrieve far colour values - sign extend by casting to i32 first.
         let far_colour_vector = CP2Vector::new(
-            self.control_registers[21] as i64, // RFC.
-            self.control_registers[22] as i64, // GFC.
-            self.control_registers[23] as i64  // BFC.
+            (self.control_registers[21] as i32) as i64, // RFC.
+            (self.control_registers[22] as i32) as i64, // GFC.
+            (self.control_registers[23] as i32) as i64  // BFC.
         );
 
         // Fetch IR1, IR2 and IR3, sign extending if needed, and also storing
@@ -1394,33 +1393,33 @@ impl CP2 {
         let ir0 = ((self.data_registers[8] & 0xFFFF) as i64).sign_extend(15); // IR0.
 
         // Retrieve RGBC values.
-        let r = (self.data_registers[6] & 0xFF) as i64; // R.
-        let g = (self.data_registers[6].logical_rshift(8) & 0xFF) as i64; // G.
-        let b = (self.data_registers[6].logical_rshift(16) & 0xFF) as i64; // B.
-        let code = (self.data_registers[6].logical_rshift(24) & 0xFF) as i64; // CODE.
+        let r = (self.data_registers[6] & 0xFF) as i64;            // R.
+        let g = ((self.data_registers[6] >> 8) & 0xFF) as i64;     // G.
+        let b = ((self.data_registers[6] >> 16) & 0xFF) as i64;    // B.
+        let code = ((self.data_registers[6] >> 24) & 0xFF) as i64; // CODE.
 
         // Retrieve light colour matrix values, sign extending as needed.
         let light_colour_matrix = CP2Matrix::new(
 
             // Top row.
             [
-                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15), // LR1.
-                ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
-                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15) // LR3.
+                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),         // LR1.
+                (((self.control_registers[16] >> 16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)          // LR3.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
-                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15), // LG2.
-                ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // LG3.
+                (((self.control_registers[17] >> 16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),         // LG2.
+                (((self.control_registers[18] >> 16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15), // LB1.
-                ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
-                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15) // LB3.
+                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),         // LB1.
+                (((self.control_registers[19] >> 16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)          // LB3.
             ]
         );
 
@@ -1518,26 +1517,26 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store values back to registers.
-        self.data_registers[25] = mac_results.top() as i32;    // MAC1.
-        self.data_registers[26] = mac_results.middle() as i32; // MAC2.
-        self.data_registers[27] = mac_results.bottom() as i32; // MAC3.
+        self.data_registers[25] = mac_results.top() as u32;    // MAC1.
+        self.data_registers[26] = mac_results.middle() as u32; // MAC2.
+        self.data_registers[27] = mac_results.bottom() as u32; // MAC3.
 
-        self.data_registers[9] = ir_vector.top() as i32;     // IR1.
-        self.data_registers[10] = ir_vector.middle() as i32; // IR2.
-        self.data_registers[11] = ir_vector.bottom() as i32; // IR3.
+        self.data_registers[9] = ir_vector.top() as u32;     // IR1.
+        self.data_registers[10] = ir_vector.middle() as u32; // IR2.
+        self.data_registers[11] = ir_vector.bottom() as u32; // IR3.
 
-        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+        self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
     }
 
     /// This function implements the functionality for the NCCS and NCCT instructions.
     /// Figured I'm porting/re-writing from C anyway and these are largely identical.
-    fn handle_common_ncc(&mut self, opcode: i32, variant: InstructionVariant) {
+    fn handle_common_ncc(&mut self, opcode: u32, variant: InstructionVariant) {
 
         // Filter out sf bit.
         let sf = opcode.bit_value(19);
@@ -1550,23 +1549,23 @@ impl CP2 {
 
             // Top row.
             [
-                ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),                    // L11.
-                ((self.control_registers[8].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L12.
-                ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)                     // L13.
+                ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),         // L11.
+                (((self.control_registers[8] >> 16) & 0xFFFF) as i64).sign_extend(15), // L12.
+                ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)          // L13.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[9].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L21.
-                ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),                   // L22.
-                ((self.control_registers[10].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // L23.
+                (((self.control_registers[9] >> 16) & 0xFFFF) as i64).sign_extend(15), // L21.
+                ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),        // L22.
+                (((self.control_registers[10] >> 16) & 0xFFFF) as i64).sign_extend(15) // L23.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),                    // L31.
-                ((self.control_registers[11].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L32.
-                ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)                     // L33.
+                ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),         // L31.
+                (((self.control_registers[11] >> 16) & 0xFFFF) as i64).sign_extend(15), // L32.
+                ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)          // L33.
             ]
         );
 
@@ -1575,39 +1574,39 @@ impl CP2 {
 
             // Top row.
             [
-                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),                    // LR1.
-                ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
-                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)                     // LR3.
+                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),         // LR1.
+                (((self.control_registers[16] >> 16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)          // LR3.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
-                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),                    // LG2.
-                ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
+                (((self.control_registers[17] >> 16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),         // LG2.
+                (((self.control_registers[18] >> 16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),                    // LB1.
-                ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
-                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)                     // LB3.
+                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),         // LB1.
+                (((self.control_registers[19] >> 16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)          // LB3.
             ]
         );
 
-        // Retrieve background colour vector values and sign extend naturally.
+        // Retrieve background colour vector values and sign extend by casting to i32 first.
         // Also multiply by 0x1000 for usage in the second stage calculation.
         let background_colour_vector = CP2Vector::new(
-            (self.control_registers[13] as i64) * 0x1000, // RBK.
-            (self.control_registers[14] as i64) * 0x1000, // GBK.
-            (self.control_registers[15] as i64) * 0x1000  // BBK.
+            ((self.control_registers[13] as i32) as i64) * 0x1000, // RBK.
+            ((self.control_registers[14] as i32) as i64) * 0x1000, // GBK.
+            ((self.control_registers[15] as i32) as i64) * 0x1000  // BBK.
         );
 
         // Retrieve RGBC values.
-        let r = (self.data_registers[6] & 0xFF) as i64;                       // R.
-        let g = (self.data_registers[6].logical_rshift(8) & 0xFF) as i64;     // G.
-        let b = (self.data_registers[6].logical_rshift(16) & 0xFF) as i64;    // B.
-        let code = (self.data_registers[6].logical_rshift(24) & 0xFF) as i64; // CODE.
+        let r = (self.data_registers[6] & 0xFF) as i64;            // R.
+        let g = ((self.data_registers[6] >> 8) & 0xFF) as i64;     // G.
+        let b = ((self.data_registers[6] >> 16) & 0xFF) as i64;    // B.
+        let code = ((self.data_registers[6] >> 24) & 0xFF) as i64; // CODE.
 
         // Now, we perform the remaining tasks based on the specified number of iterations.
         let iterations = match variant {
@@ -1621,9 +1620,9 @@ impl CP2 {
 
             // Retrieve V0, V1 or V2 values depending on iteration.
             let vx_vector = CP2Vector::new(
-                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15),                    // VX0/VX1/VX2.
-                ((self.data_registers[i * 2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY0/VY1/VY2.
-                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15)                 // VZ0/VZ1/VZ2.
+                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15),         // VX0/VX1/VX2.
+                (((self.data_registers[i * 2] >> 16) & 0xFFFF) as i64).sign_extend(15), // VY0/VY1/VY2.
+                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15)      // VZ0/VZ1/VZ2.
             );
 
             // Perform first stage of calculation, then shift right by (sf * 12) bits,
@@ -1715,26 +1714,26 @@ impl CP2 {
 
             // Calculate flag bit 31.
             if (self.control_registers[31] & 0x7F87E000) != 0 {
-                self.control_registers[31] |= 0x80000000_u32 as i32;
+                self.control_registers[31] |= 0x80000000;
             }
 
             // Store all values back.
-            self.data_registers[25] = mac_results.top() as i32;    // MAC1.
-            self.data_registers[26] = mac_results.middle() as i32; // MAC2.
-            self.data_registers[27] = mac_results.bottom() as i32; // MAC3.
+            self.data_registers[25] = mac_results.top() as u32;    // MAC1.
+            self.data_registers[26] = mac_results.middle() as u32; // MAC2.
+            self.data_registers[27] = mac_results.bottom() as u32; // MAC3.
 
-            self.data_registers[9] = ir_vector.top() as i32;     // IR1.
-            self.data_registers[10] = ir_vector.middle() as i32; // IR2.
-            self.data_registers[11] = ir_vector.bottom() as i32; // IR3.
+            self.data_registers[9] = ir_vector.top() as u32;     // IR1.
+            self.data_registers[10] = ir_vector.middle() as u32; // IR2.
+            self.data_registers[11] = ir_vector.bottom() as u32; // IR3.
 
-            self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-            self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+            self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+            self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
         }
     }
 
     /// This function handles the CC GTE function.
-    fn handle_cc(&mut self, opcode: i32) {
+    fn handle_cc(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -1745,12 +1744,12 @@ impl CP2 {
         // Get lm bit status.
         let lm = opcode.bit_is_set(10);
 
-        // Retrieve background colour values - let natural sign extension happen,
+        // Retrieve background colour values - sign extend by casting to i32 first,
         // and store them inside a vector. Also, multiple each one by 0x1000.
         let background_colour_vector = CP2Vector::new(
-            (self.control_registers[13] as i64) * 0x1000, // RBK.
-            (self.control_registers[14] as i64) * 0x1000, // GBK.
-            (self.control_registers[15] as i64) * 0x1000  // BBK.
+            ((self.control_registers[13] as i32) as i64) * 0x1000, // RBK.
+            ((self.control_registers[14] as i32) as i64) * 0x1000, // GBK.
+            ((self.control_registers[15] as i32) as i64) * 0x1000  // BBK.
         );
 
         // Fetch IR1, IR2 and IR3, sign extending if needed, and also storing
@@ -1762,33 +1761,33 @@ impl CP2 {
         );
 
         // Retrieve RGBC values.
-        let r = (self.data_registers[6] & 0xFF) as i64; // R.
-        let g = (self.data_registers[6].logical_rshift(8) & 0xFF) as i64; // G.
-        let b = (self.data_registers[6].logical_rshift(16) & 0xFF) as i64; // B.
-        let code = (self.data_registers[6].logical_rshift(24) & 0xFF) as i64; // CODE.
+        let r = (self.data_registers[6] & 0xFF) as i64;            // R.
+        let g = ((self.data_registers[6] >> 8) & 0xFF) as i64;     // G.
+        let b = ((self.data_registers[6] >> 16) & 0xFF) as i64;    // B.
+        let code = ((self.data_registers[6] >> 24) & 0xFF) as i64; // CODE.
 
         // Retrieve light colour matrix values, sign extending as needed.
         let light_colour_matrix = CP2Matrix::new(
 
             // Top row.
             [
-                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15), // LR1.
-                ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
-                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15) // LR3.
+                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),         // LR1.
+                (((self.control_registers[16] >> 16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)          // LR3.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
-                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15), // LG2.
-                ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // LG3.
+                (((self.control_registers[17] >> 16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),         // LG2.
+                (((self.control_registers[18] >> 16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15), // LB1.
-                ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
-                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15) // LB3.
+                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),         // LB1.
+                (((self.control_registers[19] >> 16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)          // LB3.
             ]
         );
 
@@ -1857,26 +1856,26 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store values back to registers.
-        self.data_registers[25] = mac_results.top() as i32;    // MAC1.
-        self.data_registers[26] = mac_results.middle() as i32; // MAC2.
-        self.data_registers[27] = mac_results.bottom() as i32; // MAC3.
+        self.data_registers[25] = mac_results.top() as u32;    // MAC1.
+        self.data_registers[26] = mac_results.middle() as u32; // MAC2.
+        self.data_registers[27] = mac_results.bottom() as u32; // MAC3.
 
-        self.data_registers[9] = ir_vector.top() as i32;     // IR1.
-        self.data_registers[10] = ir_vector.middle() as i32; // IR2.
-        self.data_registers[11] = ir_vector.bottom() as i32; // IR3.
+        self.data_registers[9] = ir_vector.top() as u32;     // IR1.
+        self.data_registers[10] = ir_vector.middle() as u32; // IR2.
+        self.data_registers[11] = ir_vector.bottom() as u32; // IR3.
 
-        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+        self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
     }
 
     /// This function implements the functionality for the NCS and NCT instructions.
     /// Figured I'm porting/re-writing from C anyway and these are largely identical.
-    fn handle_common_nc(&mut self, opcode: i32, variant: InstructionVariant) {
+    fn handle_common_nc(&mut self, opcode: u32, variant: InstructionVariant) {
 
         // Filter out sf bit.
         let sf = opcode.bit_value(19);
@@ -1889,23 +1888,23 @@ impl CP2 {
 
             // Top row.
             [
-                ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),                    // L11.
-                ((self.control_registers[8].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L12.
-                ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)                     // L13.
+                ((self.control_registers[8] & 0xFFFF) as i64).sign_extend(15),         // L11.
+                (((self.control_registers[8] >> 16) & 0xFFFF) as i64).sign_extend(15), // L12.
+                ((self.control_registers[9] & 0xFFFF) as i64).sign_extend(15)          // L13.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[9].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L21.
-                ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),                   // L22.
-                ((self.control_registers[10].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15) // L23.
+                (((self.control_registers[9] >> 16) & 0xFFFF) as i64).sign_extend(15), // L21.
+                ((self.control_registers[10] & 0xFFFF) as i64).sign_extend(15),        // L22.
+                (((self.control_registers[10] >> 16) & 0xFFFF) as i64).sign_extend(15) // L23.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),                    // L31.
-                ((self.control_registers[11].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // L32.
-                ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)                     // L33.
+                ((self.control_registers[11] & 0xFFFF) as i64).sign_extend(15),         // L31.
+                (((self.control_registers[11] >> 16) & 0xFFFF) as i64).sign_extend(15), // L32.
+                ((self.control_registers[12] & 0xFFFF) as i64).sign_extend(15)          // L33.
             ]
         );
 
@@ -1914,36 +1913,36 @@ impl CP2 {
 
             // Top row.
             [
-                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),                    // LR1.
-                ((self.control_registers[16].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LR2.
-                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)                     // LR3.
+                ((self.control_registers[16] & 0xFFFF) as i64).sign_extend(15),         // LR1.
+                (((self.control_registers[16] >> 16) & 0xFFFF) as i64).sign_extend(15), // LR2.
+                ((self.control_registers[17] & 0xFFFF) as i64).sign_extend(15)          // LR3.
             ],
 
             // Middle row.
             [
-                ((self.control_registers[17].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LG1.
-                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),                    // LG2.
-                ((self.control_registers[18].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
+                (((self.control_registers[17] >> 16) & 0xFFFF) as i64).sign_extend(15), // LG1.
+                ((self.control_registers[18] & 0xFFFF) as i64).sign_extend(15),         // LG2.
+                (((self.control_registers[18] >> 16) & 0xFFFF) as i64).sign_extend(15)  // LG3.
             ],
 
             // Bottom row.
             [
-                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),                    // LB1.
-                ((self.control_registers[19].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // LB2.
-                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)                     // LB3.
+                ((self.control_registers[19] & 0xFFFF) as i64).sign_extend(15),         // LB1.
+                (((self.control_registers[19] >> 16) & 0xFFFF) as i64).sign_extend(15), // LB2.
+                ((self.control_registers[20] & 0xFFFF) as i64).sign_extend(15)          // LB3.
             ]
         );
 
-        // Retrieve background colour vector values and sign extend naturally.
+        // Retrieve background colour vector values and sign extend by casting to i32 first.
         // Also multiply by 0x1000 for usage in the second stage calculation.
         let background_colour_vector = CP2Vector::new(
-            (self.control_registers[13] as i64) * 0x1000, // RBK.
-            (self.control_registers[14] as i64) * 0x1000, // GBK.
-            (self.control_registers[15] as i64) * 0x1000  // BBK.
+            ((self.control_registers[13] as i32) as i64) * 0x1000, // RBK.
+            ((self.control_registers[14] as i32) as i64) * 0x1000, // GBK.
+            ((self.control_registers[15] as i32) as i64) * 0x1000  // BBK.
         );
 
         // Retrieve CODE value.
-        let code = (self.data_registers[6].logical_rshift(24) & 0xFF) as i64; // CODE.
+        let code = ((self.data_registers[6] >> 24) & 0xFF) as i64; // CODE.
 
         // Now, we perform the remaining tasks based on the specified number of iterations.
         let iterations = match variant {
@@ -1957,9 +1956,9 @@ impl CP2 {
 
             // Retrieve V0, V1 or V2 values depending on iteration.
             let vx_vector = CP2Vector::new(
-                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15),                    // VX0/VX1/VX2.
-                ((self.data_registers[i * 2].logical_rshift(16) & 0xFFFF) as i64).sign_extend(15), // VY0/VY1/VY2.
-                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15)                 // VZ0/VZ1/VZ2.
+                ((self.data_registers[i * 2] & 0xFFFF) as i64).sign_extend(15),         // VX0/VX1/VX2.
+                (((self.data_registers[i * 2] >> 16) & 0xFFFF) as i64).sign_extend(15), // VY0/VY1/VY2.
+                ((self.data_registers[i * 2 + 1] & 0xFFFF) as i64).sign_extend(15)      // VZ0/VZ1/VZ2.
             );
 
             // Perform first stage of calculation, then shift right by (sf * 12) bits,
@@ -2015,26 +2014,26 @@ impl CP2 {
 
             // Calculate flag bit 31.
             if (self.control_registers[31] & 0x7F87E000) != 0 {
-                self.control_registers[31] |= 0x80000000_u32 as i32;
+                self.control_registers[31] |= 0x80000000;
             }
 
             // Store all values back.
-            self.data_registers[25] = mac_results.top() as i32;    // MAC1.
-            self.data_registers[26] = mac_results.middle() as i32; // MAC2.
-            self.data_registers[27] = mac_results.bottom() as i32; // MAC3.
+            self.data_registers[25] = mac_results.top() as u32;    // MAC1.
+            self.data_registers[26] = mac_results.middle() as u32; // MAC2.
+            self.data_registers[27] = mac_results.bottom() as u32; // MAC3.
 
-            self.data_registers[9] = ir_vector.top() as i32;     // IR1.
-            self.data_registers[10] = ir_vector.middle() as i32; // IR2.
-            self.data_registers[11] = ir_vector.bottom() as i32; // IR3.
+            self.data_registers[9] = ir_vector.top() as u32;     // IR1.
+            self.data_registers[10] = ir_vector.middle() as u32; // IR2.
+            self.data_registers[11] = ir_vector.bottom() as u32; // IR3.
 
-            self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-            self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+            self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+            self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+            self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
         }
     }
 
     /// This function handles the SQR GTE function.
-    fn handle_sqr(&mut self, opcode: i32) {
+    fn handle_sqr(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -2043,7 +2042,7 @@ impl CP2 {
         let sf = opcode.bit_value(19);
 
         // Fetch IR1, IR2 and IR3, sign extending if needed.
-        let mut ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15); // IR1.
+        let mut ir1 = ((self.data_registers[9] & 0xFFFF) as i64).sign_extend(15);  // IR1.
         let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15); // IR2.
         let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15); // IR3.
 
@@ -2058,9 +2057,9 @@ impl CP2 {
         ir3 = ir3.logical_rshift(12 * sf);
 
         // Set MAC1, MAC2 and MAC3 registers.
-        self.data_registers[25] = ir1 as i32; // MAC1.
-        self.data_registers[26] = ir2 as i32; // MAC2.
-        self.data_registers[27] = ir3 as i32; // MAC3.
+        self.data_registers[25] = ir1 as u32; // MAC1.
+        self.data_registers[26] = ir2 as u32; // MAC2.
+        self.data_registers[27] = ir3 as u32; // MAC3.
 
         // Set IR1, IR2 and IR3 registers.
         //
@@ -2071,18 +2070,18 @@ impl CP2 {
         // The max result of two i16 values multiplied together (allowing for overflow)
         // is thus: -32,768 x -32,768 = 1,073,741,824.
         // Bigger than an i16, but easily representable with i64 as we're using here.
-        self.data_registers[9] = self.handle_saturated_result(ir1, IR1, false, sf) as i32;
-        self.data_registers[10] = self.handle_saturated_result(ir2, IR2, false, sf) as i32;
-        self.data_registers[11] = self.handle_saturated_result(ir3, IR3, false, sf) as i32;
+        self.data_registers[9] = self.handle_saturated_result(ir1, IR1, false, sf) as u32;
+        self.data_registers[10] = self.handle_saturated_result(ir2, IR2, false, sf) as u32;
+        self.data_registers[11] = self.handle_saturated_result(ir3, IR3, false, sf) as u32;
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
     }
 
     /// This function handles the DCPL GTE function.
-    fn handle_dcpl(&mut self, opcode: i32) {
+    fn handle_dcpl(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -2099,16 +2098,16 @@ impl CP2 {
         let mut ir2 = ((self.data_registers[10] & 0xFFFF) as i64).sign_extend(15);
         let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
 
-        // Retrieve far colour values - let natural sign extension happen.
-        let rfc = self.control_registers[21] as i64;
-        let gfc = self.control_registers[22] as i64;
-        let bfc = self.control_registers[23] as i64;
+        // Retrieve far colour values - sign extend by casting to i32 first.
+        let rfc = (self.control_registers[21] as i32) as i64;
+        let gfc = (self.control_registers[22] as i32) as i64;
+        let bfc = (self.control_registers[23] as i32) as i64;
 
         // Retrieve RGBC values.
-        let r = (self.data_registers[6] & 0xFF) as i64; // R.
-        let g = (self.data_registers[6].logical_rshift(8) & 0xFF) as i64; // G.
-        let b = (self.data_registers[6].logical_rshift(16) & 0xFF) as i64; // B.
-        let code = (self.data_registers[6].logical_rshift(24) & 0xFF) as i64; // CODE.
+        let r = (self.data_registers[6] & 0xFF) as i64;            // R.
+        let g = ((self.data_registers[6] >> 8) & 0xFF) as i64;     // G.
+        let b = ((self.data_registers[6] >> 16) & 0xFF) as i64;    // B.
+        let code = ((self.data_registers[6] >> 24) & 0xFF) as i64; // CODE.
 
         // Perform DCPL-only calculation.
         let mut mac1 = (r * ir1) << 4;
@@ -2158,25 +2157,25 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store values back to registers.
-        self.data_registers[25] = mac1 as i32; // MAC1.
-        self.data_registers[26] = mac2 as i32; // MAC2.
-        self.data_registers[27] = mac3 as i32; // MAC3.
+        self.data_registers[25] = mac1 as u32; // MAC1.
+        self.data_registers[26] = mac2 as u32; // MAC2.
+        self.data_registers[27] = mac3 as u32; // MAC3.
 
-        self.data_registers[9] = ir1 as i32;  // IR1.
-        self.data_registers[10] = ir2 as i32; // IR2.
-        self.data_registers[11] = ir3 as i32; // IR3.
+        self.data_registers[9] = ir1 as u32;  // IR1.
+        self.data_registers[10] = ir2 as u32; // IR2.
+        self.data_registers[11] = ir3 as u32; // IR3.
 
-        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+        self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
     }
 
     /// This function handles the AVSZ3 GTE function.
-    fn handle_avsz3(&mut self, opcode: i32) {
+    fn handle_avsz3(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -2184,9 +2183,9 @@ impl CP2 {
         // Retrieve ZSF3, SZ1, SZ2 and SZ3, also sign extending
         // ZSF3 if needed.
         let zsf3 = ((self.control_registers[29] & 0xFFFF) as i64).sign_extend(15); // ZSF3.
-        let sz1 = (self.data_registers[17] & 0xFFFF) as i64; // SZ1.
-        let sz2 = (self.data_registers[18] & 0xFFFF) as i64; // SZ2.
-        let sz3 = (self.data_registers[19] & 0xFFFF) as i64; // SZ3.
+        let sz1 = (self.data_registers[17] & 0xFFFF) as i64;                       // SZ1.
+        let sz2 = (self.data_registers[18] & 0xFFFF) as i64;                       // SZ2.
+        let sz3 = (self.data_registers[19] & 0xFFFF) as i64;                       // SZ3.
 
         // Perform calculation.
         // Set flags where needed, and apply saturation to OTZ if needed.
@@ -2196,16 +2195,16 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store results back to registers.
-        self.data_registers[24] = mac0 as i32;
-        self.data_registers[7] = otz as i32;
+        self.data_registers[24] = mac0 as u32;
+        self.data_registers[7] = otz as u32;
     }
 
     /// This function handles the AVSZ4 GTE function.
-    fn handle_avsz4(&mut self, opcode: i32) {
+    fn handle_avsz4(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -2213,10 +2212,10 @@ impl CP2 {
         // Retrieve ZSF4, SZ0, SZ1, SZ2 and SZ3, also sign extending
         // ZSF4 if needed.
         let zsf4 = ((self.control_registers[30] & 0xFFFF) as i64).sign_extend(15); // ZSF4.
-        let sz0 = (self.data_registers[16] & 0xFFFF) as i64; // SZ0.
-        let sz1 = (self.data_registers[17] & 0xFFFF) as i64; // SZ1.
-        let sz2 = (self.data_registers[18] & 0xFFFF) as i64; // SZ2.
-        let sz3 = (self.data_registers[19] & 0xFFFF) as i64; // SZ3.
+        let sz0 = (self.data_registers[16] & 0xFFFF) as i64;                       // SZ0.
+        let sz1 = (self.data_registers[17] & 0xFFFF) as i64;                       // SZ1.
+        let sz2 = (self.data_registers[18] & 0xFFFF) as i64;                       // SZ2.
+        let sz3 = (self.data_registers[19] & 0xFFFF) as i64;                       // SZ3.
 
         // Perform calculation.
         // Set flags where needed, and apply saturation to OTZ if needed.
@@ -2226,16 +2225,16 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store results back to registers.
-        self.data_registers[24] = mac0 as i32;
-        self.data_registers[7] = otz as i32;
+        self.data_registers[24] = mac0 as u32;
+        self.data_registers[7] = otz as u32;
     }
 
     /// This function handles the GPF GTE function.
-    fn handle_gpf(&mut self, opcode: i32) {
+    fn handle_gpf(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -2253,7 +2252,7 @@ impl CP2 {
         let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
 
         // Fetch code value from RGBC.
-        let code = self.data_registers[6].logical_rshift(24) as i64;
+        let code = (self.data_registers[6] >> 24) as i64;
 
         // Perform calculations.
         let mut mac1 = (ir1 * ir0) >> (sf * 12);
@@ -2277,25 +2276,25 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store all values back.
-        self.data_registers[25] = mac1 as i32; // MAC1.
-        self.data_registers[26] = mac2 as i32; // MAC2.
-        self.data_registers[27] = mac3 as i32; // MAC3.
+        self.data_registers[25] = mac1 as u32; // MAC1.
+        self.data_registers[26] = mac2 as u32; // MAC2.
+        self.data_registers[27] = mac3 as u32; // MAC3.
 
-        self.data_registers[9] = ir1 as i32;  // IR1.
-        self.data_registers[10] = ir2 as i32; // IR2.
-        self.data_registers[11] = ir3 as i32; // IR3.
+        self.data_registers[9] = ir1 as u32;  // IR1.
+        self.data_registers[10] = ir2 as u32; // IR2.
+        self.data_registers[11] = ir3 as u32; // IR3.
 
-        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+        self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
     }
 
     /// This function handles the GPL GTE function.
-    fn handle_gpl(&mut self, opcode: i32) {
+    fn handle_gpl(&mut self, opcode: u32) {
 
         // Clear flag register.
         self.control_registers[31] = 0;
@@ -2313,12 +2312,12 @@ impl CP2 {
         let mut ir3 = ((self.data_registers[11] & 0xFFFF) as i64).sign_extend(15);
 
         // Fetch code value from RGBC.
-        let code = self.data_registers[6].logical_rshift(24) as i64;
+        let code = (self.data_registers[6] >> 24) as i64;
 
-        // Retrieve MAC1, MAC2 and MAC3, naturally sign extending and shifting left by sf * 12.
-        let mut mac1 = (self.data_registers[25] as i64) << (sf * 12);
-        let mut mac2 = (self.data_registers[26] as i64) << (sf * 12);
-        let mut mac3 = (self.data_registers[27] as i64) << (sf * 12);
+        // Retrieve MAC1, MAC2 and MAC3, sign extending by casting to i32 first, and shifting left by sf * 12.
+        let mut mac1 = ((self.data_registers[25] as i32) as i64) << (sf * 12);
+        let mut mac2 = ((self.data_registers[26] as i32) as i64) << (sf * 12);
+        let mut mac3 = ((self.data_registers[27] as i32) as i64) << (sf * 12);
 
         // Handle MAC1, MAC2 and MAC3 flags - do not save them here though. NOPSX docs say that
         // we can still have internal overflow condition here despite the left-shift being undone
@@ -2349,21 +2348,21 @@ impl CP2 {
 
         // Calculate flag bit 31.
         if (self.control_registers[31] & 0x7F87E000) != 0 {
-            self.control_registers[31] |= 0x80000000_u32 as i32;
+            self.control_registers[31] |= 0x80000000;
         }
 
         // Store all values back.
-        self.data_registers[25] = mac1 as i32; // MAC1.
-        self.data_registers[26] = mac2 as i32; // MAC2.
-        self.data_registers[27] = mac3 as i32; // MAC3.
+        self.data_registers[25] = mac1 as u32; // MAC1.
+        self.data_registers[26] = mac2 as u32; // MAC2.
+        self.data_registers[27] = mac3 as u32; // MAC3.
 
-        self.data_registers[9] = ir1 as i32;  // IR1.
-        self.data_registers[10] = ir2 as i32; // IR2.
-        self.data_registers[11] = ir3 as i32; // IR3.
+        self.data_registers[9] = ir1 as u32;  // IR1.
+        self.data_registers[10] = ir2 as u32; // IR2.
+        self.data_registers[11] = ir3 as u32; // IR3.
 
-        self.data_registers[20] = self.data_registers[21]; // RGB1 to RGB0.
-        self.data_registers[21] = self.data_registers[22]; // RGB2 to RGB1.
-        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as i32; // RGB2.
+        self.data_registers[20] = self.data_registers[21];                                      // RGB1 to RGB0.
+        self.data_registers[21] = self.data_registers[22];                                      // RGB2 to RGB1.
+        self.data_registers[22] = ((code << 24) | (b_out << 16) | (g_out << 8) | r_out) as u32; // RGB2.
     }
 
     /// This function handles overflow/underflow detection for given results in MAC0/1/2/3, which we
@@ -2387,16 +2386,16 @@ impl CP2 {
             // For lower and upper bit flags, these will respectively be:
 
             // Bit 27, Bit 30.
-            MAC1 => (0x8000000_i32, 0x40000000_i32),
+            MAC1 => (0x8000000_u32, 0x40000000_u32),
 
             // Bit 26, Bit 29.
-            MAC2 => (0x4000000_i32, 0x20000000_i32),
+            MAC2 => (0x4000000_u32, 0x20000000_u32),
 
             // Bit 25, Bit 28.
-            MAC3 => (0x2000000_i32, 0x10000000_i32),
+            MAC3 => (0x2000000_u32, 0x10000000_u32),
 
             // Bit 15, Bit 16.
-            MAC0 => (0x8000_i32, 0x10000_i32),
+            MAC0 => (0x8000_u32, 0x10000_u32),
         };
 
         // Now we can set flag register flags as appropriate.
@@ -2445,25 +2444,25 @@ impl CP2 {
 
         let bit_flag = match result_type {
 
-            IR0 => 0x1000_i32,
+            IR0 => 0x1000_u32,
 
-            IR1 => 0x1000000_i32,
+            IR1 => 0x1000000_u32,
 
-            IR2 => 0x800000_i32,
+            IR2 => 0x800000_u32,
 
-            IR3 | IR3Quirk => 0x400000_i32,
+            IR3 | IR3Quirk => 0x400000_u32,
 
-            ColourFifoR => 0x200000_i32,
+            ColourFifoR => 0x200000_u32,
 
-            ColourFifoG => 0x100000_i32,
+            ColourFifoG => 0x100000_u32,
 
-            ColourFifoB => 0x80000_i32,
+            ColourFifoB => 0x80000_u32,
 
-            SX2 => 0x4000_i32,
+            SX2 => 0x4000_u32,
 
-            SY2 => 0x2000_i32,
+            SY2 => 0x2000_u32,
 
-            SZ3 => 0x40000_i32,
+            SZ3 => 0x40000_u32,
         };
 
         // Now we can set flag register flags as appropriate,

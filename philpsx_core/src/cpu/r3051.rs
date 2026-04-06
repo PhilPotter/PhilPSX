@@ -1078,7 +1078,7 @@ impl R3051 {
         let rd = instruction.logical_rshift(11) & 0x1F;
 
         // Move from COP2 control reg rd to CPU reg rt.
-        self.general_registers[rt] = self.gte.read_control_reg(rd);
+        self.general_registers[rt] = self.gte.read_control_reg(rd) as i32;
         self.general_registers[0] = 0;
     }
 
@@ -1090,7 +1090,7 @@ impl R3051 {
         let rd = instruction.logical_rshift(11) & 0x1F;
 
         // Move from CPU reg rt to COP2 control reg rd.
-        self.gte.write_control_reg(rd, self.general_registers[rt], false);
+        self.gte.write_control_reg(rd, self.general_registers[rt] as u32, false);
     }
 
     /// This function handles the DIV R3051 instruction.
@@ -1436,7 +1436,7 @@ impl R3051 {
         temp_word = self.swap_word_endianness(temp_word);
 
         // Write word to correct COP2 data register.
-        self.gte.write_data_reg(rt, temp_word, false);
+        self.gte.write_data_reg(rt, temp_word as u32, false);
     }
 
     /// This function handles the LWL R3051 instruction.
@@ -1583,7 +1583,7 @@ impl R3051 {
         let rd = instruction.logical_rshift(11) & 0x1F;
 
         // Move from COP2 data reg rd to CPU reg rt.
-        self.general_registers[rt] = self.gte.read_data_reg(rd);
+        self.general_registers[rt] = self.gte.read_data_reg(rd) as i32;
         self.general_registers[0] = 0;
     }
 
@@ -1628,7 +1628,7 @@ impl R3051 {
         let rd = instruction.logical_rshift(11) & 0x1F;
 
         // Move from CPU reg rt to COP2 data reg rd.
-        self.gte.write_data_reg(rd, self.general_registers[rt], false);
+        self.gte.write_data_reg(rd, self.general_registers[rt] as u32, false);
     }
 
     /// This function handles the MTHI R3051 instruction.
@@ -2077,7 +2077,7 @@ impl R3051 {
         }
 
         // Load word from register, set byte order and write to memory.
-        let mut temp_word = self.gte.read_data_reg(rt);
+        let mut temp_word = self.gte.read_data_reg(rt) as i32;
 
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
@@ -2609,7 +2609,7 @@ impl R3051 {
 
                     16..=31 => {
                         // Co-processor specific.
-                        self.gte_cycles = self.gte.gte_function(instruction);
+                        self.gte_cycles = self.gte.gte_function(instruction as u32);
                     },
 
                     _ => (),
