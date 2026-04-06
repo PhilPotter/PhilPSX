@@ -9,20 +9,20 @@ use super::CP0;
 fn status_register_read_should_work() {
 
     let mut cp0 = CP0::new();
-    cp0.cp_registers[12] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[12] = 0xFFFFFFFF;
     let output = cp0.read_reg(12);
 
-    assert_eq!(output, 0xF27FFF3F_u32 as i32);
+    assert_eq!(output, 0xF27FFF3F);
 }
 
 #[test]
 fn cause_register_read_should_work() {
 
     let mut cp0 = CP0::new();
-    cp0.cp_registers[13] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[13] = 0xFFFFFFFF;
     let output = cp0.read_reg(13);
 
-    assert_eq!(output, 0xB000FF7C_u32 as i32);
+    assert_eq!(output, 0xB000FF7C);
 }
 
 #[test]
@@ -64,8 +64,8 @@ fn any_other_register_read_should_return_0() {
 fn status_and_cause_registers_write_with_override() {
 
     let mut cp0 = CP0::new();
-    cp0.cp_registers[12] = 0xFFFFFFFF_u32 as i32;
-    cp0.cp_registers[13] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[12] = 0xFFFFFFFF;
+    cp0.cp_registers[13] = 0xFFFFFFFF;
     cp0.write_reg(12, 0, true);
     cp0.write_reg(13, 0, true);
     let output1 = cp0.cp_registers[12];
@@ -79,15 +79,15 @@ fn status_and_cause_registers_write_with_override() {
 fn status_and_cause_registers_write_without_override() {
 
     let mut cp0 = CP0::new();
-    cp0.cp_registers[12] = 0xFFFFFFFF_u32 as i32;
-    cp0.cp_registers[13] = 0xFFFFFFFF_u32 as i32;
+    cp0.cp_registers[12] = 0xFFFFFFFF;
+    cp0.cp_registers[13] = 0xFFFFFFFF;
     cp0.write_reg(12, 0, false);
     cp0.write_reg(13, 0, false);
     let output1 = cp0.cp_registers[12];
     let output2 = cp0.cp_registers[13];
 
     assert_eq!(output1, 0x0DB400C0);
-    assert_eq!(output2, 0xFFFFFCFF_u32 as i32);
+    assert_eq!(output2, 0xFFFFFCFF);
 }
 
 #[test]
@@ -95,14 +95,14 @@ fn status_and_cause_registers_write_merge() {
 
     let mut cp0 = CP0::new();
     cp0.cp_registers[12] = 0x0DB400C0;
-    cp0.cp_registers[13] = 0xFFFFFCFF_u32 as i32;
-    cp0.write_reg(12, 0xF24BFF3F_u32 as i32, false);
+    cp0.cp_registers[13] = 0xFFFFFCFF;
+    cp0.write_reg(12, 0xF24BFF3F, false);
     cp0.write_reg(13, 0x00000300, false);
     let output1 = cp0.cp_registers[12];
     let output2 = cp0.cp_registers[13];
 
-    assert_eq!(output1, 0xFFFFFFFF_u32 as i32);
-    assert_eq!(output2, 0xFFFFFFFF_u32 as i32);
+    assert_eq!(output1, 0xFFFFFFFF);
+    assert_eq!(output2, 0xFFFFFFFF);
 }
 
 #[test]
@@ -111,12 +111,12 @@ fn status_and_cause_registers_write_only_writable_bits() {
     let mut cp0 = CP0::new();
     cp0.cp_registers[12] = 0x00000000;
     cp0.cp_registers[13] = 0x00000000;
-    cp0.write_reg(12, 0xFF000000_u32 as i32, false);
+    cp0.write_reg(12, 0xFF000000, false);
     cp0.write_reg(13, 0x0000FF00, false);
     let output1 = cp0.cp_registers[12];
     let output2 = cp0.cp_registers[13];
 
-    assert_eq!(output1, 0xF2000000_u32 as i32);
+    assert_eq!(output1, 0xF2000000);
     assert_eq!(output2, 0x00000300);
 }
 
@@ -125,21 +125,21 @@ fn arbitrary_register_write_without_override() {
 
     let mut cp0 = CP0::new();
     cp0.cp_registers[1] = 0x00000000;
-    cp0.write_reg(1, 0xFFFFFFFF_u32 as i32, false);
+    cp0.write_reg(1, 0xFFFFFFFF, false);
     let output = cp0.cp_registers[1];
 
-    assert_eq!(output, 0xFFFFFFFF_u32 as i32);
+    assert_eq!(output, 0xFFFFFFFF);
 }
 
 #[test]
 fn rfe_should_shift_status_bits_correctly() {
 
     let mut cp0 = CP0::new();
-    cp0.cp_registers[12] = 0xF24BFF3C_u32 as i32;
+    cp0.cp_registers[12] = 0xF24BFF3C;
     cp0.rfe();
     let output = cp0.cp_registers[12];
 
-    assert_eq!(output, 0xF24BFF3F_u32 as i32);
+    assert_eq!(output, 0xF24BFF3F);
 }
 
 #[test]
@@ -149,7 +149,7 @@ fn general_exception_vector_correct_when_bev_set() {
     cp0.cp_registers[12] = 0x00400000;
     let output = cp0.get_general_exception_vector();
 
-    assert_eq!(output, 0xBFC00180_u32 as i32);
+    assert_eq!(output, 0xBFC00180);
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn general_exception_vector_correct_when_bev_unset() {
     cp0.cp_registers[12] = 0x00000000;
     let output = cp0.get_general_exception_vector();
 
-    assert_eq!(output, 0x80000080_u32 as i32);
+    assert_eq!(output, 0x80000080);
 }
 
 #[test]
@@ -190,12 +190,12 @@ fn virtual_to_physical_gives_expected_addresses() {
     let cp0 = CP0::new();
     let input1 = 0x00000000;
     let input2 = 0x7FFFFFFF;
-    let input3 = 0x80000000_u32 as i32;
-    let input4 = 0x9FFFFFFF_u32 as i32;
-    let input5 = 0xA0000000_u32 as i32;
-    let input6 = 0xBFFFFFFF_u32 as i32;
-    let input7 = 0xC0000000_u32 as i32;
-    let input8 = 0xFFFFFFFF_u32 as i32;
+    let input3 = 0x80000000;
+    let input4 = 0x9FFFFFFF;
+    let input5 = 0xA0000000;
+    let input6 = 0xBFFFFFFF;
+    let input7 = 0xC0000000;
+    let input8 = 0xFFFFFFFF;
 
     let output1 = cp0.virtual_to_physical(input1);
     let output2 = cp0.virtual_to_physical(input2);
@@ -212,8 +212,8 @@ fn virtual_to_physical_gives_expected_addresses() {
     assert_eq!(output4, 0x1FFFFFFF);
     assert_eq!(output5, 0x00000000);
     assert_eq!(output6, 0x1FFFFFFF);
-    assert_eq!(output7, 0xC0000000_u32 as i32);
-    assert_eq!(output8, 0xFFFFFFFF_u32 as i32);
+    assert_eq!(output7, 0xC0000000);
+    assert_eq!(output8, 0xFFFFFFFF);
 }
 
 #[test]
@@ -221,9 +221,9 @@ fn is_cacheable_gives_expected_results() {
 
     let cp0 = CP0::new();
     let input1 = 0x00000000;
-    let input2 = 0x9FFFFFFFu32 as i32;
-    let input3 = 0xA0000000_u32 as i32;
-    let input4 = 0xFFFFFFFF_u32 as i32;
+    let input2 = 0x9FFFFFFF;
+    let input3 = 0xA0000000;
+    let input4 = 0xFFFFFFFF;
 
     let output1 = cp0.is_cacheable(input1);
     let output2 = cp0.is_cacheable(input2);
@@ -264,9 +264,9 @@ fn user_mode_opposite_byte_ordering_properly_detected() {
 fn allowed_addresses_properly_detected() {
 
     let mut cp0 = CP0::new();
-    let output1 = cp0.is_address_allowed(0xFFFFFFFF_u32 as i32);
+    let output1 = cp0.is_address_allowed(0xFFFFFFFF);
     cp0.cp_registers[12] |= 0x2;
-    let output2 = cp0.is_address_allowed(0xFFFFFFFF_u32 as i32);
+    let output2 = cp0.is_address_allowed(0xFFFFFFFF);
 
     assert!(output1);
     assert!(!output2);
@@ -293,7 +293,7 @@ fn co_processor_usability_properly_detected() {
     let output3 = cp0.is_co_processor_usable(2);
     let output4 = cp0.is_co_processor_usable(3);
 
-    cp0.cp_registers[12] |= 0xF0000000_u32 as i32;
+    cp0.cp_registers[12] |= 0xF0000000;
     let output5 = cp0.is_co_processor_usable(0);
     let output6 = cp0.is_co_processor_usable(1);
     let output7 = cp0.is_co_processor_usable(2);

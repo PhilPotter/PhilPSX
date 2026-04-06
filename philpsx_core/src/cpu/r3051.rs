@@ -123,7 +123,7 @@ impl R3051 {
     fn reset(&mut self) {
 
         // Patch in later with proper reset exception vector.
-        self.program_counter = self.sccp.get_reset_exception_vector();
+        self.program_counter = self.sccp.get_reset_exception_vector() as i32;
     }
 
     /// This function checks for an instruction cache hit. The address provided
@@ -234,7 +234,7 @@ impl R3051 {
     fn read_data_value(&mut self, bridge: &mut dyn CpuBridge, width: R3051Width, address: i32) -> i32 {
 
         // Get physical address.
-        let physical_address = self.sccp.virtual_to_physical(address);
+        let physical_address = self.sccp.virtual_to_physical(address as u32) as i32;
         let mut temp_physical_address = (physical_address as i64) & 0xFFFFFFFF;
 
         // Is cache isolated? Although we don't have a data cache (it is used as
@@ -338,7 +338,7 @@ impl R3051 {
     ) {
 
         // Get physical address.
-        let physical_address = self.sccp.virtual_to_physical(address);
+        let physical_address = self.sccp.virtual_to_physical(address as u32) as i32;
         let mut temp_physical_address = (physical_address as i64) & 0xFFFFFFFF;
 
         // Is cache isolated?
@@ -431,7 +431,7 @@ impl R3051 {
     ) -> i64 {
 
         // Check for dodgy address.
-        if self.sccp.is_address_allowed(address) || self.program_counter % 4 != 0 {
+        if self.sccp.is_address_allowed(address as u32) || self.program_counter % 4 != 0 {
 
             // Trigger exception.
             self.exception.bad_address = address;
@@ -451,10 +451,10 @@ impl R3051 {
         let instruction_cache_enabled = bridge.instruction_cache_enabled(self);
 
         // Get physical address.
-        let physical_address = self.sccp.virtual_to_physical(address);
+        let physical_address = self.sccp.virtual_to_physical(address as u32) as i32;
 
         // Check if address is cacheable or not.
-        let word_val = if self.sccp.is_cacheable(address) && instruction_cache_enabled {
+        let word_val = if self.sccp.is_cacheable(address as u32) && instruction_cache_enabled {
 
             // Check cache for hit.
             if self.check_for_instruction_cache_hit(physical_address) {
@@ -516,8 +516,8 @@ impl R3051 {
         self.prev_was_branch = false;
 
         // Fetch cause register and status register from Cop0.
-        let mut temp_cause = self.sccp.read_reg(13);
-        let mut temp_status = self.sccp.read_reg(12);
+        let mut temp_cause = self.sccp.read_reg(13) as i32;
+        let mut temp_status = self.sccp.read_reg(12) as i32;
 
         // Bail out early for reset exceptions.
         if self.exception.exception_reason == MIPSExceptionReason::RESET {
@@ -554,7 +554,7 @@ impl R3051 {
                 }
 
                 // Set EPC register.
-                self.sccp.write_reg(14, self.exception.program_counter_origin, true);
+                self.sccp.write_reg(14, self.exception.program_counter_origin as u32, true);
 
                 // Save KUp and IEp to KUo and IEo, KUc and IEc to KUp and IEp,
                 // and reset KUc and IEc to 0.
@@ -563,7 +563,7 @@ impl R3051 {
                 temp_status |= temp;
 
                 // Set PC to general exception vector and finish processing.
-                self.program_counter = self.sccp.get_general_exception_vector();
+                self.program_counter = self.sccp.get_general_exception_vector() as i32;
             },
 
             _ => (),
@@ -576,7 +576,7 @@ impl R3051 {
             MIPSExceptionReason::ADEL | MIPSExceptionReason::ADES => {
 
                 // Set bad virtual address register.
-                self.sccp.write_reg(8, self.exception.bad_address, true);
+                self.sccp.write_reg(8, self.exception.bad_address as u32, true);
             },
 
             // Handle co-processor unusable exception.
@@ -591,8 +591,8 @@ impl R3051 {
         }
 
         // Write cause and status registers back to Cop0.
-        self.sccp.write_reg(13, temp_cause, true);
-        self.sccp.write_reg(12, temp_status, true);
+        self.sccp.write_reg(13, temp_cause as u32, true);
+        self.sccp.write_reg(12, temp_status as u32, true);
 
         // Reset exception object.
         self.exception.reset();
@@ -623,13 +623,13 @@ impl R3051 {
 
         // Set bit 10 of COP0 cause register if needed.
         {
-            let mut cause_register = self.sccp.read_reg(13);
+            let mut cause_register = self.sccp.read_reg(13) as i32;
             if interrupt_status != 0 {
                 cause_register |= 0x400;
             } else {
                 cause_register &= 0xFFFFFBFF_u32 as i32;
             }
-            self.sccp.write_reg(13, cause_register, true);
+            self.sccp.write_reg(13, cause_register as u32, true);
         }
 
         // Get status reg and cause reg from COP0.
@@ -1210,7 +1210,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) {
+        if !self.sccp.is_address_allowed(address as u32) {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1247,7 +1247,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) {
+        if !self.sccp.is_address_allowed(address as u32) {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1283,7 +1283,7 @@ impl R3051 {
 
         // Check if address is allowed and half-word aligned, trigger
         // exception if not.
-        if !self.sccp.is_address_allowed(address as i32) || address % 2 != 0 {
+        if !self.sccp.is_address_allowed(address as u32) || address % 2 != 0 {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1321,7 +1321,7 @@ impl R3051 {
 
         // Check if address is allowed and half-word aligned, trigger
         // exception if not.
-        if !self.sccp.is_address_allowed(address as i32) || address % 2 != 0 {
+        if !self.sccp.is_address_allowed(address as u32) || address % 2 != 0 {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1372,7 +1372,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) || address % 4 != 0 {
+        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1410,7 +1410,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) || address % 4 != 0 {
+        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1447,7 +1447,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) {
+        if !self.sccp.is_address_allowed(address as u32) {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1498,7 +1498,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) {
+        if !self.sccp.is_address_allowed(address as u32) {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1567,7 +1567,7 @@ impl R3051 {
         }
 
         // Move COP0 reg rd to CPU reg rt.
-        self.general_registers[rt] = self.sccp.read_reg(rd);
+        self.general_registers[rt] = self.sccp.read_reg(rd) as i32;
         self.general_registers[0] = 0;
     }
 
@@ -1613,7 +1613,7 @@ impl R3051 {
         let rd = instruction.logical_rshift(11) & 0x1F;
 
         // Move CPU reg rt to COP0 reg rd.
-        self.sccp.write_reg(rd, self.general_registers[rt], false);
+        self.sccp.write_reg(rd, self.general_registers[rt] as u32, false);
     }
 
     /// This function handles the MT2 R3051 instruction.
@@ -1738,7 +1738,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) {
+        if !self.sccp.is_address_allowed(address as u32) {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -1771,7 +1771,7 @@ impl R3051 {
 
         // Check if address is allowed and half-word aligned, trigger
         // exception if not.
-        if !self.sccp.is_address_allowed(address as i32) || address % 2 != 0 {
+        if !self.sccp.is_address_allowed(address as u32) || address % 2 != 0 {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -2020,7 +2020,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) || address % 4 != 0 {
+        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -2057,7 +2057,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) || address % 4 != 0 {
+        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -2093,7 +2093,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) {
+        if !self.sccp.is_address_allowed(address as u32) {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;
@@ -2143,7 +2143,7 @@ impl R3051 {
         let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as i32) {
+        if !self.sccp.is_address_allowed(address as u32) {
             let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
             temp_address -= 4;
             self.exception.bad_address = address as i32;

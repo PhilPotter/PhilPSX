@@ -64,7 +64,7 @@ impl CpuBridge for TestCpuBridge {
         self.ram[address as usize] = value;
     }
 
-    fn write_word(&mut self, cpu: &mut dyn Cpu, address: i32, value: i32) {
+    fn write_word(&mut self, _cpu: &mut dyn Cpu, address: i32, value: i32) {
         let temp_address = ((address as i64) & 0xFFFFFFFC) as usize;
 
         self.ram[temp_address] = value.logical_rshift(24) as i8;
@@ -73,7 +73,7 @@ impl CpuBridge for TestCpuBridge {
         self.ram[temp_address + 3] = value as i8;
     }
 
-    fn increment_interrupt_counters(&mut self, cpu: &mut dyn Cpu) {}
+    fn increment_interrupt_counters(&mut self, _cpu: &mut dyn Cpu) {}
 }
 
 // Tests for the R3051 CPU core.
@@ -1309,7 +1309,7 @@ fn test_rfe_instruction_success() {
     // Given that the bits 5-2 of the CP0 status register are set and
     // bits 1-0 unset, after RFE we should shuffle right two bits, such
     // that bits 3-0 are then set and bits 5-4 are also still.
-    let new_status_reg = (r3051.sccp.read_reg(12) & (0xFFFFFFC0_u32 as i32)) | 0x3C;
+    let new_status_reg = (r3051.sccp.read_reg(12) & 0xFFFFFFC0) | 0x3C;
     r3051.sccp.write_reg(12, new_status_reg, false);
     r3051.rfe_instruction();
 

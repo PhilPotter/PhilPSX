@@ -11,7 +11,7 @@ const REGISTER_COUNT: usize = 32;
 pub struct CP0 {
 
     // Register definitions.
-    cp_registers: [i32; REGISTER_COUNT],
+    cp_registers: [u32; REGISTER_COUNT],
 
     // Condition line.
     condition_line: bool,
@@ -47,10 +47,10 @@ impl CP0 {
         // Set BEV and TS bits of status register to 0 and 0 (BEV should be 1 but
         // PSX doesn't run this way, TS should be 1 but other emulators don't seem
         // to do this).
-        self.cp_registers[12] &= 0xFF9FFFFF_u32 as i32;
+        self.cp_registers[12] &= 0xFF9FFFFF;
 
         // Set SWc, KUc and IEc bits of status register to 0.
-        self.cp_registers[12] &= 0xFFFDFFFC_u32 as i32;
+        self.cp_registers[12] &= 0xFFFDFFFC;
 
         // Set condition line to false.
         self.condition_line = false;
@@ -71,31 +71,31 @@ impl CP0 {
 
         // Shift KUo/IEo/KUp/IEp bits into place of KUp/IEp/KUc/IEc bits and write back.
         let temp_reg = self.read_reg(12);
-        let new_bits = temp_reg.logical_rshift(2) & 0xF;
+        let new_bits = (temp_reg >> 2) & 0xF;
 
-        self.write_reg(12, (temp_reg & (0xFFFFFFF0_u32 as i32)) | new_bits, false);
+        self.write_reg(12, (temp_reg & 0xFFFFFFF0) | new_bits, false);
     }
 
     /// This function returns the reset exception vector's virtual address.
-    pub fn get_reset_exception_vector(&self) -> i32 {
-        0xBFC00000_u32 as i32
+    pub fn get_reset_exception_vector(&self) -> u32 {
+        0xBFC00000
     }
 
     /// This function returns the general exception vector's virtual address.
-    pub fn get_general_exception_vector(&self) -> i32 {
+    pub fn get_general_exception_vector(&self) -> u32 {
 
         // Isolate BEV bit and return accordingly.
-        let bev = (self.cp_registers[12] & 0x00400000).logical_rshift(22) != 0;
+        let bev = (self.cp_registers[12] & 0x00400000) >> 22 != 0;
 
         if bev {
-            0xBFC00180_u32 as i32
+            0xBFC00180
         } else {
-            0x80000080_u32 as i32
+            0x80000080
         }
     }
 
     /// This function reads from a given register.
-    pub fn read_reg(&self, reg: i32) -> i32 {
+    pub fn read_reg(&self, reg: i32) -> u32 {
 
         // Determine which register we are reading.
         let array_index = reg as usize;
@@ -104,7 +104,7 @@ impl CP0 {
             // Status register.
             12 => {
                 // Mask out 0-read bits.
-                self.cp_registers[array_index] & (0xF27FFF3F_u32 as i32)
+                self.cp_registers[array_index] & 0xF27FFF3F
 
                 // We could also merge in TS bit (commented out to copy observed
                 // behaviour of other emulators).
@@ -114,7 +114,7 @@ impl CP0 {
             // Cause register.
             13 => {
                 // Mask out 0-read bits.
-                self.cp_registers[array_index] & (0xB000FF7Cu32 as i32)
+                self.cp_registers[array_index] & 0xB000FF7C
             },
 
             // PrId register.
@@ -138,7 +138,7 @@ impl CP0 {
 
     /// This function writes to a given register. It allows override of write protection
     /// on certain bits.
-    pub fn write_reg(&mut self, reg: i32, value: i32, write_override: bool) {
+    pub fn write_reg(&mut self, reg: i32, value: u32, write_override: bool) {
 
         // Determine which register we are writing.
         let array_index = reg as usize;
@@ -159,13 +159,13 @@ impl CP0 {
 
                         // Mask out read-only bits in supplied value, merge with previously
                         // masked contents, and store back.
-                        self.cp_registers[array_index] = (value & (0xF24BFF3F_u32 as i32)) | temp_val;
+                        self.cp_registers[array_index] = (value & 0xF24BFF3F) | temp_val;
                     },
 
                     // Cause register.
                     13 => {
                         // Mask out writable bits in existing register value.
-                        let temp_val = self.cp_registers[array_index] & (0xFFFFFCFF_u32 as i32);
+                        let temp_val = self.cp_registers[array_index] & 0xFFFFFCFF;
 
                         // Mask out read-only bits in supplied value, merg with previously
                         // masked contents, and store back.
@@ -192,17 +192,15 @@ impl CP0 {
         };
 
         // Merge flag into status register and write it back.
-        let status_reg = (self.cp_registers[12] & (0xFFF7FFFF_u32 as i32)) | cm_flag;
+        let status_reg = (self.cp_registers[12] & 0xFFF7FFFF) | cm_flag;
         self.write_reg(12, status_reg, true);
     }
 
     /// This function transforms a virtual address into a physical one.
     /// It is designed for the base model of the processor which has no TLB.
-    pub fn virtual_to_physical(&self, virtual_address: i32) -> i32 {
+    pub fn virtual_to_physical(&self, virtual_address: u32) -> u32 {
 
-        // Declare temporary i64 variable to hold new address and mask the
-        // top 32 bits so we always get an unsigned value.
-        let mut physical_address = (virtual_address as i64) & 0xFFFFFFFF_i64;
+        let mut physical_address = virtual_address;
 
         // Make correct modifications to address.
         match physical_address {
@@ -221,17 +219,12 @@ impl CP0 {
             _ => (),
         }
 
-        physical_address as i32
+        physical_address
     }
 
     /// This function determines whetheer the supplied virtual address is cacheable.
-    pub fn is_cacheable(&self, virtual_address: i32) -> bool {
-
-        // Declare temporary i64 variable to hold new address and mask the
-        // top 32 bits so we always get an unsigned value.
-        let temp_address = (virtual_address as i64) & 0xFFFFFFFF_i64;
-
-        (0x00000000..0xA0000000).contains(&temp_address)
+    pub fn is_cacheable(&self, virtual_address: u32) -> bool {
+        (0x00000000..0xA0000000).contains(&virtual_address)
     }
 
     /// This function determines whether or not we are in kernel mode.
@@ -247,8 +240,8 @@ impl CP0 {
     /// This function allows us to check if a virtual address is allowed to be accessed.
     /// It is useful for checking if we are attempting to access a prohibited address
     /// whilst in user mode.
-    pub fn is_address_allowed(&self, virtual_address: i32) -> bool {
-        (virtual_address & (0x80000000_u32 as i32)) == 0 || self.are_we_in_kernel_mode()
+    pub fn is_address_allowed(&self, virtual_address: u32) -> bool {
+        (virtual_address & 0x80000000) == 0 || self.are_we_in_kernel_mode()
     }
 
     /// This function tells us if the caches have been swapped. It is currently hardcoded
@@ -269,8 +262,8 @@ impl CP0 {
     /// This function tells us if a co-processor is usable.
     pub fn is_co_processor_usable(&self, co_processor_num: i32) -> bool {
 
-        let usable_flags = self.cp_registers[12].logical_rshift(28);
-        usable_flags.logical_rshift(co_processor_num) & 0x1 != 0
+        let usable_flags = self.cp_registers[12] >> 28;
+        (usable_flags >> co_processor_num) & 0x1 != 0
     }
 }
 
