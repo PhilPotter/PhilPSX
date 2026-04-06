@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // tests.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use philpsx_utility::CustomInteger;
+use philpsx_utility::LogicalRightShifter;
 
 use crate::{
     cpu::Cpu,

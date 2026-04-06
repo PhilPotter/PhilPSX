@@ -2,7 +2,7 @@
 // psx_controllers.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use super::Controllers;
-use philpsx_utility::CustomInteger;
+use philpsx_utility::LogicalRightShifter;
 
 /// The RX fifo byte count.
 const RX_FIFO_BYTES: usize = 4;

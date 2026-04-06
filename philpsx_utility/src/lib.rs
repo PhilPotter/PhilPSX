@@ -12,15 +12,14 @@ type CustomInt32 = i32;
 /// Exists to allow us to define custom trait operations on `i64`.
 type CustomInt64 = i64;
 
-/// This trait exists to allow us to implement `logical_rshift` in the same way as the
-/// C macro original, at least from a semantic perspective.
+/// Exists to allow us to define custom train operations on `u32`.
+type CustomUInt32 = u32;
+
+/// This trait exists to allow us to implement various nice to have utility functions
+/// on integers that we might want to use.
 pub trait CustomInteger {
 
     type Output;
-
-    /// This function should return a signed value, logically right-shifted by the
-    /// specified amount and of the same width as the original, without sign-extension.
-    fn logical_rshift(self, shift_by: i32) -> Self::Output;
 
     /// This function should return sign-extended version of the original value, based
     /// on extension from the n-th most significant bit as specified. It can be used
@@ -43,15 +42,20 @@ pub trait CustomInteger {
     }
 }
 
+/// This trait exists to allow us to implement `logical_rshift` in the same way as the
+/// C macro original, at least from a semantic perspective.
+pub trait LogicalRightShifter {
+
+    type Output;
+
+    /// This function should return a signed value, logically right-shifted by the
+    /// specified amount and of the same width as the original, without sign-extension.
+    fn logical_rshift(self, shift_by: i32) -> Self::Output;
+}
+
 impl CustomInteger for CustomInt32 {
 
     type Output = i32;
-
-    /// Logically shifts right by specified amount, returning `i32`.
-    #[inline(always)]
-    fn logical_rshift(self, shift_by: i32) -> Self::Output {
-        ((self as u32) >> shift_by) as Self::Output
-    }
 
     /// Sign extends based on the specified bit, with 31 being most significant and
     /// 0 being least significant. Also mask out higher bits when not sign extending.
@@ -103,15 +107,20 @@ impl CustomInteger for CustomInt32 {
     }
 }
 
+impl LogicalRightShifter for CustomInt32 {
+
+    type Output = i32;
+
+    /// Logically shifts right by specified amount, returning `i32`.
+    #[inline(always)]
+    fn logical_rshift(self, shift_by: i32) -> Self::Output {
+        ((self as u32) >> shift_by) as Self::Output
+    }
+}
+
 impl CustomInteger for CustomInt64 {
 
     type Output = i64;
-
-    /// Logically shifts right by specified amount, returning `i64`.
-    #[inline(always)]
-    fn logical_rshift(self, shift_by: i32) -> Self::Output {
-        ((self as u64) >> shift_by) as Self::Output
-    }
 
     /// Sign extends based on the specified bit, with 63 being most significant and
     /// 0 being least significant. Also mask out higher bits when not sign extending.
@@ -163,6 +172,71 @@ impl CustomInteger for CustomInt64 {
     }
 }
 
+impl LogicalRightShifter for CustomInt64 {
+
+    type Output = i64;
+
+    /// Logically shifts right by specified amount, returning `i64`.
+    #[inline(always)]
+    fn logical_rshift(self, shift_by: i32) -> Self::Output {
+        ((self as u64) >> shift_by) as Self::Output
+    }
+}
+
+impl CustomInteger for CustomUInt32 {
+
+    type Output = u32;
+
+    /// Sign extends based on the specified bit, with 31 being most significant and
+    /// 0 being least significant. Also mask out higher bits when not sign extending.
+    #[inline(always)]
+    fn sign_extend(self, from_bit: i32) -> Self::Output {
+
+        let bit_pattern_to_test = 0x1 << from_bit;
+        let extension_pattern = 0xFFFFFFFE << from_bit;
+
+        if self & bit_pattern_to_test == 0 {
+            self & !extension_pattern
+        } else {
+            self | extension_pattern
+        }
+    }
+
+    /// Return 1 if the specified bit is set, and 0 otherwise.
+    #[inline(always)]
+    fn bit_value(self, from_bit: i32) -> i32 {
+
+        let bit_pattern_to_test = 0x1 << from_bit;
+
+        if self & bit_pattern_to_test == 0 {
+            0
+        } else {
+            1
+        }
+    }
+
+    /// Return the number of leading zeroes from the specified bit onwards.
+    #[inline(always)]
+    fn leading_zeroes(self, from_bit: i32) -> i32 {
+
+        let bit_pattern_to_test = 0x1 << from_bit;
+
+        let mut temp = self;
+        let mut zero_count = 0;
+
+        for _ in 0..=from_bit {
+            if temp & bit_pattern_to_test == 0 {
+                zero_count += 1;
+                temp <<= 1;
+            } else {
+                break;
+            }
+        }
+
+        zero_count
+    }
+}
+
 /// This just provides a helpful list of the different possible system bus holders, to be referenced
 /// when needed so that (for example) we can do DMA operations safely.
 #[derive(Copy, Clone, PartialEq)]
@@ -179,7 +253,10 @@ pub use std::cmp::min;
 #[cfg(test)]
 mod tests {
 
-    use super::CustomInteger;
+    use super::{
+        CustomInteger,
+        LogicalRightShifter,
+    };
 
     #[test]
     fn logical_rshift_should_work_as_expected_for_i32() {
@@ -215,6 +292,15 @@ mod tests {
         let output = input >> 1;
 
         assert_eq!(output, 0xFFFFFFFF_FFFFFFFF_u64 as i64);
+    }
+
+    #[test]
+    fn clarify_arithmetic_rshift_for_u32() {
+
+        let input = 0xFFFFFFFF_u32;
+        let output = input >> 1;
+
+        assert_eq!(output, 0x7FFFFFFF);
     }
 
     #[test]
@@ -290,6 +376,42 @@ mod tests {
     }
 
     #[test]
+    fn sign_extend_should_extend_8_bit_value_if_bit_7_is_set_for_u32() {
+
+        let input = 0x80_u32;
+        let output = input.sign_extend(7);
+
+        assert_eq!(output, 0xFFFFFF80);
+    }
+
+    #[test]
+    fn sign_extend_should_leave_8_bit_value_if_bit_7_is_unset_for_u32() {
+
+        let input = 0x70_u32;
+        let output = input.sign_extend(7);
+
+        assert_eq!(output, 0x70);
+    }
+
+    #[test]
+    fn sign_extend_should_extend_16_bit_value_if_bit_15_is_set_for_u32() {
+
+        let input = 0x8000_u32;
+        let output = input.sign_extend(15);
+
+        assert_eq!(output, 0xFFFF8000);
+    }
+
+    #[test]
+    fn sign_extend_should_leave_16_bit_value_if_bit_15_is_unset_for_u32() {
+
+        let input = 0x7000_u32;
+        let output = input.sign_extend(15);
+
+        assert_eq!(output, 0x7000);
+    }
+
+    #[test]
     fn sign_extend_should_extend_32_bit_value_if_bit_31_is_set_for_i64() {
 
         let input = 0x80000000_i64;
@@ -326,6 +448,15 @@ mod tests {
     }
 
     #[test]
+    fn sign_extend_should_mask_out_higher_bits_when_not_extending_u32() {
+
+        let input = 0xFFFF7000_u32;
+        let output = input.sign_extend(15);
+
+        assert_eq!(output, 0x7000);
+    }
+
+    #[test]
     fn bit_value_for_set_i32() {
 
         let input = 0x80000;
@@ -356,6 +487,24 @@ mod tests {
     fn bit_value_for_unset_i64() {
 
         let input = 0_i64;
+        let output = input.bit_value(19);
+
+        assert_eq!(output, 0);
+    }
+
+    #[test]
+    fn bit_value_for_set_u32() {
+
+        let input = 0x80000_u32;
+        let output = input.bit_value(19);
+
+        assert_eq!(output, 1);
+    }
+
+    #[test]
+    fn bit_value_for_unset_u32() {
+
+        let input = 0_u32;
         let output = input.bit_value(19);
 
         assert_eq!(output, 0);
@@ -416,6 +565,33 @@ mod tests {
     }
 
     #[test]
+    fn leading_zeroes_all_zeroes_16_bit_u32() {
+
+        let input = 0_u32;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 16);
+    }
+
+    #[test]
+    fn leading_zeroes_least_bit_set_16_bit_u32() {
+
+        let input = 1_u32;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 15);
+    }
+
+    #[test]
+    fn leading_zeroes_bit_7_set_16_bit_u32() {
+
+        let input = 0b10000000_u32;
+        let output = input.leading_zeroes(15);
+
+        assert_eq!(output, 8);
+    }
+
+    #[test]
     fn bit_is_set_bit_30_i32() {
 
         let input = 0x40000000_i32;
@@ -446,6 +622,24 @@ mod tests {
     fn bit_is_not_set_bit_30_i64() {
 
         let input = 0_i64;
+        let output = input.bit_is_set(30);
+
+        assert!(!output);
+    }
+
+    #[test]
+    fn bit_is_set_bit_30_u32() {
+
+        let input = 0x40000000_u32;
+        let output = input.bit_is_set(30);
+
+        assert!(output);
+    }
+
+    #[test]
+    fn bit_is_not_set_bit_30_u32() {
+
+        let input = 0_u32;
         let output = input.bit_is_set(30);
 
         assert!(!output);

@@ -2,7 +2,11 @@
 // r3051.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use super::{Cpu, CpuBridge};
-use philpsx_utility::{CustomInteger, SystemBusHolder};
+use philpsx_utility::{
+    CustomInteger,
+    LogicalRightShifter,
+    SystemBusHolder,
+};
 use mips_exception::{MIPSException, MIPSExceptionReason};
 use cp0::CP0;
 use cp2::CP2;
