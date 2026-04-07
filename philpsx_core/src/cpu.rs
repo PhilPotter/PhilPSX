@@ -44,10 +44,10 @@ pub trait CpuBridge {
     fn append_sync_cycles(&mut self, cpu: &mut dyn Cpu, cycles: i32);
 
     /// The CPU must call this to determine how many stall cycles are needed.
-    fn how_how_many_stall_cycles(&self, cpu: &mut dyn Cpu, address: i32) -> i32;
+    fn how_how_many_stall_cycles(&self, cpu: &mut dyn Cpu, address: u32) -> i32;
 
     /// The CPU must call this to determine if an address should be incremented.
-    fn ok_to_increment(&self, cpu: &mut dyn Cpu, address: i64) -> bool;
+    fn ok_to_increment(&self, cpu: &mut dyn Cpu, address: u32) -> bool;
 
     /// The CPU must call this to determine if the scratchpad is enabled.
     fn scratchpad_enabled(&self, cpu: &mut dyn Cpu) -> bool;
@@ -56,16 +56,16 @@ pub trait CpuBridge {
     fn instruction_cache_enabled(&self, cpu: &mut dyn Cpu) -> bool;
 
     /// The CPU must call this to read a byte from the system bus.
-    fn read_byte(&self, cpu: &mut dyn Cpu, address: i32) -> i8;
+    fn read_byte(&self, cpu: &mut dyn Cpu, address: u32) -> u8;
 
     /// The CPU must call this to read a word from the system bus.
-    fn read_word(&self, cpu: &mut dyn Cpu, address: i32) -> i32;
+    fn read_word(&self, cpu: &mut dyn Cpu, address: u32) -> u32;
 
     /// The CPU must call this to write a byte to the system bus.
-    fn write_byte(&mut self, cpu: &mut dyn Cpu, address: i32, value: i8);
+    fn write_byte(&mut self, cpu: &mut dyn Cpu, address: u32, value: u8);
 
     /// The CPU must call this to write a word to the system bus.
-    fn write_word(&mut self, cpu: &mut dyn Cpu, address: i32, value: i32);
+    fn write_word(&mut self, cpu: &mut dyn Cpu, address: u32, value: u32);
 
     /// The CPU must call this to increment all interrupt-relevant counters.
     fn increment_interrupt_counters(&mut self, cpu: &mut dyn Cpu);

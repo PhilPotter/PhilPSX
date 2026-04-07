@@ -40,13 +40,13 @@ const INSTRUCTION_CACHE_VALID_MAX_ENTRIES: usize = 256;
 pub struct R3051 {
 
     // Register definitions.
-    general_registers: [i32; REGISTER_COUNT],
-    program_counter: i32,
-    hi_reg: i32,
-    lo_reg: i32,
+    general_registers: [u32; REGISTER_COUNT],
+    program_counter: u32,
+    hi_reg: u32,
+    lo_reg: u32,
 
     // Jump address holder and boolean.
-    jump_address: i32,
+    jump_address: u32,
     jump_pending: bool,
 
     // Co-processors.
@@ -70,8 +70,8 @@ pub struct R3051 {
 
     // Instruction cache variables - previously these were modelled
     // separately in the C version. All are heap allocated.
-    instruction_cache_data: Vec<i8>,
-    instruction_cache_tag: Vec<i32>,
+    instruction_cache_data: Vec<u8>,
+    instruction_cache_tag: Vec<u32>,
     instruction_cache_valid: Vec<bool>,
 }
 
@@ -127,33 +127,33 @@ impl R3051 {
     fn reset(&mut self) {
 
         // Patch in later with proper reset exception vector.
-        self.program_counter = self.sccp.get_reset_exception_vector() as i32;
+        self.program_counter = self.sccp.get_reset_exception_vector();
     }
 
     /// This function checks for an instruction cache hit. The address provided
     /// must be physical and not virtual.
-    fn check_for_instruction_cache_hit(&self, address: i32) -> bool {
+    fn check_for_instruction_cache_hit(&self, address: u32) -> bool {
 
-        let tag_index = (address.logical_rshift(4) & 0xFF) as usize;
-        let expected_tag = address.logical_rshift(12) & 0xFFFFF;
+        let tag_index = ((address >> 4) & 0xFF) as usize;
+        let expected_tag = (address >> 12) & 0xFFFFF;
 
         self.instruction_cache_tag[tag_index] == expected_tag &&
         self.instruction_cache_valid[tag_index]
     }
 
     /// This function retrieves a word from the correct address.
-    fn read_instruction_cache_word(&self, address: i32) -> i32 {
+    fn read_instruction_cache_word(&self, address: u32) -> u32 {
 
         let data_index = (address & 0xFFC) as usize;
 
-        (((self.instruction_cache_data[data_index] as i32) & 0xFF) << 24) |
-        (((self.instruction_cache_data[data_index + 1] as i32) & 0xFF) << 16) |
-        (((self.instruction_cache_data[data_index + 2] as i32) & 0xFF) << 8) |
-        ((self.instruction_cache_data[data_index + 3] as i32) & 0xFF)
+        (((self.instruction_cache_data[data_index] as u32) & 0xFF) << 24) |
+        (((self.instruction_cache_data[data_index + 1] as u32) & 0xFF) << 16) |
+        (((self.instruction_cache_data[data_index + 2] as u32) & 0xFF) << 8) |
+        ((self.instruction_cache_data[data_index + 3] as u32) & 0xFF)
     }
 
     /// This function retrieves a byte from the correct address.
-    fn read_instruction_cache_byte(&self, address: i32) -> i8 {
+    fn read_instruction_cache_byte(&self, address: u32) -> u8 {
 
         let data_index = (address & 0xFFF) as usize;
 
@@ -162,20 +162,20 @@ impl R3051 {
 
     /// This function writes a word to the correct address, and invalidates
     /// the correct cache line.
-    fn write_instruction_cache_word(&mut self, address: i32, value: i32) {
+    fn write_instruction_cache_word(&mut self, address: u32, value: u32) {
 
         let data_index = (address & 0xFFC) as usize;
 
         // Update correct word.
-        self.instruction_cache_data[data_index] = value.logical_rshift(24) as i8;
-        self.instruction_cache_data[data_index + 1] = value.logical_rshift(16) as i8;
-        self.instruction_cache_data[data_index + 2] = value.logical_rshift(8) as i8;
-        self.instruction_cache_data[data_index + 3] = value as i8;
+        self.instruction_cache_data[data_index] = (value >> 24) as u8;
+        self.instruction_cache_data[data_index + 1] = (value >> 16) as u8;
+        self.instruction_cache_data[data_index + 2] = (value >> 8) as u8;
+        self.instruction_cache_data[data_index + 3] = value as u8;
 
         // Invalidate line if cache is isolated.
         if self.sccp.is_data_cache_isolated() {
-            let tag_index = (address.logical_rshift(4) & 0xFF) as usize;
-            let tag = address.logical_rshift(12) & 0xFFFFF;
+            let tag_index = ((address >> 4) & 0xFF) as usize;
+            let tag = (address >> 12) & 0xFFFFF;
             self.instruction_cache_tag[tag_index] = tag;
             self.instruction_cache_valid[tag_index] = false;
         }
@@ -183,7 +183,7 @@ impl R3051 {
 
     /// This function writes a byte to the correct address, and invalidates
     /// the correct cache line.
-    fn write_instruction_cache_byte(&mut self, address: i32, value: i8) {
+    fn write_instruction_cache_byte(&mut self, address: u32, value: u8) {
 
         let data_index = (address & 0xFFF) as usize;
 
@@ -192,15 +192,15 @@ impl R3051 {
 
         // Invalidate line if cache is isolated.
         if self.sccp.is_data_cache_isolated() {
-            let tag_index = (address.logical_rshift(4) & 0xFF) as usize;
-            let tag = address.logical_rshift(12) & 0xFFFFF;
+            let tag_index = ((address >> 4) & 0xFF) as usize;
+            let tag = (address >> 12) & 0xFFFFF;
             self.instruction_cache_tag[tag_index] = tag;
             self.instruction_cache_valid[tag_index] = false;
         }
     }
 
     /// This function refills a cache line using an address.
-    fn refill_instruction_cache_line(&mut self, bridge: &mut dyn CpuBridge, address: i32) {
+    fn refill_instruction_cache_line(&mut self, bridge: &mut dyn CpuBridge, address: u32) {
         // Refill a line - four words.
         // Check if cache is isolated first.
         if self.sccp.is_data_cache_isolated() {
@@ -208,38 +208,38 @@ impl R3051 {
         }
 
         // Calculate tag index and tag.
-        let tag_index = (address.logical_rshift(4) & 0xFF) as usize;
-        let tag = address.logical_rshift(12) & 0xFFFFF;
+        let tag_index = ((address >> 4) & 0xFF) as usize;
+        let tag = (address >> 12) & 0xFFFFF;
 
         // Write tag and valid flag.
         self.instruction_cache_tag[tag_index] = tag;
         self.instruction_cache_valid[tag_index] = true;
 
         // Refill cache line.
-        let starting_address = (address & 0xFFFFFFF0_u32 as i32) as usize;
+        let starting_address = (address & 0xFFFFFFF0) as usize;
         for offset in 0..16 {
             self.instruction_cache_data[(starting_address + offset) & 0xFFF] =
-                bridge.read_byte(self, starting_address as i32);
+                bridge.read_byte(self, (starting_address + offset) as u32);
         }
     }
 
     /// This is a utility function to swap the endianness of a word. It can be
     /// used to allow the processor to operate in both endian modes by transparently
     /// swapping the byte order before writing or after writing.
-    fn swap_word_endianness(&self, word: i32) -> i32 {
+    fn swap_word_endianness(&self, word: u32) -> u32 {
         (word << 24) |
         ((word << 8) & 0xFF0000) |
-        (word.logical_rshift(8) & 0xFF00) |
-        (word.logical_rshift(24) & 0xFF)
+        ((word >> 8) & 0xFF00) |
+        ((word >> 24) & 0xFF)
     }
 
     /// This function reads a data value of the specified width, and abstracts
     /// this functionality from the MEM stage.
-    fn read_data_value(&mut self, bridge: &mut dyn CpuBridge, width: R3051Width, address: i32) -> i32 {
+    fn read_data_value(&mut self, bridge: &mut dyn CpuBridge, width: R3051Width, address: u32) -> u32 {
 
         // Get physical address.
-        let physical_address = self.sccp.virtual_to_physical(address as u32) as i32;
-        let mut temp_physical_address = (physical_address as i64) & 0xFFFFFFFF;
+        let physical_address = self.sccp.virtual_to_physical(address);
+        let mut temp_physical_address = physical_address;
 
         // Is cache isolated? Although we don't have a data cache (it is used as
         // scratchpad instead) we should read from instruction cache if so.
@@ -249,14 +249,14 @@ impl R3051 {
             match width {
 
                 R3051Width::BYTE => {
-                    0xFF & (self.read_instruction_cache_byte(physical_address) as i32)
+                    0xFF & (self.read_instruction_cache_byte(physical_address) as u32)
                 },
 
                 R3051Width::HALFWORD => {
-                    let mut value = 0xFF & self.read_instruction_cache_byte(temp_physical_address as i32) as i32;
+                    let mut value = 0xFF & self.read_instruction_cache_byte(temp_physical_address) as u32;
                     temp_physical_address += 1;
                     value = (value << 8) |
-                            (0xFF & self.read_instruction_cache_byte(temp_physical_address as i32) as i32);
+                            (0xFF & self.read_instruction_cache_byte(temp_physical_address) as u32);
                     value
                 },
 
@@ -275,14 +275,14 @@ impl R3051 {
                 match width {
 
                     R3051Width::BYTE => {
-                        0xFF & bridge.read_byte(self, physical_address) as i32
+                        0xFF & bridge.read_byte(self, physical_address) as u32
                     },
 
                     R3051Width::HALFWORD => {
-                        let mut value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
+                        let mut value = 0xFF & bridge.read_byte(self, temp_physical_address) as u32;
                         temp_physical_address += 1;
                         value = (value << 8) |
-                                (0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32);
+                                (0xFF & bridge.read_byte(self, temp_physical_address) as u32);
 
                         value
                     },
@@ -302,18 +302,18 @@ impl R3051 {
                 let value = match width {
 
                     R3051Width::BYTE => {
-                        0xFF & bridge.read_byte(self, physical_address) as i32
+                        0xFF & bridge.read_byte(self, physical_address) as u32
                     },
 
                     R3051Width::HALFWORD => {
-                        let mut value = 0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32;
+                        let mut value = 0xFF & bridge.read_byte(self, temp_physical_address) as u32;
                         temp_physical_address = if bridge.ok_to_increment(self, temp_physical_address) {
                             temp_physical_address + 1
                         } else {
                             temp_physical_address
                         };
                         value = (value << 8) |
-                                (0xFF & bridge.read_byte(self, temp_physical_address as i32) as i32);
+                                (0xFF & bridge.read_byte(self, temp_physical_address) as u32);
                         value
                     },
 
@@ -337,13 +337,13 @@ impl R3051 {
         &mut self,
         bridge: &mut dyn CpuBridge,
         width: R3051Width,
-        address: i32,
-        value: i32
+        address: u32,
+        value: u32
     ) {
 
         // Get physical address.
-        let physical_address = self.sccp.virtual_to_physical(address as u32) as i32;
-        let mut temp_physical_address = (physical_address as i64) & 0xFFFFFFFF;
+        let physical_address = self.sccp.virtual_to_physical(address);
+        let mut temp_physical_address = physical_address;
 
         // Is cache isolated?
         if self.sccp.is_data_cache_isolated() { // Yes.
@@ -352,13 +352,13 @@ impl R3051 {
             match width {
 
                 R3051Width::BYTE => {
-                    self.write_instruction_cache_byte(physical_address, value as i8);
+                    self.write_instruction_cache_byte(physical_address, value as u8);
                 },
 
                 R3051Width::HALFWORD => {
-                    self.write_instruction_cache_byte(temp_physical_address as i32, value.logical_rshift(8) as i8);
+                    self.write_instruction_cache_byte(temp_physical_address, (value >> 8) as u8);
                     temp_physical_address += 1;
-                    self.write_instruction_cache_byte(temp_physical_address as i32, value as i8);
+                    self.write_instruction_cache_byte(temp_physical_address, value as u8);
                 },
 
                 R3051Width::WORD => {
@@ -375,13 +375,13 @@ impl R3051 {
                 // go to the scratchpad.
                 match width {
                     R3051Width::BYTE => {
-                        bridge.write_byte(self, physical_address, value as i8);
+                        bridge.write_byte(self, physical_address, value as u8);
                     },
 
                     R3051Width::HALFWORD => {
-                        bridge.write_byte(self, temp_physical_address as i32, value.logical_rshift(8) as i8);
+                        bridge.write_byte(self, temp_physical_address, (value >> 8) as u8);
                         temp_physical_address += 1;
-                        bridge.write_byte(self, temp_physical_address as i32, value as i8);
+                        bridge.write_byte(self, temp_physical_address, value as u8);
                     },
 
                     R3051Width::WORD => {
@@ -399,17 +399,17 @@ impl R3051 {
                 match width {
 
                     R3051Width::BYTE => {
-                        bridge.write_byte(self, physical_address, value as i8);
+                        bridge.write_byte(self, physical_address, value as u8);
                     },
 
                     R3051Width::HALFWORD => {
-                        bridge.write_byte(self, temp_physical_address as i32, value.logical_rshift(8) as i8);
+                        bridge.write_byte(self, temp_physical_address, (value >> 8) as u8);
                         temp_physical_address = if bridge.ok_to_increment(self, temp_physical_address) {
                             temp_physical_address + 1
                         } else {
                             temp_physical_address
                         };
-                        bridge.write_byte(self, temp_physical_address as i32, value as i8);
+                        bridge.write_byte(self, temp_physical_address, value as u8);
                     },
 
                     R3051Width::WORD => {
@@ -430,12 +430,12 @@ impl R3051 {
     fn read_instruction_word(
         &mut self,
         bridge: &mut dyn CpuBridge,
-        address: i32,
-        temp_branch_address: i32
-    ) -> i64 {
+        address: u32,
+        temp_branch_address: u32
+    ) -> Option<u32> {
 
         // Check for dodgy address.
-        if self.sccp.is_address_allowed(address as u32) || self.program_counter % 4 != 0 {
+        if self.sccp.is_address_allowed(address) || self.program_counter % 4 != 0 {
 
             // Trigger exception.
             self.exception.bad_address = address;
@@ -448,17 +448,17 @@ impl R3051 {
             };
 
             self.handle_exception();
-            return -1;
+            return None;
         }
 
         // Check if instruction cache enabled.
         let instruction_cache_enabled = bridge.instruction_cache_enabled(self);
 
         // Get physical address.
-        let physical_address = self.sccp.virtual_to_physical(address as u32) as i32;
+        let physical_address = self.sccp.virtual_to_physical(address);
 
         // Check if address is cacheable or not.
-        let word_val = if self.sccp.is_cacheable(address as u32) && instruction_cache_enabled {
+        let word_val = if self.sccp.is_cacheable(address) && instruction_cache_enabled {
 
             // Check cache for hit.
             if self.check_for_instruction_cache_hit(physical_address) {
@@ -470,7 +470,7 @@ impl R3051 {
 
                     // Stall for one cycle as BIU is being used by
                     // another component.
-                    return -1;
+                    return None;
                 } else {
                     // Begin transaction.
 
@@ -489,7 +489,7 @@ impl R3051 {
             if self.get_system_bus_holder(bridge) != SystemBusHolder::CPU {
 
                 // Stall for one cycle as BIU is being used by another component.
-                return -1;
+                return None;
             } else {
                 // Begin transaction.
 
@@ -503,7 +503,7 @@ impl R3051 {
         };
 
         // Return word variable.
-        0xFFFFFFFF & word_val as i64
+        Some(word_val)
     }
 
     /// This function can deal with an exception, making sure the right things
@@ -520,8 +520,8 @@ impl R3051 {
         self.prev_was_branch = false;
 
         // Fetch cause register and status register from Cop0.
-        let mut temp_cause = self.sccp.read_reg(13) as i32;
-        let mut temp_status = self.sccp.read_reg(12) as i32;
+        let mut temp_cause = self.sccp.read_reg(13) as u32;
+        let mut temp_status = self.sccp.read_reg(12) as u32;
 
         // Bail out early for reset exceptions.
         if self.exception.exception_reason == MIPSExceptionReason::RESET {
@@ -547,27 +547,27 @@ impl R3051 {
             MIPSExceptionReason::SYS => {
 
                 // Mask out ExcCode and replace.
-                temp_cause = (temp_cause & (0xFFFFFF83_u32 as i32)) |
-                             ((self.exception.exception_reason as i32) << 2);
+                temp_cause = (temp_cause & 0xFFFFFF83) |
+                             ((self.exception.exception_reason as u32) << 2);
 
                 // Set BD bit of cause register if necessary.
                 if self.exception.is_in_branch_delay_slot {
-                    temp_cause |= 0x80000000_u32 as i32;
+                    temp_cause |= 0x80000000;
                 } else {
                     temp_cause &= 0x7FFFFFFF;
                 }
 
                 // Set EPC register.
-                self.sccp.write_reg(14, self.exception.program_counter_origin as u32, true);
+                self.sccp.write_reg(14, self.exception.program_counter_origin, true);
 
                 // Save KUp and IEp to KUo and IEo, KUc and IEc to KUp and IEp,
                 // and reset KUc and IEc to 0.
                 let temp = (temp_status & 0x0000000F) << 2;
-                temp_status &= 0xFFFFFFC0_u32 as i32;
+                temp_status &= 0xFFFFFFC0;
                 temp_status |= temp;
 
                 // Set PC to general exception vector and finish processing.
-                self.program_counter = self.sccp.get_general_exception_vector() as i32;
+                self.program_counter = self.sccp.get_general_exception_vector();
             },
 
             _ => (),
@@ -580,14 +580,14 @@ impl R3051 {
             MIPSExceptionReason::ADEL | MIPSExceptionReason::ADES => {
 
                 // Set bad virtual address register.
-                self.sccp.write_reg(8, self.exception.bad_address as u32, true);
+                self.sccp.write_reg(8, self.exception.bad_address, true);
             },
 
             // Handle co-processor unusable exception.
             MIPSExceptionReason::CPU => {
 
                 // Set relevant bit of CE field in cause register.
-                temp_cause = (temp_cause & (0xCFFFFFFF_u32 as i32)) |
+                temp_cause = (temp_cause & 0xCFFFFFFF) |
                              (self.exception.co_processor_num << 28);
             },
 
@@ -595,8 +595,8 @@ impl R3051 {
         }
 
         // Write cause and status registers back to Cop0.
-        self.sccp.write_reg(13, temp_cause as u32, true);
-        self.sccp.write_reg(12, temp_status as u32, true);
+        self.sccp.write_reg(13, temp_cause, true);
+        self.sccp.write_reg(12, temp_status, true);
 
         // Reset exception object.
         self.exception.reset();
@@ -627,13 +627,13 @@ impl R3051 {
 
         // Set bit 10 of COP0 cause register if needed.
         {
-            let mut cause_register = self.sccp.read_reg(13) as i32;
+            let mut cause_register = self.sccp.read_reg(13);
             if interrupt_status != 0 {
                 cause_register |= 0x400;
             } else {
-                cause_register &= 0xFFFFFBFF_u32 as i32;
+                cause_register &= 0xFFFFFBFF;
             }
-            self.sccp.write_reg(13, cause_register as u32, true);
+            self.sccp.write_reg(13, cause_register, true);
         }
 
         // Get status reg and cause reg from COP0.
@@ -2228,10 +2228,10 @@ impl R3051 {
     }
 
     /// This function executes an opcode in interpretive mode.
-    fn execute_opcode(&mut self, bridge: &mut dyn CpuBridge, instruction: i32, temp_branch_address: i32) {
+    fn execute_opcode(&mut self, bridge: &mut dyn CpuBridge, instruction: u32, temp_branch_address: u32) {
 
         // Deal with opcode.
-        let opcode = instruction.logical_rshift(26);
+        let opcode = instruction >> 26;
         match opcode {
 
             0 => { // SPECIAL.
@@ -2392,7 +2392,7 @@ impl R3051 {
             },
 
             1 => { // BCOND.
-                let bcond_val = instruction.logical_rshift(16) & 0x1F;
+                let bcond_val = (instruction >> 16) & 0x1F;
                 match bcond_val {
 
                     0 => {
@@ -2512,7 +2512,7 @@ impl R3051 {
                     },
 
                     _ => {
-                        let cop0_val = instruction.logical_rshift(21) & 0x1F;
+                        let cop0_val = (instruction >> 21) & 0x1F;
                         match cop0_val {
 
                             0 => {
@@ -2566,7 +2566,7 @@ impl R3051 {
                     break 'cop2;
                 }
 
-                let cop2_val = instruction.logical_rshift(21) & 0x1F;
+                let cop2_val = (instruction >> 21) & 0x1F;
                 match cop2_val {
 
                     0 => {
@@ -2590,7 +2590,7 @@ impl R3051 {
                     },
 
                     8 => { // BC.
-                        let cop2_val_extra = instruction.logical_rshift(16) & 0x1F;
+                        let cop2_val_extra = (instruction >> 16) & 0x1F;
                         match cop2_val_extra {
 
                             0 => {
@@ -2609,7 +2609,7 @@ impl R3051 {
 
                     16..=31 => {
                         // Co-processor specific.
-                        self.gte_cycles = self.gte.gte_function(instruction as u32);
+                        self.gte_cycles = self.gte.gte_function(instruction);
                     },
 
                     _ => (),
@@ -2805,20 +2805,23 @@ impl Cpu for R3051 {
             self.cycles = 0;
 
             // Check address is OK, throwing exception if not.
-            let mut temp_address = (((self.program_counter as i64) & 0xFFFFFFFF) - 4) as i32;
+            let mut temp_address = self.program_counter - 4;
 
             // Perform read of instruction.
             let temp_instruction = self.read_instruction_word(bridge, self.program_counter, temp_address);
-            if temp_instruction == -1 {
-                self.cycles += 1;
-                self.total_cycles += 1;
-                let cycles = self.cycles;
-                bridge.append_sync_cycles(self, cycles);
-                continue;
-            }
+            let temp_instruction = match temp_instruction {
+                Some(instruction) => instruction,
+                None => {
+                    self.cycles += 1;
+                    self.total_cycles += 1;
+                    let cycles = self.cycles;
+                    bridge.append_sync_cycles(self, cycles);
+                    continue;
+                },
+            };
 
             // We now have instruction value. Swap the bytes.
-            let instruction = self.swap_word_endianness(temp_instruction as i32);
+            let instruction = self.swap_word_endianness(temp_instruction);
 
             // Execute.
             self.execute_opcode(bridge, instruction, temp_address);
@@ -2846,7 +2849,7 @@ impl Cpu for R3051 {
                 self.program_counter = self.jump_address;
                 self.jump_pending = false;
             } else {
-                temp_address = (((self.program_counter as i64) & 0xFFFFFFFF) + 4) as i32;
+                temp_address = self.program_counter + 4;
                 self.program_counter = temp_address;
             }
 
