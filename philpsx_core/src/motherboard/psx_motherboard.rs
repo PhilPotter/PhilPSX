@@ -23,12 +23,12 @@ const BIOS_SIZE: usize = 524288;
 pub struct PsxMotherboard {
 
     // 2MiB of RAM (heap allocated).
-    ram: Vec<i8>,
+    ram: Vec<u8>,
 
     // 1 KiB of scratchpad area (heap allocated).Strictly speaking
     // this is inside the CPU in the real hardware, but makes more
     // sense to put it here.
-    scratchpad: Vec<i8>,
+    scratchpad: Vec<u8>,
 
     // 512 KiB of BIOS (heap allocated). This stores the BIOS once
     // it is copied into memory. Store in unsigned byte form despite
@@ -37,20 +37,20 @@ pub struct PsxMotherboard {
     bios: Vec<u8>,
 
     // Register declarations.
-    cache_control_reg: i32,
-    interrupt_status_reg: i32,
-    interrupt_mask_reg: i32,
-    expansion1_base_address: i32,
-    expansion2_base_address: i32,
-    expansion1_delay_size: i32,
-    expansion2_delay_size: i32,
-    expansion3_delay_size: i32,
-    bios_rom_delay_size: i32,
-    spu_delay_size: i32,
-    cdrom_delay_size: i32,
-    common_delay: i32,
-    ram_size: i32,
-    bios_post: i8,
+    cache_control_reg: u32,
+    interrupt_status_reg: u32,
+    interrupt_mask_reg: u32,
+    expansion1_base_address: u32,
+    expansion2_base_address: u32,
+    expansion1_delay_size: u32,
+    expansion2_delay_size: u32,
+    expansion3_delay_size: u32,
+    bios_rom_delay_size: u32,
+    spu_delay_size: u32,
+    cdrom_delay_size: u32,
+    common_delay: u32,
+    ram_size: u32,
+    bios_post: u8,
 
     // These interrupt-specific registers allow us to delay interrupts so
     // they trigger at the proper time.
