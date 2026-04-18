@@ -12,7 +12,7 @@ const FAKE_REGISTER_SPACE_BYTES: usize = 1024;
 pub struct PsxSpu {
 
     // This stores all values written by the system to the SPU.
-    fake_register_space: Vec<i8>,
+    fake_register_space: Vec<u8>,
 }
 
 /// Implementation functions for the SPU component itself.
@@ -33,13 +33,13 @@ impl PsxSpu {
 impl Spu for PsxSpu {
 
     /// Read a byte from the SPU.
-    fn read_byte(&self, address: i32) -> i8 {
+    fn read_byte(&self, address: u32) -> u8 {
 
         self.fake_register_space[address as usize]
     }
 
     /// Write a byte to the SPU.
-    fn write_byte(&mut self, address: i32, value: i8) {
+    fn write_byte(&mut self, address: u32, value: u8) {
 
         self.fake_register_space[address as usize] = value;
     }
