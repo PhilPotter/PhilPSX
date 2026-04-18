@@ -11,7 +11,7 @@ const RX_FIFO_BYTES: usize = 4;
 pub struct PsxControllers {
 
     // RX fifo.
-    rx_fifo: [i8; RX_FIFO_BYTES],
+    rx_fifo: [u8; RX_FIFO_BYTES],
     rx_count: i32,
 
     // Controller related variables.
@@ -51,7 +51,7 @@ impl PsxControllers {
     /// This function updates the baudrate timer.
     fn update_baudrate_timer(&mut self) {
 
-        let mut baudrate = self.joy_stat.logical_rshift(11) & 0x1FFFFF;
+        let mut baudrate = (self.joy_stat >> 11) & 0x1FFFFF;
         baudrate -= self.cycles;
         self.cycles = 0;
         if baudrate < 0 {
@@ -72,7 +72,7 @@ impl PsxControllers {
 impl Controllers for PsxControllers {
 
     /// This reads a byte from the controllers implementation.
-    fn read_byte(&mut self, address: i8) -> i8 {
+    fn read_byte(&mut self, address: u8) -> u8 {
 
         // Update baudrate timer.
         self.update_baudrate_timer();
@@ -81,55 +81,51 @@ impl Controllers for PsxControllers {
         match address {
 
             // JOY_RX_DATA 1st fifo entry.
-            0x40 => {
-                if self.rx_count > 0 {
-                    let fifo_value = self.rx_fifo[0];
-                    self.rx_count -= 1;
-                    fifo_value
-                } else {
-                    0
-                }
+            0x40 if self.rx_count > 0 => {
+                let fifo_value = self.rx_fifo[0];
+                self.rx_count -= 1;
+                fifo_value
             },
 
             // JOY_STAT 1st (lowest) byte.
             0x44 => {
                 self.update_joy_stat();
-                (self.joy_stat & 0xFF) as i8
+                (self.joy_stat & 0xFF) as u8
             },
 
             // JOY_STAT 2nd byte.
-            0x45 => (self.joy_stat.logical_rshift(8) & 0xFF) as i8,
+            0x45 => (self.joy_stat.logical_rshift(8) & 0xFF) as u8,
 
             // JOY_STAT 3rd byte.
-            0x46 => (self.joy_stat.logical_rshift(16) & 0xFF) as i8,
+            0x46 => (self.joy_stat.logical_rshift(16) & 0xFF) as u8,
 
             // JOY_STAT 4th (highest) byte.
-            0x47 => (self.joy_stat.logical_rshift(24) & 0xFF) as i8,
+            0x47 => (self.joy_stat.logical_rshift(24) & 0xFF) as u8,
 
             // JOY_MODE lower byte.
-            0x48 => (self.joy_mode & 0xFF) as i8,
+            0x48 => (self.joy_mode & 0xFF) as u8,
 
             // JOY_MODE higher byte.
-            0x49 => (self.joy_mode.logical_rshift(8) & 0xFF) as i8,
+            0x49 => (self.joy_mode.logical_rshift(8) & 0xFF) as u8,
 
             // JOY_CTRL lower byte.
-            0x4A => (self.joy_ctrl & 0xFF) as i8,
+            0x4A => (self.joy_ctrl & 0xFF) as u8,
 
             // JOY_CTRL higher byte.
-            0x4B => (self.joy_ctrl.logical_rshift(8) & 0xFF) as i8,
+            0x4B => (self.joy_ctrl.logical_rshift(8) & 0xFF) as u8,
 
             // JOY_BAUD lower byte.
-            0x4E => (self.joy_baud & 0xFF) as i8,
+            0x4E => (self.joy_baud & 0xFF) as u8,
 
             // JOY_BAUD higher byte.
-            0x4F => (self.joy_baud.logical_rshift(8) & 0xFF) as i8,
+            0x4F => (self.joy_baud.logical_rshift(8) & 0xFF) as u8,
 
             _ => 0
         }
     }
 
     /// This writes a byte to the controllers implementation.
-    fn write_byte(&mut self, address: i8, value: i8) {
+    fn write_byte(&mut self, address: u8, value: u8) {
 
         // Update baudrate timer.
         self.update_baudrate_timer();
