@@ -667,16 +667,16 @@ impl R3051 {
     }
 
     /// This function handles the ADD R3051 instruction.
-    fn add_instruction(&mut self, instruction: i32) {
+    fn add_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Add rs_val to rt_val.
-        let rs_val = self.general_registers[rs];
-        let rt_val = self.general_registers[rt];
+        let rs_val = self.general_registers[rs] as i32;
+        let rt_val = self.general_registers[rt] as i32;
         let result = rs_val.wrapping_add(rt_val);
 
         // Check for two's complement overflow.
@@ -685,12 +685,11 @@ impl R3051 {
            (rs_val & sign_bit) != (result & sign_bit) {
 
             // Trigger exception.
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
+            let temp_address = self.program_counter - 4;
             self.exception.exception_reason = MIPSExceptionReason::OVF;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -699,20 +698,20 @@ impl R3051 {
         }
 
         // Store result.
-        self.general_registers[rd] = result;
+        self.general_registers[rd] = result as u32;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the ADDI R3051 instruction.
-    fn addi_instruction(&mut self, instruction: i32) {
+    fn addi_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and immediate. Sign extend immediate if needed.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Add to rs_val.
-        let rs_val = self.general_registers[rs];
+        let rs_val = self.general_registers[rs] as i32;
         let result = rs_val.wrapping_add(immediate);
 
         // Check for two's complement overflow.
@@ -721,12 +720,11 @@ impl R3051 {
            (rs_val & sign_bit) != (result & sign_bit) {
 
             // Trigger exception.
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
+            let temp_address = self.program_counter - 4;
             self.exception.exception_reason = MIPSExceptionReason::OVF;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -735,50 +733,50 @@ impl R3051 {
         }
 
         // Store result.
-        self.general_registers[rt] = result;
+        self.general_registers[rt] = result as u32;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the ADDIU R3051 instruction.
-    fn addiu_instruction(&mut self, instruction: i32) {
+    fn addiu_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and immediate. Sign extend immediate if needed.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Add to rs_val.
-        let result = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let rs_val = self.general_registers[rs] as i32;
+        let result = rs_val.wrapping_add(immediate);
 
         // Store result.
-        self.general_registers[rt] = result as i32;
+        self.general_registers[rt] = result as u32;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the ADDU R3051 instruction.
-    fn addu_instruction(&mut self, instruction: i32) {
+    fn addu_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Add rs_val to rt_val.
-        let result = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) +
-                     ((self.general_registers[rt] as i64) & 0xFFFFFFFF);
+        let result = self.general_registers[rs].wrapping_add(self.general_registers[rt]);
 
         // Store result.
-        self.general_registers[rd] = result as i32;
+        self.general_registers[rd] = result;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the AND R3051 instruction.
-    fn and_instruction(&mut self, instruction: i32) {
+    fn and_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Bitwise AND rs_val and rt_val, storing result.
         self.general_registers[rd] = self.general_registers[rs] & self.general_registers[rt];
@@ -786,12 +784,12 @@ impl R3051 {
     }
 
     /// This function handles the ANDI R3051 instruction.
-    fn andi_instruction(&mut self, instruction: i32) {
+    fn andi_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and immediate.
         let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Zero extending immediate is already done for us
         // so just AND with rsVal and store result.
@@ -800,257 +798,227 @@ impl R3051 {
     }
 
     /// This function handles the BC2F R3051 instruction.
-    fn bc2f_instruction(&mut self, instruction: i32) {
+    fn bc2f_instruction(&mut self, instruction: u32) {
 
         // Get immediate.
-        let immediate = instruction & 0xFFFF;
+        let immediate = (instruction & 0xFFFF) as i32;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // Jump if COP2 condition line is false.
         if !self.gte.get_condition_line_status() {
-            self.jump_address = target_address as i32;
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
 
    /// This function handles the BC2T R3051 instruction.
-   fn bc2t_instruction(&mut self, instruction: i32) {
+   fn bc2t_instruction(&mut self, instruction: u32) {
 
         // Get immediate.
-        let immediate = instruction & 0xFFFF;
+        let immediate = (instruction & 0xFFFF) as i32;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // Jump if COP2 condition line is true.
         if self.gte.get_condition_line_status() {
-            self.jump_address = target_address as i32;
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
 
     /// This function handles the BEQ R3051 instruction.
-    fn beq_instruction(&mut self, instruction: i32) {
+    fn beq_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // Tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if condition holds true.
         if self.general_registers[rs] == self.general_registers[rt] {
-            self.jump_address = target_address as i32;
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
 
     /// This function handles the BGEZ R3051 instruction.
-    fn bgez_instruction(&mut self, instruction: i32) {
+    fn bgez_instruction(&mut self, instruction: u32) {
 
         // Get rs and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // This tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if rs greater than or equal to 0.
-        if self.general_registers[rs] >= 0 {
-            self.jump_address = target_address as i32;
+        if (self.general_registers[rs] as i32) >= 0 {
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
 
     /// This function handles the BGEZAL R3051 instruction.
-    fn bgezal_instruction(&mut self, instruction: i32) {
+    fn bgezal_instruction(&mut self, instruction: u32) {
 
         // Get rs and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Define target address and return address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
+        let mut target_address = (self.program_counter as i32).wrapping_add(8);
         let return_address = target_address;
 
         // Create target address.
-        target_address -= 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        target_address = target_address.wrapping_sub(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // This tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if rs greater than or equal to 0, and save return address in r31.
-        if self.general_registers[rs] >= 0 {
-            self.jump_address = target_address as i32;
+        if (self.general_registers[rs] as i32) >= 0 {
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
-            self.general_registers[31] = return_address as i32;
+            self.general_registers[31] = return_address as u32;
             self.general_registers[0] = 0;
         }
     }
 
     /// This function handles the BGTZ R3051 instruction.
-    fn bgtz_instruction(&mut self, instruction: i32) {
+    fn bgtz_instruction(&mut self, instruction: u32) {
 
         // Get rs and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // This tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if rs greater than 0.
-        if self.general_registers[rs] > 0 {
-            self.jump_address = target_address as i32;
+        if (self.general_registers[rs] as i32) > 0 {
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
 
     /// This function handles the BLEZ R3051 instruction.
-    fn blez_instruction(&mut self, instruction: i32) {
+    fn blez_instruction(&mut self, instruction: u32) {
 
         // Get rs and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // This tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if rs less than or equal to 0.
-        if self.general_registers[rs] <= 0 {
-            self.jump_address = target_address as i32;
+        if (self.general_registers[rs] as i32) <= 0 {
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
 
     /// This function handles the BLTZ R3051 instruction.
-    fn bltz_instruction(&mut self, instruction: i32) {
+    fn bltz_instruction(&mut self, instruction: u32) {
 
         // Get rs and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // This tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if rs less than 0.
-        if self.general_registers[rs] < 0 {
-            self.jump_address = target_address as i32;
+        if (self.general_registers[rs] as i32) < 0 {
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
 
     /// This function handles the BLTZAL R3051 instruction.
-    fn bltzal_instruction(&mut self, instruction: i32) {
+    fn bltzal_instruction(&mut self, instruction: u32) {
 
         // Get rs and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Define target address and return address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
+        let mut target_address = (self.program_counter as i32).wrapping_add(8);
         let return_address = target_address;
 
         // Create target address.
-        target_address -= 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        target_address = target_address.wrapping_sub(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // This tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if rs less than 0, and save return address in r31.
-        if self.general_registers[rs] < 0 {
-            self.jump_address = target_address as i32;
+        if (self.general_registers[rs] as i32) < 0 {
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
-            self.general_registers[31] = return_address as i32;
+            self.general_registers[31] = return_address as u32;
             self.general_registers[0] = 0;
         }
     }
 
     /// This function handles the BNE R3051 instruction.
-    fn bne_instruction(&mut self, instruction: i32) {
+    fn bne_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction & 0xFFFF) as i32;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Create target address.
-        let mut target_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 4;
-        let mut offset = immediate << 2;
-        if (offset & 0x20000) == 0x20000 {
-            offset |= 0xFFFC0000_u32 as i32;
-        }
-        target_address += offset as i64;
+        let mut target_address = (self.program_counter as i32).wrapping_add(4);
+        let offset = (immediate << 2).sign_extend(17);
+        target_address = target_address.wrapping_add(offset);
 
         // Tells us this is a branch-type instruction.
         self.is_branch = true;
 
         // Jump if condition holds false.
         if self.general_registers[rs] != self.general_registers[rt] {
-            self.jump_address = target_address as i32;
+            self.jump_address = target_address as u32;
             self.jump_pending = true;
         }
     }
@@ -1059,78 +1027,77 @@ impl R3051 {
     fn break_instruction(&mut self) {
 
         // Trigger Breakpoint Exception.
-        let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-        temp_address -= 4;
+        let temp_address = (self.program_counter as i32).wrapping_sub(4);
         self.exception.exception_reason = MIPSExceptionReason::BP;
         self.exception.is_in_branch_delay_slot = self.prev_was_branch;
         self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-            temp_address as i32
+            temp_address as u32
         } else {
             self.program_counter
         };
     }
 
     /// This function handles the CF2 R3051 instruction.
-    fn cf2_instruction(&mut self, instruction: i32) {
+    fn cf2_instruction(&mut self, instruction: u32) {
 
         // Get rt and rd.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = instruction.logical_rshift(11) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as i32;
 
         // Move from COP2 control reg rd to CPU reg rt.
-        self.general_registers[rt] = self.gte.read_control_reg(rd) as i32;
+        self.general_registers[rt] = self.gte.read_control_reg(rd);
         self.general_registers[0] = 0;
     }
 
     /// This function handles the CT2 R3051 instruction.
-    fn ct2_instruction(&mut self, instruction: i32) {
+    fn ct2_instruction(&mut self, instruction: u32) {
 
         // Get rt and rd.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = instruction.logical_rshift(11) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as i32;
 
         // Move from CPU reg rt to COP2 control reg rd.
-        self.gte.write_control_reg(rd, self.general_registers[rt] as u32, false);
+        self.gte.write_control_reg(rd, self.general_registers[rt], false);
     }
 
     /// This function handles the DIV R3051 instruction.
-    fn div_instruction(&mut self, instruction: i32) {
+    fn div_instruction(&mut self, instruction: u32) {
 
         // Get rs and rt.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Divide rs by rt as signed values.
-        let rs_val = self.general_registers[rs] as i64;
-        let rt_val = self.general_registers[rt] as i64;
-        let mut quotient = 0;
-        let mut remainder = 0;
+        let rs_val = self.general_registers[rs] as i32;
+        let rt_val = self.general_registers[rt] as i32;
+        let quotient: i32;
+        let remainder: i32;
 
         if rt_val != 0 {
             quotient = rs_val / rt_val;
             remainder = rs_val % rt_val;
         } else {
-            quotient = 0xFFFFFFFF;
+            quotient = 0xFFFFFFFF_u32 as i32;
             remainder = rs_val;
         }
 
         // Store result.
-        self.hi_reg = remainder as i32;
-        self.lo_reg = quotient as i32;
+        self.hi_reg = remainder as u32;
+        self.lo_reg = quotient as u32;
     }
 
     /// This function handles the DIVU R3051 instruction.
-    fn divu_instruction(&mut self, instruction: i32) {
+    fn divu_instruction(&mut self, instruction: u32) {
 
         // Get rs and rt
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Divide rs by rt as unsigned values.
-        let rs_val = (self.general_registers[rs] as i64) & 0xFFFFFFFF;
-        let rt_val = (self.general_registers[rt] as i64) & 0xFFFFFFFF;
-        let mut quotient = 0;
-        let mut remainder = 0;
+        let rs_val = self.general_registers[rs];
+        let rt_val = self.general_registers[rt];
+        let quotient: u32;
+        let remainder: u32;
 
         if rt_val != 0 {
             quotient = rs_val / rt_val;
@@ -1141,60 +1108,58 @@ impl R3051 {
         }
 
         // Store result.
-        self.hi_reg = remainder as i32;
-        self.lo_reg = quotient as i32;
+        self.hi_reg = remainder;
+        self.lo_reg = quotient;
     }
 
     /// This function handles the J R3051 instruction.
-    fn j_instruction(&mut self, instruction: i32) {
+    fn j_instruction(&mut self, instruction: u32) {
 
         // Get target.
         let target = instruction & 0x3FFFFFF;
 
         // Create address to jump to.
-        self.jump_address = (target << 2) | (self.program_counter & 0xF0000000_u32 as i32);
+        self.jump_address = (target << 2) | (self.program_counter & 0xF0000000);
         self.jump_pending = true;
         self.is_branch = true;
     }
 
     /// This function handles the JAL R3051 instruction.
-    fn jal_instruction(&mut self, instruction: i32) {
+    fn jal_instruction(&mut self, instruction: u32) {
 
         // Get target.
         let target = instruction & 0x3FFFFFF;
 
         // Create address to jump to, and place address of instruction
         // after delay slot in r31.
-        self.jump_address = (target << 2) | (self.program_counter & 0xF0000000_u32 as i32);
+        self.jump_address = (target << 2) | (self.program_counter & 0xF0000000);
         self.jump_pending = true;
         self.is_branch = true;
-        let new_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
-        self.general_registers[31] = new_address as i32;
+        self.general_registers[31] = self.program_counter.wrapping_add(8);
         self.general_registers[0] = 0;
     }
 
     /// This function handles the JALR R3051 instruction.
-    fn jalr_instruction(&mut self, instruction: i32) {
+    fn jalr_instruction(&mut self, instruction: u32) {
 
         // Get rs and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Jump to rs value and place address of instruction
         // after delay slot into rd.
         self.jump_address = self.general_registers[rs];
         self.jump_pending = true;
         self.is_branch = true;
-        let new_address = ((self.program_counter as i64) & 0xFFFFFFFF) + 8;
-        self.general_registers[rd] = new_address as i32;
+        self.general_registers[rd] = self.program_counter.wrapping_add(8);
         self.general_registers[0] = 0;
     }
 
     /// This function handles the JR R3051 instruction.
-    fn jr_instruction(&mut self, instruction: i32) {
+    fn jr_instruction(&mut self, instruction: u32) {
 
         // Get rs.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Jump to rs value.
         self.jump_address = self.general_registers[rs];
@@ -1203,25 +1168,24 @@ impl R3051 {
     }
 
     /// This function handles the LB R3051 instruction.
-    fn lb_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lb_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1231,7 +1195,7 @@ impl R3051 {
 
         // Load byte and sign extend.
         let temp_byte = self.read_data_value(
-            bridge, R3051Width::BYTE, address as i32
+            bridge, R3051Width::BYTE, address
         ).sign_extend(7);
 
         // Write byte to correct register
@@ -1240,25 +1204,24 @@ impl R3051 {
     }
 
     /// This function handles the LBU R3051 instruction.
-    fn lbu_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lbu_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1267,7 +1230,7 @@ impl R3051 {
         }
 
         // Load byte and zero extend.
-        let temp_byte = 0xFF & self.read_data_value(bridge, R3051Width::BYTE, address as i32);
+        let temp_byte = 0xFF & self.read_data_value(bridge, R3051Width::BYTE, address);
 
         // Write byte to correct register.
         self.general_registers[rt] = temp_byte;
@@ -1275,26 +1238,25 @@ impl R3051 {
     }
 
     /// This function handles the LH R3051 instruction.
-    fn lh_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lh_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed and half-word aligned, trigger
         // exception if not.
-        if !self.sccp.is_address_allowed(address as u32) || address % 2 != 0 {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) || address % 2 != 0 {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1303,8 +1265,8 @@ impl R3051 {
         }
 
         // Load half-word and swap endianness, sign extend.
-        let mut temp_half_word = 0xFFFF & self.read_data_value(bridge, R3051Width::HALFWORD, address as i32);
-        temp_half_word = ((temp_half_word << 8) & 0xFF00) | temp_half_word.logical_rshift(8);
+        let mut temp_half_word = 0xFFFF & self.read_data_value(bridge, R3051Width::HALFWORD, address);
+        temp_half_word = ((temp_half_word << 8) & 0xFF00) | (temp_half_word >> 8);
         temp_half_word = temp_half_word.sign_extend(15);
 
         // Write half-word to correct register.
@@ -1313,26 +1275,25 @@ impl R3051 {
     }
 
     /// This function handles the LHU R3051 instruction.
-    fn lhu_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lhu_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed and half-word aligned, trigger
         // exception if not.
-        if !self.sccp.is_address_allowed(address as u32) || address % 2 != 0 {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) || address % 2 != 0 {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1341,10 +1302,10 @@ impl R3051 {
         }
 
         // Load half-word and swap endianness, zero extend.
-        let mut temp_half_word = 0xFFFF & self.read_data_value(bridge, R3051Width::HALFWORD, address as i32);
+        let mut temp_half_word = 0xFFFF & self.read_data_value(bridge, R3051Width::HALFWORD, address);
 
         // Swap byte order.
-        temp_half_word = ((temp_half_word << 8) & 0xFF00) | temp_half_word.logical_rshift(8);
+        temp_half_word = ((temp_half_word << 8) & 0xFF00) | (temp_half_word >> 8);
 
         // Write half-word to correct register.
         self.general_registers[rt] = temp_half_word;
@@ -1352,11 +1313,11 @@ impl R3051 {
     }
 
     /// This function handles the LUI R3051 instruction.
-    fn lui_instruction(&mut self, instruction: i32) {
+    fn lui_instruction(&mut self, instruction: u32) {
 
        // Get rt and immediate.
        let immediate = instruction & 0xFFFF;
-       let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+       let rt = ((instruction >> 16) & 0x1F) as usize;
 
        // Shift immediate left by 16 bits (leaving least significant
        // 16 bits as zeroes) and store result.
@@ -1365,25 +1326,24 @@ impl R3051 {
     }
 
     /// This function handles the LW R3051 instruction.
-    fn lw_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lw_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) || address % 4 != 0 {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1392,7 +1352,7 @@ impl R3051 {
         }
 
         // Load word.
-        let mut temp_word = self.read_data_value(bridge, R3051Width::WORD, address as i32);
+        let mut temp_word = self.read_data_value(bridge, R3051Width::WORD, address);
 
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
@@ -1403,25 +1363,24 @@ impl R3051 {
     }
 
     /// This function handles the LWC2 R3051 instruction.
-    fn lwc2_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lwc2_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = instruction.logical_rshift(16) & 0x1F;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as i32;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) || address % 4 != 0 {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1430,35 +1389,34 @@ impl R3051 {
         }
 
         // Load word.
-        let mut temp_word = self.read_data_value(bridge, R3051Width::WORD, address as i32);
+        let mut temp_word = self.read_data_value(bridge, R3051Width::WORD, address);
 
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
 
         // Write word to correct COP2 data register.
-        self.gte.write_data_reg(rt, temp_word as u32, false);
+        self.gte.write_data_reg(rt, temp_word, false);
     }
 
     /// This function handles the LWL R3051 instruction.
-    fn lwl_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lwl_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1467,8 +1425,8 @@ impl R3051 {
         }
 
         // Align address, fetch word, and store shift index.
-        let temp_address = (address & 0xFFFFFFFC) as i32;
-        let byte_shift_index = (!address & 0x3) as i32;
+        let temp_address = address & 0xFFFFFFFC;
+        let byte_shift_index = !address & 0x3;
         let mut temp_word = self.read_data_value(bridge, R3051Width::WORD, temp_address);
 
         // Swap byte order.
@@ -1479,7 +1437,7 @@ impl R3051 {
 
         // Fetch rt contents, and calculate mask.
         let mut temp_rt_val = self.general_registers[rt];
-        let mask = !((0xFFFFFFFF_u32 as i32) << (byte_shift_index * 8));
+        let mask = !(0xFFFFFFFF << (byte_shift_index * 8));
         temp_rt_val &= mask;
 
         // Merge contents.
@@ -1491,25 +1449,24 @@ impl R3051 {
     }
 
     /// This function handles the LWR R3051 instruction.
-    fn lwr_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn lwr_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADEL;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1518,19 +1475,19 @@ impl R3051 {
         }
 
         // Align address, fetch word, and store shift index.
-        let temp_address = (address & 0xFFFFFFFC) as i32;
-        let byte_shift_index = (address & 0x3) as i32;
+        let temp_address = address & 0xFFFFFFFC;
+        let byte_shift_index = address & 0x3;
         let mut temp_word = self.read_data_value(bridge, R3051Width::WORD, temp_address);
 
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
 
         // Shift word value right by required amount.
-        temp_word = temp_word.logical_rshift(byte_shift_index * 8);
+        temp_word >>= byte_shift_index * 8;
 
         // Fetch rt contents, and calculate mask.
         let mut temp_rt_val = self.general_registers[rt];
-        let mask = !((0xFFFFFFFF_u32 as i32).logical_rshift(byte_shift_index * 8));
+        let mask = !(0xFFFFFFFF >> (byte_shift_index * 8));
         temp_rt_val &= mask;
 
         // Merge contents.
@@ -1542,11 +1499,11 @@ impl R3051 {
     }
 
     /// This function handles the MF0 R3051 instruction.
-    fn mf0_instruction(&mut self, instruction: i32) {
+    fn mf0_instruction(&mut self, instruction: u32) {
 
         // Get rt and rd.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = instruction.logical_rshift(11) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as i32;
 
         // Check if rd is any of the following and trigger exception if so.
         match rd {
@@ -1554,12 +1511,11 @@ impl R3051 {
             0 | 1 | 2 | 4 | 10 => {
 
                 // Trigger exception.
-                let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-                temp_address -= 4;
+                let temp_address = self.program_counter.wrapping_sub(4);
                 self.exception.exception_reason = MIPSExceptionReason::RI;
                 self.exception.is_in_branch_delay_slot = self.prev_was_branch;
                 self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                    temp_address as i32
+                    temp_address
                 } else {
                     self.program_counter
                 };
@@ -1571,27 +1527,27 @@ impl R3051 {
         }
 
         // Move COP0 reg rd to CPU reg rt.
-        self.general_registers[rt] = self.sccp.read_reg(rd) as i32;
+        self.general_registers[rt] = self.sccp.read_reg(rd);
         self.general_registers[0] = 0;
     }
 
     /// This function handles the MF2 R3051 instruction.
-    fn mf2_instruction(&mut self, instruction: i32) {
+    fn mf2_instruction(&mut self, instruction: u32) {
 
         // Get rt and rd.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = instruction.logical_rshift(11) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as i32;
 
         // Move from COP2 data reg rd to CPU reg rt.
-        self.general_registers[rt] = self.gte.read_data_reg(rd) as i32;
+        self.general_registers[rt] = self.gte.read_data_reg(rd);
         self.general_registers[0] = 0;
     }
 
     /// This function handles the MFHI R3051 instruction.
-    fn mfhi_instruction(&mut self, instruction: i32) {
+    fn mfhi_instruction(&mut self, instruction: u32) {
 
         // Get rd.
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Move Hi to rd.
         self.general_registers[rd] = self.hi_reg;
@@ -1599,10 +1555,10 @@ impl R3051 {
     }
 
     /// This function handles the MFLO R3051 instruction.
-    fn mflo_instruction(&mut self, instruction: i32) {
+    fn mflo_instruction(&mut self, instruction: u32) {
 
         // Get rd.
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Move Lo to rd.
         self.general_registers[rd] = self.lo_reg;
@@ -1610,88 +1566,90 @@ impl R3051 {
     }
 
     /// This function handles the MT0 R3051 instruction.
-    fn mt0_instruction(&mut self, instruction: i32) {
+    fn mt0_instruction(&mut self, instruction: u32) {
 
         // Get rt and rd.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = instruction.logical_rshift(11) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as i32;
 
         // Move CPU reg rt to COP0 reg rd.
-        self.sccp.write_reg(rd, self.general_registers[rt] as u32, false);
+        self.sccp.write_reg(rd, self.general_registers[rt], false);
     }
 
     /// This function handles the MT2 R3051 instruction.
-    fn mt2_instruction(&mut self, instruction: i32) {
+    fn mt2_instruction(&mut self, instruction: u32) {
 
         // Get rt and rd.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = instruction.logical_rshift(11) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as i32;
 
         // Move from CPU reg rt to COP2 data reg rd.
-        self.gte.write_data_reg(rd, self.general_registers[rt] as u32, false);
+        self.gte.write_data_reg(rd, self.general_registers[rt], false);
     }
 
     /// This function handles the MTHI R3051 instruction.
-    fn mthi_instruction(&mut self, instruction: i32) {
+    fn mthi_instruction(&mut self, instruction: u32) {
 
         // Get rs.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Move rs to Hi.
         self.hi_reg = self.general_registers[rs];
     }
 
     /// This function handles the MTLO R3051 instruction.
-    fn mtlo_instruction(&mut self, instruction: i32) {
+    fn mtlo_instruction(&mut self, instruction: u32) {
 
         // Get rs.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
 
         // Move rs to Lo,
         self.lo_reg = self.general_registers[rs];
     }
 
     /// This function handles the MULT R3051 instruction.
-    fn mult_instruction(&mut self, instruction: i32) {
+    fn mult_instruction(&mut self, instruction: u32) {
 
         // Get rs and rt.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
-        // Multiply rs and rt as signed values.
-        let rs_val = self.general_registers[rs] as i64;
-        let rt_val = self.general_registers[rt] as i64;
-        let result = rs_val * rt_val;
+        // Multiply rs and rt as signed values. Do this calculation
+        // at 64-bit width, after first casting to i32 to take advantage
+        // of sign extension.
+        let rs_val = (self.general_registers[rs] as i32) as i64;
+        let rt_val = (self.general_registers[rt] as i32) as i64;
+        let result = (rs_val * rt_val) as u64;
 
         // Store result.
-        self.hi_reg = result.logical_rshift(32) as i32;
-        self.lo_reg = result as i32;
+        self.hi_reg = (result >> 32) as u32;
+        self.lo_reg = result as u32;
     }
 
     /// This function handles the MULTU R3051 instruction.
-    fn multu_instruction(&mut self, instruction: i32) {
+    fn multu_instruction(&mut self, instruction: u32) {
 
         // Get rs and rt.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Multiply rs and rt as unsigned values.
-        let rs_val = (self.general_registers[rs] as i64) & 0xFFFFFFFF;
-        let rt_val = (self.general_registers[rt] as i64) & 0xFFFFFFFF;
+        let rs_val = self.general_registers[rs] as u64;
+        let rt_val = self.general_registers[rt] as u64;
         let result = rs_val * rt_val;
 
         // Store result.
-        self.hi_reg = result.logical_rshift(32) as i32;
-        self.lo_reg = result as i32;
+        self.hi_reg = (result >> 32) as u32;
+        self.lo_reg = result as u32;
     }
 
     /// This function handles the NOR R3051 instruction.
-    fn nor_instruction(&mut self, instruction: i32) {
+    fn nor_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Bitwise NOR rs_val and rt_val, storing result.
         self.general_registers[rd] = !(self.general_registers[rs] | self.general_registers[rt]);
@@ -1699,12 +1657,12 @@ impl R3051 {
     }
 
     /// This function handles the OR R3051 instruction.
-    fn or_instruction(&mut self, instruction: i32) {
+    fn or_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Bitwise OR rs_val and rt_val, storing result.
         self.general_registers[rd] = self.general_registers[rs] | self.general_registers[rt];
@@ -1712,12 +1670,12 @@ impl R3051 {
     }
 
     /// This function handles the ORI R3051 instruction.
-    fn ori_instruction(&mut self, instruction: i32) {
+    fn ori_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and immediate.
         let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Zero extending immediate is already done for us
         // so just OR with rs_val and store result.
@@ -1731,25 +1689,24 @@ impl R3051 {
     }
 
     /// This function handles the SB R3051 instruction.
-    fn sb_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn sb_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADES;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1759,30 +1716,29 @@ impl R3051 {
 
         // Load byte from register and write to memory.
         let temp_byte = 0xFF & self.general_registers[rt];
-        self.write_data_value(bridge, R3051Width::BYTE, address as i32, temp_byte);
+        self.write_data_value(bridge, R3051Width::BYTE, address, temp_byte);
     }
 
     /// This function handles the SH R3051 instruction.
-    fn sh_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn sh_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed and half-word aligned, trigger
         // exception if not.
-        if !self.sccp.is_address_allowed(address as u32) || address % 2 != 0 {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) || address % 2 != 0 {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADES;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1795,17 +1751,17 @@ impl R3051 {
         let mut temp_half_word = 0xFFFF & self.general_registers[rt];
 
         // Swap byte order and write to memory.
-        temp_half_word = ((temp_half_word << 8) & 0xFF00) | temp_half_word.logical_rshift(8);
-        self.write_data_value(bridge, R3051Width::HALFWORD, address as i32, temp_half_word);
+        temp_half_word = ((temp_half_word << 8) & 0xFF00) | (temp_half_word >> 8);
+        self.write_data_value(bridge, R3051Width::HALFWORD, address, temp_half_word);
     }
 
     /// This function handles the SLL R3051 instruction.
-    fn sll_instruction(&mut self, instruction: i32) {
+    fn sll_instruction(&mut self, instruction: u32) {
 
         // Get rt, rd and shamt.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
-        let shamt = instruction.logical_rshift(6) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
+        let shamt = (instruction >> 6) & 0x1F;
 
         // Shift rt value left by shamt bits, inserting zeroes
         // into low order bits, then store result.
@@ -1814,12 +1770,12 @@ impl R3051 {
     }
 
     /// This function handles the SLLV R3051 instruction.
-    fn sllv_instruction(&mut self, instruction: i32) {
+    fn sllv_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Shift rt value left by (lowest 5 bits of rs value),
         // inserting zeroes into low order bits, then
@@ -1829,15 +1785,15 @@ impl R3051 {
     }
 
     /// This function handles the SLT R3051 instruction.
-    fn slt_instruction(&mut self, instruction: i32) {
+    fn slt_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Compare rs_val and rt_val, storing result.
-        self.general_registers[rd] = if self.general_registers[rs] < self.general_registers[rt] {
+        self.general_registers[rd] = if (self.general_registers[rs] as i32) < (self.general_registers[rt] as i32) {
             1
         } else {
             0
@@ -1846,12 +1802,29 @@ impl R3051 {
     }
 
     /// This function handles the SLTI R3051 instruction.
-    fn slti_instruction(&mut self, instruction: i32) {
+    fn slti_instruction(&mut self, instruction: u32) {
+
+        // Get rs, rt and sign-extended immediate.
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+
+        // Store result.
+        self.general_registers[rt] = if (self.general_registers[rs] as i32) < immediate {
+            1
+        } else {
+            0
+        };
+        self.general_registers[0] = 0;
+    }
+
+    /// This function handles the SLTIU R3051 instruction.
+    fn sltiu_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and sign-extended immediate.
         let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Store result.
         self.general_registers[rt] = if self.general_registers[rs] < immediate {
@@ -1862,37 +1835,16 @@ impl R3051 {
         self.general_registers[0] = 0;
     }
 
-    /// This function handles the SLTIU R3051 instruction.
-    fn sltiu_instruction(&mut self, instruction: i32) {
-
-        // Get rs, rt and sign-extended immediate.
-        let immediate = (instruction.sign_extend(15) as i64) & 0xFFFFFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-
-        // Treat rs_val as unsigned.
-        let temp_rs_val = (self.general_registers[rs] as i64) & 0xFFFFFFFF;
-
-        // Store result.
-        self.general_registers[rt] = if temp_rs_val < immediate {
-            1
-        } else {
-            0
-        };
-        self.general_registers[0] = 0;
-    }
-
     /// This function handles the SLTU R3051 instruction.
-    fn sltu_instruction(&mut self, instruction: i32) {
+    fn sltu_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Compare rs_val and rt_val as unsigned values, storing result.
-        self.general_registers[rd] = if ((self.general_registers[rs] as i64) & 0xFFFFFFFF) <
-                                        ((self.general_registers[rt] as i64) & 0xFFFFFFFF) {
+        self.general_registers[rd] = if self.general_registers[rs] < self.general_registers[rt] {
             1
         } else {
             0
@@ -1901,74 +1853,73 @@ impl R3051 {
     }
 
     /// This function handles the SRA R3051 instruction.
-    fn sra_instruction(&mut self, instruction: i32) {
+    fn sra_instruction(&mut self, instruction: u32) {
 
         // Get rt, rd and shamt.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
-        let shamt = instruction.logical_rshift(6) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
+        let shamt = (instruction >> 6) & 0x1F;
 
         // Shift rt value right by shamt bits, sign extending
         // high order bits, then store result.
-        self.general_registers[rd] = self.general_registers[rt] >> shamt;
+        self.general_registers[rd] = ((self.general_registers[rt] as i32) >> shamt) as u32;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the SRAV R3051 instruction.
-    fn srav_instruction(&mut self, instruction: i32) {
+    fn srav_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Shift rt value right by (lowest 5 bits of rs value),
         // sign extending high order bits, then store result.
-        self.general_registers[rd] = self.general_registers[rt] >> (self.general_registers[rs] & 0x1F);
+        self.general_registers[rd] = ((self.general_registers[rt] as i32) >> (self.general_registers[rs] & 0x1F)) as u32;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the SRL R3051 instruction.
-    fn srl_instruction(&mut self, instruction: i32) {
+    fn srl_instruction(&mut self, instruction: u32) {
 
         // Get rt, rd and shamt.
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
-        let shamt = instruction.logical_rshift(6) & 0x1F;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
+        let shamt = (instruction >> 6) & 0x1F;
 
         // Shift rt value right by shamt bits, inserting zeroes
         // into high order bits, then store result.
-        self.general_registers[rd] = self.general_registers[rt].logical_rshift(shamt);
+        self.general_registers[rd] = self.general_registers[rt] >> shamt;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the SRLV R3051 instruction.
-    fn srlv_instruction(&mut self, instruction: i32) {
+    fn srlv_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Shift rt value right by (lowest 5 bits of rs value),
         // inserting zeroes into high order bits, then
         // store result.
-        self.general_registers[rd] =
-            self.general_registers[rt].logical_rshift(self.general_registers[rs] & 0x1F);
+        self.general_registers[rd] = self.general_registers[rt] >> (self.general_registers[rs] & 0x1F);
         self.general_registers[0] = 0;
     }
 
     /// This function handles the SUB R3051 instruction.
-    fn sub_instruction(&mut self, instruction: i32) {
+    fn sub_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Subtract rt_val from rs_val.
-        let rs_val = self.general_registers[rs];
-        let rt_val = self.general_registers[rt];
+        let rs_val = self.general_registers[rs] as i32;
+        let rt_val = self.general_registers[rt] as i32;
         let result = rs_val.wrapping_sub(rt_val);
 
         // Check for two's complement overflow.
@@ -1977,12 +1928,11 @@ impl R3051 {
            (rs_val & sign_bit) != (result & sign_bit) {
 
             // Trigger exception.
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
+            let temp_address = self.program_counter.wrapping_sub(4);
             self.exception.exception_reason = MIPSExceptionReason::OVF;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -1991,47 +1941,45 @@ impl R3051 {
         }
 
         // Store result.
-        self.general_registers[rd] = result;
+        self.general_registers[rd] = result as u32;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the SUBU R3051 instruction.
-    fn subu_instruction(&mut self, instruction: i32) {
+    fn subu_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Subtract rt_val from rs_val.
-        let result = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) -
-            ((self.general_registers[rt] as i64) & 0xFFFFFFFF);
+        let result = self.general_registers[rs].wrapping_sub(self.general_registers[rt]);
 
         // Store result.
-        self.general_registers[rd] = result as i32;
+        self.general_registers[rd] = result;
         self.general_registers[0] = 0;
     }
 
     /// This function handles the SW R3051 instruction.
-    fn sw_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn sw_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) || address % 4 != 0 {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADES;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -2046,29 +1994,28 @@ impl R3051 {
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
 
-        self.write_data_value(bridge, R3051Width::WORD, address as i32, temp_word);
+        self.write_data_value(bridge, R3051Width::WORD, address, temp_word);
     }
 
     /// This function handles the SWC2 R3051 instruction.
-    fn swc2_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn swc2_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = instruction.logical_rshift(16) & 0x1F;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as i32;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed and word aligned, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) || address % 4 != 0 {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) || address % 4 != 0 {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADES;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -2077,34 +2024,33 @@ impl R3051 {
         }
 
         // Load word from register, set byte order and write to memory.
-        let mut temp_word = self.gte.read_data_reg(rt) as i32;
+        let mut temp_word = self.gte.read_data_reg(rt);
 
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
 
-        self.write_data_value(bridge, R3051Width::WORD, address as i32, temp_word);
+        self.write_data_value(bridge, R3051Width::WORD, address, temp_word);
     }
 
     /// This function handles the SWL R3051 instruction.
-    fn swl_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn swl_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADES;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -2113,8 +2059,8 @@ impl R3051 {
         }
 
         // Align address, fetch word, and store shift index - sort byte order too.
-        let temp_address = (address & 0xFFFFFFFC) as i32;
-        let byte_shift_index = (!address & 0x3) as i32;
+        let temp_address = address & 0xFFFFFFFC;
+        let byte_shift_index = !address & 0x3;
         let mut temp_word = self.general_registers[rt];
 
         // Swap byte order.
@@ -2125,7 +2071,7 @@ impl R3051 {
 
         // Fetch memory contents, and calculate mask.
         let mut temp_val = bridge.read_word(self, temp_address);
-        let mask = !((0xFFFFFFFF_u32 as i32) << (byte_shift_index * 8));
+        let mask = !(0xFFFFFFFF << (byte_shift_index * 8));
         temp_val &= mask;
 
         // Merge contents.
@@ -2136,25 +2082,24 @@ impl R3051 {
     }
 
     /// This function handles the SWR R3051 instruction.
-    fn swr_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: i32) {
+    fn swr_instruction(&mut self, bridge: &mut dyn CpuBridge, instruction: u32) {
 
         // Get rs, rt and immediate.
-        let immediate = instruction.sign_extend(15);
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let immediate = (instruction as i32).sign_extend(15);
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Calculate address.
-        let address = ((self.general_registers[rs] as i64) & 0xFFFFFFFF) + (immediate as i64);
+        let address = (self.general_registers[rs] as i32).wrapping_add(immediate) as u32;
 
         // Check if address is allowed, trigger exception if not.
-        if !self.sccp.is_address_allowed(address as u32) {
-            let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-            temp_address -= 4;
-            self.exception.bad_address = address as i32;
+        if !self.sccp.is_address_allowed(address) {
+            let temp_address = self.program_counter.wrapping_sub(4);
+            self.exception.bad_address = address;
             self.exception.exception_reason = MIPSExceptionReason::ADES;
             self.exception.is_in_branch_delay_slot = self.prev_was_branch;
             self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-                temp_address as i32
+                temp_address
             } else {
                 self.program_counter
             };
@@ -2163,19 +2108,19 @@ impl R3051 {
         }
 
         // Align address, fetch word, and store shift index - sort byte order too.
-        let temp_address = (address & 0xFFFFFFFC) as i32;
-        let byte_shift_index = (address & 0x3) as i32;
+        let temp_address = address & 0xFFFFFFFC;
+        let byte_shift_index = address & 0x3;
         let mut temp_word = self.general_registers[rt];
 
         // Swap byte order.
         temp_word = self.swap_word_endianness(temp_word);
 
         // Shift word value right by required amount.
-        temp_word = temp_word.logical_rshift(byte_shift_index * 8);
+        temp_word >>= byte_shift_index * 8;
 
         // Fetch rt contents, and calculate mask.
         let mut temp_val = bridge.read_word(self, temp_address);
-        let mask = !(0xFFFFFFFF_u32 as i32).logical_rshift(byte_shift_index * 8);
+        let mask = !(0xFFFFFFFF >> (byte_shift_index * 8));
         temp_val &= mask;
 
         // Merge contents.
@@ -2189,24 +2134,23 @@ impl R3051 {
     fn syscall_instruction(&mut self) {
 
         // Trigger System Call Exception.
-        let mut temp_address = (self.program_counter as i64) & 0xFFFFFFFF;
-        temp_address -= 4;
+        let temp_address = self.program_counter.wrapping_sub(4);
         self.exception.exception_reason = MIPSExceptionReason::SYS;
         self.exception.is_in_branch_delay_slot = self.prev_was_branch;
         self.exception.program_counter_origin = if self.exception.is_in_branch_delay_slot {
-            temp_address as i32
+            temp_address
         } else {
             self.program_counter
         };
     }
 
     /// This function handles the XOR R3051 instruction.
-    fn xor_instruction(&mut self, instruction: i32) {
+    fn xor_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and rd.
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
-        let rd = (instruction.logical_rshift(11) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
+        let rd = ((instruction >> 11) & 0x1F) as usize;
 
         // Bitwise XOR rsVal and rtVal, storing result.
         self.general_registers[rd] = self.general_registers[rs] ^ self.general_registers[rt];
@@ -2214,12 +2158,12 @@ impl R3051 {
     }
 
     /// This function handles the XORI R3051 instruction.
-    fn xori_instruction(&mut self, instruction: i32) {
+    fn xori_instruction(&mut self, instruction: u32) {
 
         // Get rs, rt and immediate.
         let immediate = instruction & 0xFFFF;
-        let rs = (instruction.logical_rshift(21) & 0x1F) as usize;
-        let rt = (instruction.logical_rshift(16) & 0x1F) as usize;
+        let rs = ((instruction >> 21) & 0x1F) as usize;
+        let rt = ((instruction >> 16) & 0x1F) as usize;
 
         // Zero extending immediate is already done for us
         // so just XOR with rsVal and store result.
