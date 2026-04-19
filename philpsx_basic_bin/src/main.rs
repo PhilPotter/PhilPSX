@@ -7,9 +7,10 @@
 
 use clap::Parser;
 use philpsx_core::{
+    bridges::cpu::CpuBridgeImpl,
     cdrom_drive::{CdromDrive, psx_cdrom_drive::PsxCdromDrive},
     controllers::psx_controllers::PsxControllers,
-    cpu::r3051::R3051,
+    cpu::{Cpu, r3051::R3051},
     motherboard::psx_motherboard::PsxMotherboard,
     spu::psx_spu::PsxSpu,
 };
@@ -72,6 +73,7 @@ fn main() -> ExitCode {
         },
     };
 
+    // Create all the components.
     let mut cdrom_drive = PsxCdromDrive::new();
     let mut controllers = PsxControllers::new();
     let mut cpu = R3051::new();
@@ -95,6 +97,14 @@ fn main() -> ExitCode {
         }
     }
 
+    // Now link all the components together.
+    let mut cpu_bridge = CpuBridgeImpl::new(
+        &mut cdrom_drive,
+        &mut controllers,
+        &mut motherboard,
+        &mut spu
+    );
+
     // Create a dummy window for now, just to make sure SDL works.
     let sdl_window = match sdl_video_subsystem.window(
         PHILPSX_WINDOW_TITLE,
@@ -115,6 +125,11 @@ fn main() -> ExitCode {
     sdl_canvas.set_draw_color(Color::RGB(0, 0, 255));
     sdl_canvas.clear();
     sdl_canvas.present();
+
+    // For now, just loop executing instructions. This is just for satisfying the build.
+    loop {
+        let cycles = cpu.execute_instructions(&mut cpu_bridge);
+    }
 
     // We finished normally, return success code therefore.
     log::info!("PhilPSX exiting...");

@@ -7,7 +7,10 @@ use std::{
     fs::File,
     io::Read,
 };
-use super::Motherboard;
+use super::{
+    Motherboard,
+    MotherboardBridge,
+};
 
 /// Size of the RAM area in bytes.
 const RAM_SIZE: usize = 2097152;
@@ -165,4 +168,9 @@ impl PsxMotherboard {
 /// a Motherboard object is.
 impl Motherboard for PsxMotherboard {
 
+    /// This function appends a cycle count to the system count.
+    fn append_sync_cycles(&mut self, bridge: &mut dyn MotherboardBridge, cycles: i32) {
+
+        self.interrupt_cycles += cycles;
+    }
 }

@@ -29,3 +29,8 @@ pub mod controllers;
 
 /// This module contains PlayStation CD-ROM drive related functionality.
 pub mod cdrom_drive;
+
+/// This module contains bridging functionality, to get us around the
+/// fact that mutable references are exclusive in Rust, and this doesn't
+/// play well with the existing structure of the C version.
+pub mod bridges;

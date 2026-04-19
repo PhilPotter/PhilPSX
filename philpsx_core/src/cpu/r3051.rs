@@ -2749,7 +2749,7 @@ impl Cpu for R3051 {
             self.cycles = 0;
 
             // Check address is OK, throwing exception if not.
-            let mut temp_address = self.program_counter - 4;
+            let mut temp_address = self.program_counter.wrapping_sub(4);
 
             // Perform read of instruction.
             let temp_instruction = self.read_instruction_word(bridge, self.program_counter, temp_address);

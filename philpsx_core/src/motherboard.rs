@@ -1,26 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 // motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use super::{
-    cpu::Cpu,
-    spu::Spu,
-    controllers::Controllers,
-    cdrom_drive::CdromDrive,
-};
-
 /// This module contains the default motherboard implementation. There
 /// may be others in future.
 pub mod psx_motherboard;
 
 /// This trait provides an implementation-opaque way of calling motherboard
-/// methods from elsewhere in the system via a 'bridge'.
-pub trait Motherboard {}
+/// methods from elsewhere in the system.
+pub trait Motherboard {
 
-/// This struct exists to allow us to reference all components mutably when
-/// operating from the context of a motherboard call.
-pub struct MotherboardComponents<'a> {
-    cpu: &'a mut dyn Cpu,
-    spu: &'a mut dyn Spu,
-    controllers: &'a mut dyn Controllers,
-    cdrom_drive: &'a mut dyn CdromDrive,
+    /// The CPU must call this to append a cycle count to the system count.
+    fn append_sync_cycles(&mut self, bridge: &mut dyn MotherboardBridge, cycles: i32);
+}
+
+/// This trait provides an implementation-opaque way of the motherboard
+/// calling methods from elsewhere in the system via a 'bridge'.
+pub trait MotherboardBridge {
 }
