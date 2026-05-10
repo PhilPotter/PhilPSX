@@ -173,4 +173,54 @@ impl Motherboard for PsxMotherboard {
 
         self.interrupt_cycles += cycles;
     }
+
+    /// This function determines the number of stall cycles to use.
+    fn how_how_many_stall_cycles(&self, address: u32) -> i32 {
+
+        // Mask address to clamp it to word boundary.
+        let temp_address = address & 0xFFFFFFFC;
+
+        // Check which area the address is in and set cycles accordingly.
+        match temp_address {
+
+            // RAM.
+            0..0x200000 => 6,
+
+            // BIOS.
+            0x1FC00000..0x1FC80000 => 1,
+
+            // Cache control register.
+            0xFFFE0130 => 1,
+
+            // Otherwise, use standard delay of most registers.
+            _ => 4,
+        }
+    }
+
+    /// This function determines if an address is OK to increment.
+    fn ok_to_increment(&self, address: u32) -> bool {
+
+        !(0x1F801800..=0x1F801803).contains(&address)
+    }
+
+    /// This function determines if the scratchpad is enabled.
+    fn scratchpad_enabled(&self) -> bool {
+
+        swap_endianness(self.cache_control_reg) & 0x88 == 0x88
+    }
+
+    /// This function determines if the instruction cache is enabled.
+    fn instruction_cache_enabled(&self) -> bool {
+
+        swap_endianness(self.cache_control_reg) & 0x800 == 0x800
+    }
+}
+
+/// This utility function swaps the endianness of a register for us.
+#[inline(always)]
+fn swap_endianness(register_value: u32) -> u32 {
+    ((register_value << 24) & 0xFF000000) |
+        ((register_value << 8) & 0xFF0000) |
+        ((register_value >> 8) & 0xFF00) |
+        ((register_value >> 24) & 0xFF)
 }

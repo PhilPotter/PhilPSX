@@ -3,7 +3,7 @@
 
 use crate::{bridges::motherboard::MotherboardBridgeImpl, motherboard::MotherboardBridge};
 
-use super::super::{
+use crate::{
     cdrom_drive::CdromDrive,
     controllers::Controllers,
     cpu::{Cpu, CpuBridge},
@@ -38,20 +38,20 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
         self.motherboard.append_sync_cycles(&mut bridge, cycles);
     }
 
-    fn how_how_many_stall_cycles(&self, cpu: &mut dyn Cpu, address: u32) -> i32 {
-        0
+    fn how_how_many_stall_cycles(&self, _: &mut dyn Cpu, address: u32) -> i32 {
+        self.motherboard.how_how_many_stall_cycles(address)
     }
 
-    fn ok_to_increment(&self, cpu: &mut dyn Cpu, address: u32) -> bool {
-        false
+    fn ok_to_increment(&self, _: &mut dyn Cpu, address: u32) -> bool {
+        self.motherboard.ok_to_increment(address)
     }
 
-    fn scratchpad_enabled(&self, cpu: &mut dyn Cpu) -> bool {
-        false
+    fn scratchpad_enabled(&self, _: &mut dyn Cpu) -> bool {
+        self.motherboard.scratchpad_enabled()
     }
 
-    fn instruction_cache_enabled(&self, cpu: &mut dyn Cpu) -> bool {
-        false
+    fn instruction_cache_enabled(&self, _: &mut dyn Cpu) -> bool {
+        self.motherboard.instruction_cache_enabled()
     }
 
     fn read_byte(&self, cpu: &mut dyn Cpu, address: u32) -> u8 {

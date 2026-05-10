@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use super::super::{
+use crate::{
     cdrom_drive::CdromDrive,
     controllers::Controllers,
     cpu::Cpu,
