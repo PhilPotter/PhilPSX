@@ -54,21 +54,54 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
         self.motherboard.instruction_cache_enabled()
     }
 
-    fn read_byte(&self, cpu: &mut dyn Cpu, address: u32) -> u8 {
-        0
+    fn read_byte(&mut self, cpu: &mut dyn Cpu, address: u32) -> u8 {
+        let mut bridge = CpuBridgeImpl::get_motherboard_bridge(
+            self.cdrom_drive,
+            self.controllers,
+            cpu,
+            self.spu
+        );
+        self.motherboard.read_byte(&mut bridge, address)
     }
 
-    fn read_word(&self, cpu: &mut dyn Cpu, address: u32) -> u32 {
-        0
+    fn read_word(&mut self, cpu: &mut dyn Cpu, address: u32) -> u32 {
+        let mut bridge = CpuBridgeImpl::get_motherboard_bridge(
+            self.cdrom_drive,
+            self.controllers,
+            cpu,
+            self.spu
+        );
+        self.motherboard.read_word(&mut bridge, address)
     }
 
     fn write_byte(&mut self, cpu: &mut dyn Cpu, address: u32, value: u8) {
+        let mut bridge = CpuBridgeImpl::get_motherboard_bridge(
+            self.cdrom_drive,
+            self.controllers,
+            cpu,
+            self.spu
+        );
+        self.motherboard.write_byte(&mut bridge, address, value)
     }
 
     fn write_word(&mut self, cpu: &mut dyn Cpu, address: u32, value: u32) {
+        let mut bridge = CpuBridgeImpl::get_motherboard_bridge(
+            self.cdrom_drive,
+            self.controllers,
+            cpu,
+            self.spu
+        );
+        self.motherboard.write_word(&mut bridge, address, value)
     }
 
     fn increment_interrupt_counters(&mut self, cpu: &mut dyn Cpu) {
+        let mut bridge = CpuBridgeImpl::get_motherboard_bridge(
+            self.cdrom_drive,
+            self.controllers,
+            cpu,
+            self.spu
+        );
+        self.motherboard.increment_interrupt_counters(&mut bridge)
     }
 }
 

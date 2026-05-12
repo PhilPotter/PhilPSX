@@ -214,6 +214,29 @@ impl Motherboard for PsxMotherboard {
 
         swap_endianness(self.cache_control_reg) & 0x800 == 0x800
     }
+
+    /// This function reads a byte from the system address space.
+    fn read_byte(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u8 {
+        0
+    }
+
+    /// This function reads a word from the system address space.
+    fn read_word(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u32 {
+        0
+    }
+
+    /// This function writes a byte to the system address space.
+    fn write_byte(&mut self, bridge: &mut dyn MotherboardBridge, address: u32, value: u8) {
+    }
+
+    /// This function writes a word to the system address space.
+    fn write_word(&mut self, bridge: &mut dyn MotherboardBridge, address: u32, value: u32) {
+    }
+
+    /// The CPU must call this to increment interrupt counters and trigger
+    /// timer updates and GPU updates to be done.
+    fn increment_interrupt_counters(&mut self, bridge: &mut dyn MotherboardBridge) {
+    }
 }
 
 /// This utility function swaps the endianness of a register for us.

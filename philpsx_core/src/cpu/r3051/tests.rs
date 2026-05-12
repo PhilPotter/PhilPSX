@@ -47,11 +47,11 @@ impl CpuBridge for TestCpuBridge {
         true
     }
 
-    fn read_byte(&self, _cpu: &mut dyn Cpu, address: u32) -> u8 {
+    fn read_byte(&mut self, _cpu: &mut dyn Cpu, address: u32) -> u8 {
         self.ram[address as usize]
     }
 
-    fn read_word(&self, _cpu: &mut dyn Cpu, address: u32) -> u32 {
+    fn read_word(&mut self, _cpu: &mut dyn Cpu, address: u32) -> u32 {
         let temp_address = (address & 0xFFFFFFFC) as usize;
 
         (((self.ram[temp_address] as u32) & 0xFF) << 24) |

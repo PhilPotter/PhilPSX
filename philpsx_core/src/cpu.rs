@@ -56,10 +56,10 @@ pub trait CpuBridge {
     fn instruction_cache_enabled(&self, cpu: &mut dyn Cpu) -> bool;
 
     /// The CPU must call this to read a byte from the system bus.
-    fn read_byte(&self, cpu: &mut dyn Cpu, address: u32) -> u8;
+    fn read_byte(&mut self, cpu: &mut dyn Cpu, address: u32) -> u8;
 
     /// The CPU must call this to read a word from the system bus.
-    fn read_word(&self, cpu: &mut dyn Cpu, address: u32) -> u32;
+    fn read_word(&mut self, cpu: &mut dyn Cpu, address: u32) -> u32;
 
     /// The CPU must call this to write a byte to the system bus.
     fn write_byte(&mut self, cpu: &mut dyn Cpu, address: u32, value: u8);
