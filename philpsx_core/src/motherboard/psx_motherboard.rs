@@ -21,7 +21,7 @@ const SCRATCHPAD_SIZE: usize = 1024;
 /// Size of the BIOS area in bytes.
 const BIOS_SIZE: usize = 524288;
 
-/// This struct models the central 'motherboard' of the PlayStaton, storing things
+/// This struct models the central 'motherboard' of the PlayStation, storing things
 /// like the RAM, timers and others.
 pub struct PsxMotherboard {
 
