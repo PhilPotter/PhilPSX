@@ -11,6 +11,7 @@ use super::{
     Motherboard,
     MotherboardBridge,
 };
+use psx_timer::PsxTimerModule;
 
 /// Size of the RAM area in bytes.
 const RAM_SIZE: usize = 2097152;
@@ -20,6 +21,9 @@ const SCRATCHPAD_SIZE: usize = 1024;
 
 /// Size of the BIOS area in bytes.
 const BIOS_SIZE: usize = 524288;
+
+/// Private timer module, just to keep the code cleaner/more separate than in the C version.
+mod psx_timer;
 
 /// This struct models the central 'motherboard' of the PlayStation, storing things
 /// like the RAM, timers and others.
@@ -38,6 +42,9 @@ pub struct PsxMotherboard {
     // original C version using i8 (because it was in turn based on)
     // the Java version that used byte (which is signed).
     bios: Vec<u8>,
+
+    // Timer module.
+    timer_module: PsxTimerModule,
 
     // Register declarations.
     cache_control_reg: u32,
@@ -68,26 +75,6 @@ pub struct PsxMotherboard {
     cdrom_interrupt_number: i32,
     cdrom_interrupt_enabled: bool,
     interrupt_cycles: i32,
-
-    // Timer specific fields below. In the C version, these were contained
-    // within a separate heap-allocated object.
-
-    // Variables for the three timers.
-    timer_mode: [i32; 3],
-    timer_counter_value: [i32; 3],
-    timer_target_value: [i32; 3],
-    clock_source: [i32; 3],
-    increment_by: [i32; 3],
-    new_value: [i32; 3],
-    interrupt_happened_once_or_more: [bool; 3],
-
-    // Variables to track CPU cycles and GPU cycles.
-    cpu_cycles_to_sync: [i32; 3],
-    gpu_cycles_to_sync: [i32; 3],
-    cpu_topup: [i32; 3],
-    gpu_topup: [i32; 3],
-    hblank_happened: [bool; 3],
-    vblank_happened: [bool; 3],
 }
 
 /// Implementation functions for the motherboard itself.
@@ -102,6 +89,9 @@ impl PsxMotherboard {
             ram: vec![0; RAM_SIZE],
             scratchpad: vec![0; SCRATCHPAD_SIZE],
             bios: vec![0; BIOS_SIZE],
+
+            // Setup timer module.
+            timer_module: PsxTimerModule::new(),
 
             // Setup registers.
             cache_control_reg: 0,
@@ -131,23 +121,6 @@ impl PsxMotherboard {
             cdrom_interrupt_number: 0,
             cdrom_interrupt_enabled: false,
             interrupt_cycles: 0,
-
-            // Setup timer variables.
-            timer_mode: [0; 3],
-            timer_counter_value: [0; 3],
-            timer_target_value: [0; 3],
-            clock_source: [0; 3],
-            increment_by: [0; 3],
-            new_value: [0; 3],
-            interrupt_happened_once_or_more: [false; 3],
-
-            // Setup CPU cycles and GPU cycles variables.
-            cpu_cycles_to_sync: [0; 3],
-            gpu_cycles_to_sync: [0; 3],
-            cpu_topup: [0; 3],
-            gpu_topup: [0; 3],
-            hblank_happened: [false; 3],
-            vblank_happened: [false; 3],
         };
 
         // Populate BIOS with passed in data.
@@ -172,6 +145,8 @@ impl Motherboard for PsxMotherboard {
     fn append_sync_cycles(&mut self, bridge: &mut dyn MotherboardBridge, cycles: i32) {
 
         self.interrupt_cycles += cycles;
+        bridge.gpu_append_sync_cycles(self, cycles);
+        bridge.controllers_append_sync_cycles(self, cycles);
     }
 
     /// This function determines the number of stall cycles to use.

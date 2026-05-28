@@ -8,4 +8,7 @@ pub mod psx_gpu;
 /// This trait provides an implementation-opaque way of calling GPU
 /// methods from elsewhere in the system.
 pub trait Gpu {
+
+    /// Implementations must use this to increment the GPU cycle count.
+    fn append_sync_cycles(&mut self, cycles: i32);
 }

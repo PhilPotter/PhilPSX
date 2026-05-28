@@ -13,6 +13,8 @@ use philpsx_core::{
     cpu::{Cpu, r3051::R3051},
     motherboard::psx_motherboard::PsxMotherboard,
     spu::psx_spu::PsxSpu,
+    gpu::psx_gpu::PsxGpu,
+    dma::psx_dma::PsxDmaArbiter,
 };
 use sdl3::pixels::Color;
 use std::{
@@ -85,6 +87,8 @@ fn main() -> ExitCode {
         }
     };
     let mut spu = PsxSpu::new();
+    let mut gpu = PsxGpu::new();
+    let mut dma = PsxDmaArbiter::new();
 
     // If the CD was specified as an argument, then load it now.
     if let Some(path) = &philpsx_args.cd {
@@ -102,7 +106,9 @@ fn main() -> ExitCode {
         &mut cdrom_drive,
         &mut controllers,
         &mut motherboard,
-        &mut spu
+        &mut spu,
+        &mut gpu,
+        &mut dma
     );
 
     // Create a dummy window for now, just to make sure SDL works.

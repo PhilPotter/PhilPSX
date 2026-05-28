@@ -9,6 +9,8 @@ use crate::{
     cpu::{Cpu, CpuBridge},
     motherboard::Motherboard,
     spu::Spu,
+    gpu::Gpu,
+    dma::DmaArbiter,
 };
 
 /// This struct contains internal references for all other
@@ -23,6 +25,8 @@ pub struct CpuBridgeImpl<'a> {
     controllers: &'a mut dyn Controllers,
     motherboard: &'a mut dyn Motherboard,
     spu: &'a mut dyn Spu,
+    gpu: &'a mut dyn Gpu,
+    dma: &'a mut dyn DmaArbiter,
 }
 
 /// Mapping functions for the bridge.
@@ -33,7 +37,9 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
             self.cdrom_drive,
             self.controllers,
             cpu,
-            self.spu
+            self.spu,
+            self.gpu,
+            self.dma
         );
         self.motherboard.append_sync_cycles(&mut bridge, cycles);
     }
@@ -59,7 +65,9 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
             self.cdrom_drive,
             self.controllers,
             cpu,
-            self.spu
+            self.spu,
+            self.gpu,
+            self.dma
         );
         self.motherboard.read_byte(&mut bridge, address)
     }
@@ -69,7 +77,9 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
             self.cdrom_drive,
             self.controllers,
             cpu,
-            self.spu
+            self.spu,
+            self.gpu,
+            self.dma
         );
         self.motherboard.read_word(&mut bridge, address)
     }
@@ -79,7 +89,9 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
             self.cdrom_drive,
             self.controllers,
             cpu,
-            self.spu
+            self.spu,
+            self.gpu,
+            self.dma
         );
         self.motherboard.write_byte(&mut bridge, address, value)
     }
@@ -89,7 +101,9 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
             self.cdrom_drive,
             self.controllers,
             cpu,
-            self.spu
+            self.spu,
+            self.gpu,
+            self.dma
         );
         self.motherboard.write_word(&mut bridge, address, value)
     }
@@ -99,7 +113,9 @@ impl<'a> CpuBridge for CpuBridgeImpl<'a> {
             self.cdrom_drive,
             self.controllers,
             cpu,
-            self.spu
+            self.spu,
+            self.gpu,
+            self.dma
         );
         self.motherboard.increment_interrupt_counters(&mut bridge)
     }
@@ -113,13 +129,17 @@ impl<'a, 'b> CpuBridgeImpl<'a> {
         cdrom_drive: &'b mut dyn CdromDrive,
         controllers: &'b mut dyn Controllers,
         motherboard: &'b mut dyn Motherboard,
-        spu: &'b mut dyn Spu
+        spu: &'b mut dyn Spu,
+        gpu: &'b mut dyn Gpu,
+        dma: &'b mut dyn DmaArbiter
     ) -> Self where 'b: 'a{
         CpuBridgeImpl {
             cdrom_drive,
             controllers,
             motherboard,
             spu,
+            gpu,
+            dma,
         }
     }
 
@@ -129,13 +149,17 @@ impl<'a, 'b> CpuBridgeImpl<'a> {
         cdrom_drive: &'b mut dyn CdromDrive,
         controllers: &'b mut dyn Controllers,
         cpu: &'b mut dyn Cpu,
-        spu: &'b mut dyn Spu
+        spu: &'b mut dyn Spu,
+        gpu: &'b mut dyn Gpu,
+        dma: &'b mut dyn DmaArbiter
     ) -> impl MotherboardBridge {
         MotherboardBridgeImpl::new(
             cdrom_drive,
             controllers,
             cpu,
             spu,
+            gpu,
+            dma,
         )
     }
 }

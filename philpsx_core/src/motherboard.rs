@@ -44,4 +44,10 @@ pub trait Motherboard {
 /// This trait provides an implementation-opaque way of the motherboard
 /// calling methods from elsewhere in the system via a 'bridge'.
 pub trait MotherboardBridge {
+
+    /// The motherboard must call this to append a cycle count to the GPU's count.
+    fn gpu_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
+
+    /// The motherboard must call this to append a cycle count to the controllers implementation's count.
+    fn controllers_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
 }
