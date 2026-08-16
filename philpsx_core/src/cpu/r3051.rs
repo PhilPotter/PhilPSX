@@ -4,7 +4,6 @@
 use super::{Cpu, CpuBridge};
 use philpsx_utility::{
     CustomInteger,
-    LogicalRightShifter,
     SystemBusHolder,
 };
 use mips_exception::{MIPSException, MIPSExceptionReason};
