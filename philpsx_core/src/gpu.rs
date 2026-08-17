@@ -11,4 +11,15 @@ pub trait Gpu {
 
     /// Implementations must use this to increment the GPU cycle count.
     fn append_sync_cycles(&mut self, cycles: i32);
+
+    /// Implementations must use this to determine if the GPU is
+    /// currently within the hblank phase of the scanline.
+    fn is_in_hblank(&self) -> bool;
+
+    /// Implementations must use this to determine if the GPU is
+    /// currently within the vblank phase of screen drawing.
+    fn is_in_vblank(&self) -> bool;
+
+    /// Implementations must use this to determine how many GPU
+    /// dotclock
 }

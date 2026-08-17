@@ -7,11 +7,13 @@ use std::{
     fs::File,
     io::Read,
 };
-use super::{
-    Motherboard,
-    MotherboardBridge,
+use crate::{
+    motherboard::{
+        Motherboard,
+        MotherboardBridge,
+        psx_motherboard::psx_timer::PsxTimerModule,
+    },
 };
-use psx_timer::PsxTimerModule;
 
 /// Size of the RAM area in bytes.
 const RAM_SIZE: usize = 2097152;

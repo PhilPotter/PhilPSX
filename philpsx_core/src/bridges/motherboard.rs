@@ -5,12 +5,11 @@ use crate::{
     cdrom_drive::CdromDrive,
     controllers::Controllers,
     cpu::Cpu,
-    motherboard::MotherboardBridge,
+    motherboard::{Motherboard, MotherboardBridge},
     spu::Spu,
     gpu::Gpu,
     dma::DmaArbiter,
 };
-use crate::motherboard::Motherboard;
 
 /// This struct contains internal references for all other
 /// required components that might be needed inside a MotherboardBridge.
@@ -28,6 +27,14 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
 
     fn gpu_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
         self.gpu.append_sync_cycles(cycles);
+    }
+
+    fn gpu_is_in_hblank(&mut self, _: &mut dyn Motherboard) -> bool {
+        self.gpu.is_in_hblank()
+    } 
+
+    fn gpu_is_in_vblank(&mut self, _: &mut dyn Motherboard) -> bool {
+        self.gpu.is_in_vblank()
     }
 
     fn controllers_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {

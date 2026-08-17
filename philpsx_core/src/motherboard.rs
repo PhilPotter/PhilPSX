@@ -47,6 +47,14 @@ pub trait MotherboardBridge {
 
     /// The motherboard must call this to append a cycle count to the GPU's count.
     fn gpu_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
+    
+    /// The motherboard must call this to determine if the GPU is currently
+    /// within the hblank phase of the scanline.
+    fn gpu_is_in_hblank(&mut self, motherboard: &mut dyn Motherboard) -> bool;
+
+    /// The motherboard must call this to determine if the GPU is currently
+    /// within the vblank phase of screen drawing.
+    fn gpu_is_in_vblank(&mut self, motherboard: &mut dyn Motherboard) -> bool;
 
     /// The motherboard must call this to append a cycle count to the controllers implementation's count.
     fn controllers_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);

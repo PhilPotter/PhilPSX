@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 // psx_timer.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use crate::motherboard::MotherboardBridge;
+use philpsx_utility::LogicalRightShifter;
+use crate::{
+    motherboard::{
+        MotherboardBridge,
+        psx_motherboard::PsxMotherboard,
+    },
+};
 
 pub struct PsxTimerModule {
 
@@ -61,9 +67,61 @@ impl PsxTimerModule {
 
     }
 
-    /// Resync all timers to the current point.
-    pub fn resync(&mut self, bridge: &mut dyn MotherboardBridge) {
+    /// Resync all timers to the current point. To make this work with the motherboard
+    /// bridge while in a separate file for a struct contained within it, I've made it a
+    pub fn resync(motherboard: &mut PsxMotherboard, bridge: &mut dyn MotherboardBridge) {
 
         // Get HBlank and VBlank status.
+        let hblank = bridge.gpu_is_in_hblank(motherboard);
+        let vblank = bridge.gpu_is_in_vblank(motherboard);
+
+        if hblank {
+            for i in 0..3 {
+                motherboard.timer_module.hblank_happened[i] = true;
+            }
+        }
+        if vblank {
+            for i in 0..3 {
+                motherboard.timer_module.vblank_happened[i] = true;
+            }
+        }
+
+        // Convert sync figure to GPU cycles in case its needed.
+        for i in 0..3 {
+            motherboard.timer_module.gpu_cycles_to_sync[i] +=
+                ((motherboard.timer_module.cpu_cycles_to_sync[i] as f32) / 7.0 * 11.0) as i32;
+
+            // Add in top up values.
+            motherboard.timer_module.cpu_cycles_to_sync[i] += motherboard.timer_module.cpu_topup[i];
+            motherboard.timer_module.gpu_cycles_to_sync[i] += motherboard.timer_module.gpu_topup[i];
+        }
+
+        // Get clock source for all three timers.
+        for i in 0..3 {
+            motherboard.timer_module.clock_source[i] =
+                (motherboard.timer_module.timer_mode[i] >> 8) & 0x3;
+        }
+
+        // Calculate future top up values.
+        motherboard.timer_module.cpu_topup[0] = 0;
+        motherboard.timer_module.gpu_topup[0] =
+            if motherboard.timer_module.clock_source[0] == 0 ||
+                motherboard.timer_module.clock_source[0] == 2 {
+                0
+            } else {
+                bridge.
+                GPU_howManyDotclockGpuCyclesLeft(timerModule->smi->gpu, timerModule->gpuCyclesToSync[0]);
+            };
+        motherboard.timer_module.cpu_topup[1] = 0;
+        motherboard.timer_module.gpu_topup[1] = (motherboard.timer_module.clock_source[1] == 0 ||
+            motherboard.timer_module.clock_source[1] == 2) ?
+        0 : GPU_howManyHblankGpuCyclesLeft(timerModule->smi->gpu,
+        timerModule->gpuCyclesToSync[1]);
+        motherboard.timer_module.cpu_topup[2] = (motherboard.timer_module.clock_source[2] < 2) ?
+        0 : timerModule->cpuCyclesToSync[2] % 8;
+        motherboard.timer_module.gpu_topup[2] = 0;
+
+        /*
+         */
     }
 }
