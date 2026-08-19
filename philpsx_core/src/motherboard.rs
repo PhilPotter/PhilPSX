@@ -56,6 +56,38 @@ pub trait MotherboardBridge {
     /// within the vblank phase of screen drawing.
     fn gpu_is_in_vblank(&mut self, motherboard: &mut dyn Motherboard) -> bool;
 
+    /// The motherboard must call this to determine how many GPU
+    /// cycles will be left after a round of dotclock timer incrementation.
+    fn gpu_how_many_dotclock_gpu_cycles_left(
+        &self,
+        motherboard: &mut dyn Motherboard,
+        gpu_cycles: i32
+    ) -> i32;
+
+    /// The motherboard must call this to determine how many GPU dotclock
+    /// timer increments are needed.
+    fn gpu_how_many_dotclock_increments(
+        &self,
+        motherboard: &mut dyn Motherboard,
+        gpu_cycles: i32
+    ) -> i32;
+
+    /// The motherboard must call this to determine how many GPU
+    /// cycles will be left after a round of hblank timer incrementation.
+    fn gpu_how_many_hblank_gpu_cycles_left(
+        &self,
+        motherboard: &mut dyn Motherboard,
+        gpu_cycles: i32
+    ) -> i32;
+
+    /// The motherboard must call this to determine how many GPU hblank
+    /// timer increments are needed.
+    fn gpu_how_many_hblank_increments(
+        &self,
+        motherboard: &mut dyn Motherboard,
+        gpu_cycles: i32
+    ) -> i32;
+
     /// The motherboard must call this to append a cycle count to the controllers implementation's count.
     fn controllers_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
 }

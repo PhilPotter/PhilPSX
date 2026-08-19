@@ -21,5 +21,18 @@ pub trait Gpu {
     fn is_in_vblank(&self) -> bool;
 
     /// Implementations must use this to determine how many GPU
-    /// dotclock
+    /// cycles will be left after a round of dotclock timer incrementation.
+    fn how_many_dotclock_gpu_cycles_left(&self, gpu_cycles: i32) -> i32;
+
+    /// Implementations must use this to determine how many dotclock
+    /// timer increments are needed.
+    fn how_many_dotclock_increments(&self, gpu_cycles: i32) -> i32;
+
+    /// Implementations must use this to determine how many GPU
+    /// cycles will be left after a round of hblank timer incrementation.
+    fn how_many_hblank_gpu_cycles_left(&self, gpu_cycles: i32) -> i32;
+
+    /// Implementations must use this to determine how many hblank
+    /// timer increments are needed.
+    fn how_many_hblank_increments(&self, gpu_cycles: i32) -> i32;
 }

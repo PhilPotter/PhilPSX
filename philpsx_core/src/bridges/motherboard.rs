@@ -31,10 +31,30 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
 
     fn gpu_is_in_hblank(&mut self, _: &mut dyn Motherboard) -> bool {
         self.gpu.is_in_hblank()
-    } 
+    }
 
     fn gpu_is_in_vblank(&mut self, _: &mut dyn Motherboard) -> bool {
         self.gpu.is_in_vblank()
+    }
+
+    fn gpu_how_many_dotclock_gpu_cycles_left(
+        &self,
+        _: &mut dyn Motherboard,
+        gpu_cycles: i32
+    ) -> i32 {
+        self.gpu.how_many_dotclock_gpu_cycles_left(gpu_cycles)
+    }
+
+    fn gpu_how_many_dotclock_increments(&self, _: &mut dyn Motherboard, gpu_cycles: i32) -> i32 {
+        self.gpu.how_many_dotclock_increments(gpu_cycles)
+    }
+
+    fn gpu_how_many_hblank_gpu_cycles_left(&self, _: &mut dyn Motherboard, gpu_cycles: i32) -> i32 {
+        self.gpu.how_many_hblank_gpu_cycles_left(gpu_cycles)
+    }
+
+    fn gpu_how_many_hblank_increments(&self, _: &mut dyn Motherboard, gpu_cycles: i32) -> i32 {
+        self.gpu.how_many_hblank_increments(gpu_cycles)
     }
 
     fn controllers_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {

@@ -109,19 +109,32 @@ impl PsxTimerModule {
                 motherboard.timer_module.clock_source[0] == 2 {
                 0
             } else {
-                bridge.
-                GPU_howManyDotclockGpuCyclesLeft(timerModule->smi->gpu, timerModule->gpuCyclesToSync[0]);
+                let gpu_cycles_to_sync = motherboard.timer_module.gpu_cycles_to_sync[0];
+                bridge.gpu_how_many_dotclock_gpu_cycles_left(
+                    motherboard,
+                    gpu_cycles_to_sync
+                )
             };
         motherboard.timer_module.cpu_topup[1] = 0;
-        motherboard.timer_module.gpu_topup[1] = (motherboard.timer_module.clock_source[1] == 0 ||
-            motherboard.timer_module.clock_source[1] == 2) ?
-        0 : GPU_howManyHblankGpuCyclesLeft(timerModule->smi->gpu,
-        timerModule->gpuCyclesToSync[1]);
-        motherboard.timer_module.cpu_topup[2] = (motherboard.timer_module.clock_source[2] < 2) ?
-        0 : timerModule->cpuCyclesToSync[2] % 8;
+        motherboard.timer_module.gpu_topup[1] =
+            if motherboard.timer_module.clock_source[1] == 0 ||
+                motherboard.timer_module.clock_source[1] == 2 {
+                0
+            } else {
+                let gpu_cycles_to_sync = motherboard.timer_module.gpu_cycles_to_sync[1]; 
+                bridge.gpu_how_many_hblank_gpu_cycles_left(
+                    motherboard,
+                    gpu_cycles_to_sync
+                )
+            };
+        motherboard.timer_module.cpu_topup[2] =
+            if motherboard.timer_module.clock_source[2] < 2 {
+                0
+            } else {
+                motherboard.timer_module.cpu_cycles_to_sync[2] % 8
+            };
         motherboard.timer_module.gpu_topup[2] = 0;
 
-        /*
-         */
+        // Get increment count for all three timers.
     }
 }

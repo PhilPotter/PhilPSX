@@ -70,11 +70,35 @@ impl Gpu for PsxGpu {
         dot_value > self.horizontal_res as f32
     }
 
-    /// Implementations must use this to determine if the GPU is
+    /// This function is used to determine if the GPU is
     /// currently within the vblank phase of screen drawing.
     fn is_in_vblank(&self) -> bool {
 
         // If we are over GPU_CYCLES_VBLANK we must be in vblank area.
         self.gpu_cycles > GPU_CYCLES_VBLANK
+    }
+
+    /// This function is used to determine how many GPU cycles
+    /// will be left after a round of dotclock timer incrementation.
+    fn how_many_dotclock_gpu_cycles_left(&self, gpu_cycles: i32) -> i32 {
+        gpu_cycles % self.dot_factor
+    }
+
+    /// This function is used to determine how many dotclock
+    /// timer increments are needed.
+    fn how_many_dotclock_increments(&self, gpu_cycles: i32) -> i32 {
+        gpu_cycles / self.dot_factor
+    }
+
+    /// This function is used to determine how many GPU cycles
+    /// will be left after a round of hblank timer incrementation.
+    fn how_many_hblank_gpu_cycles_left(&self, gpu_cycles: i32) -> i32 {
+        gpu_cycles % GPU_CYCLES_PER_SCANLINE
+    }
+
+    /// This function is used to determine how many hblank
+    /// timer increments are needed.
+    fn how_many_hblank_increments(&self, gpu_cycles: i32) -> i32 {
+        gpu_cycles / GPU_CYCLES_PER_SCANLINE
     }
 }
