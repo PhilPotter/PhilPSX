@@ -149,6 +149,7 @@ impl Motherboard for PsxMotherboard {
         self.interrupt_cycles += cycles;
         bridge.gpu_append_sync_cycles(self, cycles);
         bridge.controllers_append_sync_cycles(self, cycles);
+        self.timer_module.append_sync_cycles(cycles);
     }
 
     /// This function determines the number of stall cycles to use.

@@ -136,5 +136,220 @@ impl PsxTimerModule {
         motherboard.timer_module.gpu_topup[2] = 0;
 
         // Get increment count for all three timers.
+        motherboard.timer_module.increment_by[0] =
+            if motherboard.timer_module.clock_source[0] == 0 ||
+                motherboard.timer_module.clock_source[0] == 2 {
+                motherboard.timer_module.cpu_cycles_to_sync[0]
+            } else {
+                let gpu_cycles_to_sync = motherboard.timer_module.gpu_cycles_to_sync[0];
+                bridge.gpu_how_many_dotclock_increments(
+                    motherboard,
+                    gpu_cycles_to_sync
+                )
+            };
+        motherboard.timer_module.increment_by[1] =
+            if motherboard.timer_module.clock_source[1] == 0 ||
+                motherboard.timer_module.clock_source[1] == 2 {
+                motherboard.timer_module.cpu_cycles_to_sync[1]
+            } else {
+                let gpu_cycles_to_sync = motherboard.timer_module.gpu_cycles_to_sync[1];
+                bridge.gpu_how_many_hblank_increments(
+                    motherboard,
+                    gpu_cycles_to_sync
+                )
+            };
+        motherboard.timer_module.increment_by[2] =
+            if motherboard.timer_module.clock_source[2] < 2 {
+                motherboard.timer_module.cpu_cycles_to_sync[2]
+            } else {
+                motherboard.timer_module.cpu_cycles_to_sync[2] / 8
+            };
+
+        // Do increment to temporary value.
+        motherboard.timer_module.new_value[0] =
+            motherboard.timer_module.timer_counter_value[0] + motherboard.timer_module.increment_by[0];
+        motherboard.timer_module.new_value[1] =
+            motherboard.timer_module.timer_counter_value[1] + motherboard.timer_module.increment_by[1];
+        motherboard.timer_module.new_value[2] =
+            motherboard.timer_module.timer_counter_value[2] + motherboard.timer_module.increment_by[2];
+
+        // Adjust as required by synchronisation mode.
+        // Timer 0:
+        if motherboard.timer_module.timer_mode[0] & 0x1 == 0x1 {
+
+            match (motherboard.timer_module.timer_mode[0] >> 1) & 0x3 {
+
+                0 => {
+                    if hblank {
+                        motherboard.timer_module.new_value[0] =
+                            motherboard.timer_module.timer_counter_value[0];
+                    }
+                },
+
+                1 => {
+                    if hblank {
+                        motherboard.timer_module.new_value[0] = 0;
+                    }
+                },
+
+                2 => {
+                    motherboard.timer_module.new_value[0] = if hblank {
+                        0
+                    } else {
+                        motherboard.timer_module.timer_counter_value[0]
+                    };
+                },
+
+                _ => {
+                    if !motherboard.timer_module.hblank_happened[0] {
+                        motherboard.timer_module.new_value[0] =
+                            motherboard.timer_module.timer_counter_value[0];
+                    }
+                },
+            }
+        }
+
+        // Timer 1:
+        if motherboard.timer_module.timer_mode[1] & 0x1 == 0x1 {
+
+            match (motherboard.timer_module.timer_mode[1] >> 1) & 0x3 {
+
+                0 => {
+                    if vblank {
+                        motherboard.timer_module.new_value[1] =
+                            motherboard.timer_module.timer_counter_value[1];
+                    }
+                },
+
+                1 => {
+                    if vblank {
+                        motherboard.timer_module.new_value[1] = 0;
+                    }
+                },
+
+                2 => {
+                    motherboard.timer_module.new_value[1] = if vblank {
+                        0
+                    } else {
+                        motherboard.timer_module.timer_counter_value[1]
+                    };
+                },
+
+                _ => {
+                    if !motherboard.timer_module.vblank_happened[1] {
+                        motherboard.timer_module.new_value[1] =
+                            motherboard.timer_module.timer_counter_value[1];
+                    }
+                },
+            }
+        }
+
+        // Timer 2:
+        if motherboard.timer_module.timer_mode[2] & 0x1 == 0x1 {
+
+            match (motherboard.timer_module.timer_mode[2] >> 1) & 0x3 {
+
+                0 | 3 => {
+                    motherboard.timer_module.new_value[2] =
+                        motherboard.timer_module.timer_counter_value[2];
+                },
+
+                _ => (),
+            }
+        }
+
+        for i in 0..3 {
+            motherboard.timer_module.timer_counter_value[i] = motherboard.timer_module.new_value[i];
+        }
+
+        // Deal with interrupts and target values.
+        for i in 0..3 {
+
+            // Wipe cycles.
+            motherboard.timer_module.cpu_cycles_to_sync[i] = 0;
+            motherboard.timer_module.gpu_cycles_to_sync[i] = 0;
+
+            // Check for interrupts.
+            let mut int_flag = false;
+            if motherboard.timer_module.timer_counter_value[i] >=
+                motherboard.timer_module.timer_target_value[i] {
+                motherboard.timer_module.timer_mode[i] |= 0x800;
+                if (motherboard.timer_module.timer_mode[i] & 0x10) == 0x10 {
+                    int_flag = true;
+                }
+            }
+            if motherboard.timer_module.timer_counter_value[i] >= 0xFFFF {
+                motherboard.timer_module.timer_mode[i] |= 0x1000;
+                if (motherboard.timer_module.timer_mode[i] & 0x20) == 0x20 {
+                    int_flag = true;
+                }
+            }
+            if int_flag {
+                Self::trigger_timer_interrupt(motherboard, i);
+            }
+
+            // Reset values here if needed.
+            if motherboard.timer_module.timer_counter_value[i] > 0xFFFF &&
+                (motherboard.timer_module.timer_mode[1] & 0x8) == 0 {
+                motherboard.timer_module.timer_counter_value[i] = 0;
+            }
+            else if motherboard.timer_module.timer_counter_value[i] >
+                motherboard.timer_module.timer_target_value[i] &&
+                (motherboard.timer_module.timer_mode[i] & 0x8) == 0x8 {
+                motherboard.timer_module.timer_counter_value[i] = 0;
+            }
+        }
+    }
+
+    /// Handle interrupt logic.
+    fn trigger_timer_interrupt(motherboard: &mut PsxMotherboard, timer: usize) {
+
+        // One-shot mode.
+        if (motherboard.timer_module.timer_mode[timer] & 0x40) == 0 {
+            // If this is first IRQ.
+            if !motherboard.timer_module.interrupt_happened_once_or_more[timer] {
+                // Check for pulse/toggle mode.
+                if (motherboard.timer_module.timer_mode[timer] & 0x80) == 0 {
+                    // Just set bit 10 to 0 and be done with it,
+                    // triggering IRQ as well.
+                    motherboard.timer_module.timer_mode[timer] &= 0xFFFFFBFF_u32 as i32;
+                    motherboard.timers_interrupt_delay[timer] = 0;
+                    motherboard.timers_interrupt_counter[timer] = 0;
+                    motherboard.timer_module.interrupt_happened_once_or_more[timer] = true;
+                } else {
+                    // Invert flag, triggering IRQ if it is then 0.
+                    if (motherboard.timer_module.timer_mode[timer] & 0x400) == 0x400 {
+                        // Flip to 0 and trigger interrupt.
+                        motherboard.timer_module.timer_mode[timer] &= 0xFFFFFBFF_u32 as i32;
+                        motherboard.timers_interrupt_delay[timer] = 0;
+                        motherboard.timers_interrupt_counter[timer] = 0;
+                        motherboard.timer_module.interrupt_happened_once_or_more[timer] = true;
+                    } else {
+                        // Flip back to 1 and do nothing.
+                        motherboard.timer_module.timer_mode[timer] |= 0x400;
+                    }
+                }
+            }
+        } else { // Repeated mode - don't check for one-shot flag.
+            // Check for pulse/toggle mode.
+            if (motherboard.timer_module.timer_mode[timer] & 0x80) == 0 {
+                // Just set bit 10 to 0 and be done with it,
+                // triggering IRQ as well.
+                motherboard.timer_module.timer_mode[timer] &= 0xFFFFFBFF_u32 as i32;
+                motherboard.timers_interrupt_delay[timer] = 0;
+                motherboard.timers_interrupt_counter[timer] = 0;
+            } else {
+                // Invert flag, triggering IRQ if it is then 0.
+                if (motherboard.timer_module.timer_mode[timer] & 0x400) == 0x400 {
+                    // Flip to 0 and trigger interrupt.
+                    motherboard.timer_module.timer_mode[timer] &= 0xFFFFFBFF_u32 as i32;
+                    motherboard.timers_interrupt_delay[timer] = 0;
+                    motherboard.timers_interrupt_counter[timer] = 0;
+                } else {
+                    // Flip back to 1 and do nothing.
+                    motherboard.timer_module.timer_mode[timer] |= 0x400;
+                }
+            }
+        }
     }
 }
