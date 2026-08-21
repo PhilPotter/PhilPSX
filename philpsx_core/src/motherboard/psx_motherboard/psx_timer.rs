@@ -62,11 +62,6 @@ impl PsxTimerModule {
             .for_each(|these_cycles| *these_cycles += cycles)
     }
 
-    /// Read from the specified timer's counter value register.
-    pub fn read_counter_value(&mut self, bridge: &mut dyn MotherboardBridge, timer: isize) {
-
-    }
-
     /// Resync all timers to the current point. To make this work with the motherboard
     /// bridge while in a separate file for a struct contained within it, I've made it a
     pub fn resync(motherboard: &mut PsxMotherboard, bridge: &mut dyn MotherboardBridge) {
@@ -352,4 +347,120 @@ impl PsxTimerModule {
             }
         }
     }
+
+    /// Read from the specified timer's counter value register.
+    pub fn read_counter_value(
+        motherboard: &mut PsxMotherboard,
+        bridge: &mut dyn MotherboardBridge,
+        timer: usize
+    ) -> i32 {
+
+        // Catch up to current cycle count.
+        Self::resync(motherboard, bridge);
+
+        // If in pulse mode, set bit 10 back to 1 now.
+        if (motherboard.timer_module.timer_mode[timer] & 0x80) == 0 {
+            motherboard.timer_module.timer_mode[timer] |= 0x400;
+        }
+
+        swap_endianness(motherboard.timer_module.timer_counter_value[timer])
+    }
+
+    /// Read from the specified timer's mode register.
+    pub fn read_mode(
+        motherboard: &mut PsxMotherboard,
+        bridge: &mut dyn MotherboardBridge,
+        timer: usize,
+        bit_11_12_override: bool
+    ) -> i32 {
+
+        // Catch up to current cycle count.
+        Self::resync(motherboard, bridge);
+
+        // If in pulse mode, set bit 10 back to 1 now.
+        if (motherboard.timer_module.timer_mode[timer] & 0x80) == 0 && !bit_11_12_override {
+            motherboard.timer_module.timer_mode[timer] |= 0x400;
+        }
+
+        // Store mode register in temporary variable.
+        let ret_val = motherboard.timer_module.timer_mode[timer];
+
+        // Reset bits 11 and 12 if not overridden, as these relate to
+        // reaching certain values.
+        if !bit_11_12_override {
+            motherboard.timer_module.timer_mode[timer] &= 0xFFFFE7FF_u32 as i32;
+        }
+
+        swap_endianness(ret_val)
+    }
+
+    /// Read from the specified timer's target value register.
+    pub fn read_target_value(&mut self, timer: usize) -> i32 {
+
+        // If in pulse mode, set bit 10 back to 1 now.
+        if (self.timer_mode[timer] & 0x80) == 0 {
+            self.timer_mode[timer] |= 0x400;
+        }
+
+        swap_endianness(self.timer_target_value[timer])
+    }
+
+    /// Write to the specified timer's counter value register.
+    pub fn write_counter_value(
+        motherboard: &mut PsxMotherboard,
+        bridge: &mut dyn MotherboardBridge,
+        timer: usize,
+        value: i32
+    ) {
+        Self::resync(motherboard, bridge);
+        let value = swap_endianness(value);
+        motherboard.timer_module.timer_counter_value[timer] = 0xFFFF & value;
+    }
+
+    /// Write to the specified timer's mode register.
+    pub fn write_mode(
+        motherboard: &mut PsxMotherboard,
+        bridge: &mut dyn MotherboardBridge,
+        timer: usize,
+        value: i32
+    ) {
+        Self::resync(motherboard, bridge);
+        let mut value = swap_endianness(value);
+
+        // Set bit 10 to turn off interrupt request.
+        value |= 0x400;
+
+        // Set bits 13-15 to 0.
+        value &= 0xFFFF1FFF_u32 as i32;
+
+        // Reset hblank and vblank happened markers.
+        motherboard.timer_module.hblank_happened[timer] = false;
+        motherboard.timer_module.vblank_happened[timer] = false;
+
+        // Reset one-shot marker.
+        motherboard.timer_module.interrupt_happened_once_or_more[timer] = false;
+
+        motherboard.timer_module.timer_mode[timer] = value;
+
+        // Reset counter value.
+        motherboard.timer_module.timer_counter_value[timer] = 0;
+    }
+
+    /// Write to the specified timer's target value register.
+    pub fn write_target_value(
+        motherboard: &mut PsxMotherboard,
+        bridge: &mut dyn MotherboardBridge,
+        timer: usize,
+        value: i32
+    ) {
+        Self::resync(motherboard, bridge);
+        let value = swap_endianness(value);
+        motherboard.timer_module.timer_target_value[timer] = 0xFFFF & value;
+    }
+}
+
+/// This utility function swaps the endianness of a signed word for us.
+#[inline(always)]
+fn swap_endianness(word: i32) -> i32 {
+    (word << 24) | ((word & 0xFF00) << 8) | (word & 0xFF0000) >> 8 | word.logical_rshift(24)
 }
