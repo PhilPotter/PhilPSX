@@ -74,7 +74,7 @@ pub struct PsxMotherboard {
     cdrom_interrupt_counter: i64,
     timers_interrupt_delay: [i64; 3],
     timers_interrupt_counter: [i64; 3],
-    cdrom_interrupt_number: i32,
+    cdrom_interrupt_number: u8,
     cdrom_interrupt_enabled: bool,
     interrupt_cycles: i32,
 }
@@ -211,9 +211,99 @@ impl Motherboard for PsxMotherboard {
     fn write_word(&mut self, bridge: &mut dyn MotherboardBridge, address: u32, value: u32) {
     }
 
-    /// The CPU must call this to increment interrupt counters and trigger
+    /// This function is used increment interrupt counters and trigger
     /// timer updates and GPU updates to be done.
     fn increment_interrupt_counters(&mut self, bridge: &mut dyn MotherboardBridge) {
+
+        // Resync all timers before doing anything else. Originally
+        // this was a separate call from the CPU in the C version.
+        PsxTimerModule::resync(self, bridge);
+
+        // Now execute the required GPU cycles (TODO).
+
+        let interrupt_cycles_i64 = self.interrupt_cycles as i64;
+        self.gpu_interrupt_counter += interrupt_cycles_i64;
+        self.dma_interrupt_counter += interrupt_cycles_i64;
+        self.cdrom_interrupt_counter += interrupt_cycles_i64;
+        for i in 0..3 {
+            self.timers_interrupt_counter[i] += interrupt_cycles_i64;
+        }
+
+        // Handle GPU.
+        if self.gpu_interrupt_delay != -1 &&
+            self.gpu_interrupt_counter > self.gpu_interrupt_delay {
+            // Set in little-endian mode for speed.
+            self.interrupt_status_reg |= 0x01000000;
+            self.gpu_interrupt_delay = -1;
+        }
+
+        // Handle DMA.
+        if self.dma_interrupt_delay != -1 &&
+            self.dma_interrupt_counter > self.dma_interrupt_delay {
+            // Set in little-endian mode for speed.
+            self.interrupt_status_reg |= 0x08000000;
+            self.dma_interrupt_delay = -1;
+        }
+
+        // Handle CD-ROM.
+        if self.cdrom_interrupt_delay != -1 &&
+            self.cdrom_interrupt_counter > self.cdrom_interrupt_delay {
+            // Set in little-endian mode for speed.
+            if self.cdrom_interrupt_enabled {
+                self.interrupt_status_reg |= 0x04000000;
+            }
+
+            // Set this interrupt handler back to inactive.
+            self.cdrom_interrupt_delay = -1;
+
+            // Also set interrupt number in CD-ROM interrupt flag register.
+            let cdrom_interrupt_number = self.cdrom_interrupt_number;
+            bridge.cdrom_set_interrupt_number(self, cdrom_interrupt_number);
+        }
+
+        // Handle Timer 0.
+        if self.timers_interrupt_delay[0] != -1 &&
+            self.timers_interrupt_counter[0] > self.timers_interrupt_delay[0] {
+            // Set in little-endian mode for speed.
+            self.interrupt_status_reg |= 0x10000000;
+            self.timers_interrupt_delay[0] = -1;
+        }
+
+        // Handle Timer 1.
+        if self.timers_interrupt_delay[1] != -1 &&
+            self.timers_interrupt_counter[1] > self.timers_interrupt_delay[1] {
+            // Set in little-endian mode for speed.
+            self.interrupt_status_reg |= 0x20000000;
+            self.timers_interrupt_delay[1] = -1;
+        }
+
+        // Handle Timer 2.
+        if self.timers_interrupt_delay[2] != -1 &&
+            self.timers_interrupt_counter[2] > self.timers_interrupt_delay[2] {
+            // Set in little-endian mode for speed.
+            self.interrupt_status_reg |= 0x40000000;
+            self.timers_interrupt_delay[2] = -1;
+        }
+
+        // Reset interrupt cycles.
+        self.interrupt_cycles = 0;
+    }
+
+    /// This function is used to specify if the CD-ROM drive interrupt is actually enabled.
+    fn set_cdrom_interrupt_enabled(&mut self, enabled: bool) {
+        self.cdrom_interrupt_enabled = enabled;
+    }
+
+    /// This function is used to specify the CD-ROM drive interrupt delay.
+    fn set_cdrom_interrupt_delay(&mut self, delay: i32) {
+        self.cdrom_interrupt_delay = delay as i64;
+        self.cdrom_interrupt_counter = 0;
+    }
+
+    /// This function is used to set the CD-ROM drive interrupt number inside
+    /// the motherboard implementation.
+    fn set_cdrom_interrupt_number(&mut self, number: u8) {
+        self.cdrom_interrupt_number = number;
     }
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // psx_gpu.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use super::Gpu;
+use crate::gpu::Gpu;
 
 /// Values for easier reading when dealing with GPU cycle math.
 const GPU_CYCLES_PER_FRAME: i32 = 1069484;

@@ -2,7 +2,8 @@
 // motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use crate::{
-    cdrom_drive::CdromDrive,
+    bridges::cdrom_drive::CdromDriveBridgeImpl,
+    cdrom_drive::{CdromDrive, CdromDriveBridge},
     controllers::Controllers,
     cpu::Cpu,
     motherboard::{Motherboard, MotherboardBridge},
@@ -24,6 +25,10 @@ pub struct MotherboardBridgeImpl<'a> {
 
 /// Mapping functions for the bridge.
 impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
+
+    fn cdrom_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8) {
+        self.cdrom_drive.set_interrupt_number(interrupt_num);
+    }
 
     fn gpu_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
         self.gpu.append_sync_cycles(cycles);
@@ -82,5 +87,23 @@ impl<'a, 'b> MotherboardBridgeImpl<'a> {
             gpu,
             dma,
         }
+    }
+
+    /// Creates a CD-ROM drive bridge from this bridge, and also returns a
+    /// CD-ROM drive reference too, meaning we can call functions on the
+    /// CD-ROM drive that require a bridge, and pass this new object to them.
+    fn get_cdrom_and_bridge(
+        &'b mut self,
+        motherboard: &'b mut dyn Motherboard
+    ) -> (&'b mut dyn CdromDrive, impl CdromDriveBridge) {
+        let cdrom_drive_bridge = CdromDriveBridgeImpl::new(
+            self.controllers,
+            self.cpu,
+            motherboard,
+            self.spu,
+            self.gpu,
+            self.dma,
+        );
+        (self.cdrom_drive, cdrom_drive_bridge)
     }
 }

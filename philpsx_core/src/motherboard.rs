@@ -39,11 +39,24 @@ pub trait Motherboard {
     /// The CPU must call this to increment interrupt counters and trigger
     /// timer updates and GPU updates to be done.
     fn increment_interrupt_counters(&mut self, bridge: &mut dyn MotherboardBridge);
+
+    /// The CD-ROM drive must call this to specify if its interrupt is actually enabled.
+    fn set_cdrom_interrupt_enabled(&mut self, enabled: bool);
+
+    /// The CD-ROM drive must call this to specify its interrupt delay.
+    fn set_cdrom_interrupt_delay(&mut self, delay: i32);
+
+    /// The CD-ROM drive must call this to set the interrupt number inside
+    /// the motherboard implementation.
+    fn set_cdrom_interrupt_number(&mut self, number: u8);
 }
 
 /// This trait provides an implementation-opaque way of the motherboard
 /// calling methods from elsewhere in the system via a 'bridge'.
 pub trait MotherboardBridge {
+
+    /// The motherboard must call this to set the CD-ROM drive's interrupt flag register.
+    fn cdrom_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8);
 
     /// The motherboard must call this to append a cycle count to the GPU's count.
     fn gpu_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);

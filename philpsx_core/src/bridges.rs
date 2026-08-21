@@ -10,3 +10,6 @@ pub mod cpu;
 
 /// This module contains motherboard bridging functionality.
 pub mod motherboard;
+
+/// This module contains CD-ROM bridging functionality.
+pub mod cdrom_drive;
