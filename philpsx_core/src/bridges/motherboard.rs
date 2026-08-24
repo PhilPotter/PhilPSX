@@ -2,10 +2,14 @@
 // motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
 use crate::{
-    bridges::cdrom_drive::CdromDriveBridgeImpl,
+    bridges::{
+        cdrom_drive::CdromDriveBridgeImpl,
+        gpu::GpuBridgeImpl,
+    },
     cdrom_drive::{CdromDrive, CdromDriveBridge},
     controllers::Controllers,
     cpu::Cpu,
+    gpu::GpuBridge,
     motherboard::{Motherboard, MotherboardBridge},
     spu::Spu,
     gpu::Gpu,
@@ -32,6 +36,11 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
 
     fn gpu_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
         self.gpu.append_sync_cycles(cycles);
+    }
+
+    fn gpu_execute_gpu_cycles(&mut self, motherboard: &mut dyn Motherboard) {
+        let (gpu, mut bridge) = self.get_gpu_and_bridge(motherboard);
+        gpu.execute_gpu_cycles(&mut bridge);
     }
 
     fn gpu_is_in_hblank(&mut self, _: &mut dyn Motherboard) -> bool {
@@ -105,5 +114,23 @@ impl<'a, 'b> MotherboardBridgeImpl<'a> {
             self.dma,
         );
         (self.cdrom_drive, cdrom_drive_bridge)
+    }
+
+    /// Creates a GPU drive bridge from this bridge, and also returns a
+    /// GPU reference too, meaning we can call functions on the
+    /// GPU that require a bridge, and pass this new object to them.
+    fn get_gpu_and_bridge(
+        &'b mut self,
+        motherboard: &'b mut dyn Motherboard
+    ) -> (&'b mut dyn Gpu, impl GpuBridge) {
+        let gpu_bridge = GpuBridgeImpl::new(
+            self.cdrom_drive,
+            self.controllers,
+            self.cpu,
+            motherboard,
+            self.spu,
+            self.dma,
+        );
+        (self.gpu, gpu_bridge)
     }
 }

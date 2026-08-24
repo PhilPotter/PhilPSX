@@ -57,6 +57,35 @@ impl PsxGpu {
         }
     }
 
+    /// This function triggers a vblank interrupt, also updating the screen.
+    fn trigger_vblank_interrupt(&mut self, bridge: &mut dyn GpuBridge) {
+
+        // Trigger the interrupt.
+        bridge.set_gpu_interrupt_delay(self, 0);
+
+        // Update screen.
+        self.display_screen();
+    }
+
+    /// This function did display the screen at the end of each frame in the C
+    /// version - currently it's stubbed out here.
+    fn display_screen(&mut self) {
+        // This was originally a 'GpuCommand' struct block in the C version,
+        // which would get set with the correct params and then added to a work
+        // queue to update the screen on the GL worker thread.
+    }
+}
+
+/// Implementation functions to be called from anything that understands what
+/// a Gpu object is.
+impl Gpu for PsxGpu {
+
+    /// Increment the GPU cycle count.
+    fn append_sync_cycles(&mut self, cycles: i32) {
+
+        self.cpu_cycles += cycles;
+    }
+
     /// Keeps counters and such like up to date.
     fn execute_gpu_cycles(&mut self, bridge: &mut dyn GpuBridge) {
 
@@ -88,35 +117,6 @@ impl PsxGpu {
         // Store state.
         self.gpu_cycles = new_gpu_cycles;
         self.cpu_cycles = 0;
-    }
-
-    /// This function triggers a vblank interrupt, also updating the screen.
-    fn trigger_vblank_interrupt(&mut self, bridge: &mut dyn GpuBridge) {
-
-        // Trigger the interrupt.
-        bridge.set_gpu_interrupt_delay(self, 0);
-
-        // Update screen.
-        self.display_screen();
-    }
-
-    /// This function did display the screen at the end of each frame in the C
-    /// version - currently it's stubbed out here.
-    fn display_screen(&mut self) {
-        // This was originally a 'GpuCommand' struct block in the C version,
-        // which would get set with the correct params and then added to a work
-        // queue to update the screen on the GL worker thread.
-    }
-}
-
-/// Implementation functions to be called from anything that understands what
-/// a Gpu object is.
-impl Gpu for PsxGpu {
-
-    /// Increment the GPU cycle count.
-    fn append_sync_cycles(&mut self, cycles: i32) {
-
-        self.cpu_cycles += cycles;
     }
 
     /// Determine if the GPU is currently within the hblank phase of the scanline.

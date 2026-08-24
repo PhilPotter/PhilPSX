@@ -219,7 +219,8 @@ impl Motherboard for PsxMotherboard {
         // this was a separate call from the CPU in the C version.
         PsxTimerModule::resync(self, bridge);
 
-        // Now execute the required GPU cycles (TODO).
+        // Now execute the required GPU cycles.
+        bridge.gpu_execute_gpu_cycles(self);
 
         let interrupt_cycles_i64 = self.interrupt_cycles as i64;
         self.gpu_interrupt_counter += interrupt_cycles_i64;

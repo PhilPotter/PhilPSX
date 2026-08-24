@@ -59,11 +59,14 @@ pub trait Motherboard {
 pub trait MotherboardBridge {
 
     /// The motherboard must call this to set the CD-ROM drive's interrupt flag register.
-    fn cdrom_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8);
+    fn cdrom_set_interrupt_number(&mut self, motherboard: &mut dyn Motherboard, interrupt_num: u8);
 
     /// The motherboard must call this to append a cycle count to the GPU's count.
     fn gpu_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
-    
+
+    /// The motherboard must call this to ensure GPU counters etc. are kept up to date.
+    fn gpu_execute_gpu_cycles(&mut self, motherboard: &mut dyn Motherboard);
+
     /// The motherboard must call this to determine if the GPU is currently
     /// within the hblank phase of the scanline.
     fn gpu_is_in_hblank(&mut self, motherboard: &mut dyn Motherboard) -> bool;

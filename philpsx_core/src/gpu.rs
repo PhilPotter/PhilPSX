@@ -12,6 +12,9 @@ pub trait Gpu {
     /// Implementations must use this to increment the GPU cycle count.
     fn append_sync_cycles(&mut self, cycles: i32);
 
+    /// Implementations must use this to ensure GPU counters etc. are kept up to date.
+    fn execute_gpu_cycles(&mut self, bridge: &mut dyn GpuBridge);
+
     /// Implementations must use this to determine if the GPU is
     /// currently within the hblank phase of the scanline.
     fn is_in_hblank(&self) -> bool;
