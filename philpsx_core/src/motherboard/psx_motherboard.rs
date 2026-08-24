@@ -300,10 +300,15 @@ impl Motherboard for PsxMotherboard {
         self.cdrom_interrupt_counter = 0;
     }
 
-    /// This function is used to set the CD-ROM drive interrupt number inside
-    /// the motherboard implementation.
+    /// This function is used to set the CD-ROM drive interrupt number.
     fn set_cdrom_interrupt_number(&mut self, number: u8) {
         self.cdrom_interrupt_number = number;
+    }
+
+    /// This function is used to set the GPU interrupt delay.
+    fn set_gpu_interrupt_delay(&mut self, delay: i32) {
+        self.gpu_interrupt_delay = delay as i64;
+        self.gpu_interrupt_counter = 0;
     }
 }
 

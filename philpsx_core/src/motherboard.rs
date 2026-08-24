@@ -49,6 +49,9 @@ pub trait Motherboard {
     /// The CD-ROM drive must call this to set the interrupt number inside
     /// the motherboard implementation.
     fn set_cdrom_interrupt_number(&mut self, number: u8);
+    
+    /// The GPU must call this to set the GPU interrupt delay.
+    fn set_gpu_interrupt_delay(&mut self, delay: i32);
 }
 
 /// This trait provides an implementation-opaque way of the motherboard

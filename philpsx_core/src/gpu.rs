@@ -36,3 +36,11 @@ pub trait Gpu {
     /// timer increments are needed.
     fn how_many_hblank_increments(&self, gpu_cycles: i32) -> i32;
 }
+
+/// This trait provides an implementation-opaque way of the GPU
+/// calling methods from elsewhere in the system via a 'bridge'.
+pub trait GpuBridge {
+    
+    /// The GPU must call this to set the GPU interrupt delay.
+    fn set_gpu_interrupt_delay(&mut self, gpu: &mut dyn Gpu, delay: i32);
+}

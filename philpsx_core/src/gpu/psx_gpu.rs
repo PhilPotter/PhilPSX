@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 // psx_gpu.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use crate::gpu::Gpu;
+use crate::{
+    gpu::{Gpu, GpuBridge},
+};
 
 /// Values for easier reading when dealing with GPU cycle math.
 const GPU_CYCLES_PER_FRAME: i32 = 1069484;
@@ -15,12 +17,19 @@ pub struct PsxGpu {
     cpu_cycles: i32,
     gpu_cycles: i32,
 
+    // This allows us to dynamically create the odd/even
+    // line flag (bit 31) in the status register.
+    odd_or_even: i32,
+
     // Variable caches to prevent constant recalculation and
     // improve performance.
     horizontal_res: i32,
     vertical_res: i32,
     dot_factor: i32,
     interlace_enabled: bool,
+
+    // This lets us trigger only once per frame.
+    vblank_triggered: bool,
 }
 
 /// Implementation functions for the GPU component itself.
@@ -34,12 +43,69 @@ impl PsxGpu {
             cpu_cycles: 0,
             gpu_cycles: 0,
 
+            // Setup odd/even line variable.
+            odd_or_even: 0,
+
             // Setup resolution and dot factor caches.
             horizontal_res: 256,
             vertical_res: 240,
             dot_factor: 10,
             interlace_enabled: false,
+
+            // Setup vblank triggered flag.
+            vblank_triggered: false,
         }
+    }
+
+    /// Keeps counters and such like up to date.
+    fn execute_gpu_cycles(&mut self, bridge: &mut dyn GpuBridge) {
+
+        // Convert CPU cycles to GPU cycles.
+        let mut new_gpu_cycles = self.gpu_cycles + self.cpu_cycles * 11 / 7;
+
+        // Test if we need to trigger a vblank interrupt.
+        if new_gpu_cycles > GPU_CYCLES_VBLANK && !self.vblank_triggered {
+            self.vblank_triggered = true;
+            self.trigger_vblank_interrupt(bridge);
+        }
+
+        if new_gpu_cycles > GPU_CYCLES_PER_FRAME {
+            // Reset vblank interrupt status.
+            self.vblank_triggered = false;
+
+            // Check if we are on odd or even frame.
+            let frame_traversals = new_gpu_cycles / GPU_CYCLES_PER_FRAME;
+            self.odd_or_even = if frame_traversals % 2 == 1 {
+                !self.odd_or_even & 0x1
+            } else {
+                self.odd_or_even
+            };
+
+            // Modify new_gpu_cycles to reflect we are in a subsequent frame.
+            new_gpu_cycles %= GPU_CYCLES_PER_FRAME;
+        }
+
+        // Store state.
+        self.gpu_cycles = new_gpu_cycles;
+        self.cpu_cycles = 0;
+    }
+
+    /// This function triggers a vblank interrupt, also updating the screen.
+    fn trigger_vblank_interrupt(&mut self, bridge: &mut dyn GpuBridge) {
+
+        // Trigger the interrupt.
+        bridge.set_gpu_interrupt_delay(self, 0);
+
+        // Update screen.
+        self.display_screen();
+    }
+
+    /// This function did display the screen at the end of each frame in the C
+    /// version - currently it's stubbed out here.
+    fn display_screen(&mut self) {
+        // This was originally a 'GpuCommand' struct block in the C version,
+        // which would get set with the correct params and then added to a work
+        // queue to update the screen on the GL worker thread.
     }
 }
 

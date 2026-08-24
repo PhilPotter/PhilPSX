@@ -13,3 +13,6 @@ pub mod motherboard;
 
 /// This module contains CD-ROM bridging functionality.
 pub mod cdrom_drive;
+
+/// This module contains GPU bridging functionality.
+pub mod gpu;
