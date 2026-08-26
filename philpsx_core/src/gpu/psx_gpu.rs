@@ -10,8 +10,20 @@ const GPU_CYCLES_PER_FRAME: i32 = 1069484;
 const GPU_CYCLES_PER_SCANLINE: i32 = 3406;
 const GPU_CYCLES_VBLANK: i32 = 817440;
 
+/// The size of our VRAM (2 MiB).
+const VRAM_SIZE_IN_BYTES: usize = 2097152;
+
 /// This struct models the GPU (graphics chip) of the PlayStation.
 pub struct PsxGpu {
+
+    // This lets us store values for DMA transfers.
+    dma_buffer_index: i32,
+    dma_needed_bytes: i32,
+    dma_buffer: Vec<u8>,
+    dma_read_in_progress: i32,
+    dma_write_in_progress: i32,
+    dma_width_in_pixels: i32,
+    dma_height_in_pixels: i32,
 
     // Cycle stores.
     cpu_cycles: i32,
@@ -38,6 +50,15 @@ impl PsxGpu {
     /// Creates a new GPU object with the correct initial state.
     pub fn new() -> Self {
         PsxGpu {
+
+            // Setup DMA buffer.
+            dma_buffer_index: -1,
+            dma_needed_bytes: -1,
+            dma_buffer: vec![0; VRAM_SIZE_IN_BYTES],
+            dma_read_in_progress: -1,
+            dma_write_in_progress: -1,
+            dma_width_in_pixels: -1,
+            dma_height_in_pixels: -1,
 
             // Setup cycle store counts.
             cpu_cycles: 0,
@@ -73,6 +94,18 @@ impl PsxGpu {
         // This was originally a 'GpuCommand' struct block in the C version,
         // which would get set with the correct params and then added to a work
         // queue to update the screen on the GL worker thread.
+    }
+
+    /// This function lets us read the DMA buffer. Originally this was synchronised
+    /// with a mutex in the C version, but for now we are going single-threaded.
+    fn read_dma_buffer(&self, index: usize) -> u8 {
+        self.dma_buffer[index]
+    }
+
+    /// This function lets us write to DMA buffer. Originally this was synchronised
+    /// with a mutex in the C version, but for now we are going single-threaded.
+    fn write_dma_buffer(&mut self, index: usize, value: u8) {
+        self.dma_buffer[index] = value;
     }
 }
 
