@@ -25,6 +25,19 @@ pub struct PsxGpu {
     dma_width_in_pixels: i32,
     dma_height_in_pixels: i32,
 
+    // Status register.
+    status_register: u32,
+
+    // Texture window.
+    texture_window: u32,
+
+    // Drawing area top-left and bottom-right variables.
+    drawing_area_top_left: u32,
+    drawing_area_bottom_right: u32,
+
+    // Drawing offset.
+    drawing_offset: u32,
+
     // Cycle stores.
     cpu_cycles: i32,
     gpu_cycles: i32,
@@ -59,6 +72,19 @@ impl PsxGpu {
             dma_write_in_progress: -1,
             dma_width_in_pixels: -1,
             dma_height_in_pixels: -1,
+
+            // Setup status register.
+            status_register: 0x14902000,
+
+            // Setup texture window variable.
+            texture_window: 0,
+
+            // Setup drawing area for top-left and bottom-right.
+            drawing_area_top_left: 0,
+            drawing_area_bottom_right: 0,
+
+            // Setup drawing offset.
+            drawing_offset: 0,
 
             // Setup cycle store counts.
             cpu_cycles: 0,
@@ -106,6 +132,92 @@ impl PsxGpu {
     /// with a mutex in the C version, but for now we are going single-threaded.
     fn write_dma_buffer(&mut self, index: usize, value: u8) {
         self.dma_buffer[index] = value;
+    }
+
+    // Internal numbers GPn command functions are handled below.
+
+    /// This function fills a rectangle in the VRAM.
+    fn gp0_02(&mut self, command: u32, destination: u32, dimensions: u32) {
+        // Just a stub for now.
+    }
+
+    /// This function triggers a GPU interrupt.
+    fn gp0_1f(&mut self, bridge: &mut dyn GpuBridge) {
+
+        // Set IRQ flag in status register.
+        self.status_register |= 0x01000000;
+
+        // Set flag in interrupt status register to trigger IRQ if enabled.
+        bridge.set_gpu_interrupt_delay(self, 0);
+    }
+
+    /// This function copies a rectangle within VRAM.
+    fn gp0_80(
+        &mut self,
+        command: u32,
+        source_coord: u32,
+        destination_coord: u32,
+        width_and_height: u32
+    ) {
+        // Just a stub for now.
+    }
+
+    /// This function copies a rectangle into the VRAM.
+    fn gp0_a0(&mut self, command: u32, destination: u32, dimensions: u32) {
+        // Just a stub for now.
+    }
+
+    /// This function copies a rectangle from the VRAM.
+    fn gp0_c0(&mut self, command: u32, destination: u32, dimensions: u32) {
+        // Just a stub for now.
+    }
+
+    /// This function sets the draw mode ("texpage") setting.
+    fn gp0_e1(&mut self, command: u32) {
+
+        // Set bits 0-10 of status register.
+        self.status_register &= 0xFFFFF800;
+        self.status_register |= command & 0x7FF;
+
+        // Set bit 15 of status register.
+        self.status_register &= 0xFFFF7FFF;
+	    self.status_register |= (command << 4) & 0x8000;
+    }
+
+    /// This function sets the texture window setting.
+    fn gp0_e2(&mut self, command: u32) {
+
+        // Store in texture window variable.
+        self.texture_window = command & 0xFFFFF;
+    }
+
+    /// This function sets the top-left drawing area.
+    fn gp0_e3(&mut self, command: u32) {
+
+        // Store in top-left drawing area variable.
+        self.drawing_area_top_left = command & 0xFFFFF;
+    }
+
+    /// This function sets the bottom-right drawing area.
+    fn gp0_e4(&mut self, command: u32) {
+
+        // Store in bottom-right drawing area variable.
+        self.drawing_area_bottom_right = command & 0xFFFFF;
+    }
+
+    /// This function sets the drawing offset.
+    fn gp0_e5(&mut self, command: u32) {
+
+        // Store in drawing offset variable.
+        self.drawing_offset = command & 0x3FFFFF;
+    }
+
+    /// This function affects the mask bit settings in the status register.
+    fn gp0_e6(&mut self, command: u32) {
+
+        // Set the two bits (11 and 12) in the status register.
+	    self.status_register &= 0xFFFFE7FF;
+	    self.status_register |= (command & 0x3) << 11;
     }
 }
 
