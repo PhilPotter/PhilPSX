@@ -13,6 +13,9 @@ const GPU_CYCLES_VBLANK: i32 = 817440;
 /// The size of our VRAM (2 MiB).
 const VRAM_SIZE_IN_BYTES: usize = 2097152;
 
+/// Number of FIFO buffer slots.
+const FIFO_BUFFER_SLOTS: usize = 16;
+
 /// This struct models the GPU (graphics chip) of the PlayStation.
 pub struct PsxGpu {
 
@@ -24,6 +27,10 @@ pub struct PsxGpu {
     dma_write_in_progress: i32,
     dma_width_in_pixels: i32,
     dma_height_in_pixels: i32,
+
+    // Command FIFO buffer for GP0 commands.
+    fifo_buffer: [u32; FIFO_BUFFER_SLOTS],
+    commands_in_fifo: u32,
 
     // Status register.
     status_register: u32,
@@ -72,6 +79,10 @@ impl PsxGpu {
             dma_write_in_progress: -1,
             dma_width_in_pixels: -1,
             dma_height_in_pixels: -1,
+
+            // Setup FIFO buffer and counter.
+            fifo_buffer: [0; FIFO_BUFFER_SLOTS],
+            commands_in_fifo: 0,
 
             // Setup status register.
             status_register: 0x14902000,
@@ -218,6 +229,67 @@ impl PsxGpu {
         // Set the two bits (11 and 12) in the status register.
 	    self.status_register &= 0xFFFFE7FF;
 	    self.status_register |= (command & 0x3) << 11;
+    }
+
+    /// This function resets the GPU.
+    fn gp1_00(&mut self, command: u32) {
+
+        // Clear fifo.
+	    self.gp1_01(command);
+
+	    // Reset interrupt flag in status register.
+	    self.gp1_02(command);
+
+	    // Turn display off.
+	    self.gp1_03(0x1);
+
+	    // Set DMA direction to off.
+	    self.gp1_04(0);
+
+	    // Set start of display area.
+	    self.gp1_05(0);
+
+	    // Set horizontal display range variables.
+	    self.gp1_06(0xC60260);
+
+	    // Set vertical display range variables.
+	    self.gp1_07(0x49C1F);
+
+	    // Set display mode to 256x240 PAL.
+	    self.gp1_08(0x8);
+
+	    // Set display attributes.
+	    self.gp0_e1(0);
+	    self.gp0_e2(0);
+	    self.gp0_e3(0);
+	    self.gp0_e4(0);
+	    self.gp0_e5(0);
+	    self.gp0_e6(0);
+    }
+
+    /// This function emulates GP1_01, which resets the command buffer.
+    fn gp1_01(&mut self) {
+
+        // Empty buffer and set commands_in_fifo to 0.
+        self.fifo_buffer.fill(0);
+        self.commands_in_fifo = 0;
+    }
+
+    /// This function acknowledges a GPU interrupt (not a vblank interrupt,
+    /// but one actually requested by the GPU with GP0_1F).
+    fn gp1_02(&mut self) {
+
+        // Reset IRQ flag in status register.
+        self.status_register &= 0xFEFFFFFF;
+    }
+
+    /// This function enables or disables the display.
+    fn gp1_03(&mut self, command: u32) {
+
+        // Enable or disable display based on command word.
+        let command = (command & 0x1) << 23;
+	    self.status_register &= 0xFF7FFFFF;
+	    self.status_register |= command;
     }
 }
 
