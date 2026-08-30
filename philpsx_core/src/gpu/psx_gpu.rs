@@ -35,6 +35,18 @@ pub struct PsxGpu {
     // Status register.
     status_register: u32,
 
+    // X and Y display start variables.
+    x_start: u32,
+    y_start: u32,
+
+    // X1 and X2 horizontal display range variables.
+    x1: u32,
+    x2: u32,
+
+    // Y1 and Y2 vertical display range variables.
+    y1: u32,
+    y2: u32,
+
     // Texture window.
     texture_window: u32,
 
@@ -86,6 +98,16 @@ impl PsxGpu {
 
             // Setup status register.
             status_register: 0x14902000,
+
+            // Setup X and Y display start variables.
+            x_start: 0,
+            y_start: 0,
+
+            // Setup display range variables.
+            x1: 0x260,
+            x2: 0xC60,
+            y1: 0x1F,
+            y2: 0x127,
 
             // Setup texture window variable.
             texture_window: 0,
@@ -192,7 +214,7 @@ impl PsxGpu {
 
         // Set bit 15 of status register.
         self.status_register &= 0xFFFF7FFF;
-	    self.status_register |= (command << 4) & 0x8000;
+        self.status_register |= (command << 4) & 0x8000;
     }
 
     /// This function sets the texture window setting.
@@ -227,44 +249,44 @@ impl PsxGpu {
     fn gp0_e6(&mut self, command: u32) {
 
         // Set the two bits (11 and 12) in the status register.
-	    self.status_register &= 0xFFFFE7FF;
-	    self.status_register |= (command & 0x3) << 11;
+        self.status_register &= 0xFFFFE7FF;
+        self.status_register |= (command & 0x3) << 11;
     }
 
     /// This function resets the GPU.
     fn gp1_00(&mut self, command: u32) {
 
         // Clear fifo.
-	    self.gp1_01(command);
+        self.gp1_01(command);
 
-	    // Reset interrupt flag in status register.
-	    self.gp1_02(command);
+        // Reset interrupt flag in status register.
+        self.gp1_02(command);
 
-	    // Turn display off.
-	    self.gp1_03(0x1);
+        // Turn display off.
+        self.gp1_03(0x1);
 
-	    // Set DMA direction to off.
-	    self.gp1_04(0);
+        // Set DMA direction to off.
+        self.gp1_04(0);
 
-	    // Set start of display area.
-	    self.gp1_05(0);
+        // Set start of display area.
+        self.gp1_05(0);
 
-	    // Set horizontal display range variables.
-	    self.gp1_06(0xC60260);
+        // Set horizontal display range variables.
+        self.gp1_06(0xC60260);
 
-	    // Set vertical display range variables.
-	    self.gp1_07(0x49C1F);
+        // Set vertical display range variables.
+        self.gp1_07(0x49C1F);
 
-	    // Set display mode to 256x240 PAL.
-	    self.gp1_08(0x8);
+        // Set display mode to 256x240 PAL.
+        self.gp1_08(0x8);
 
-	    // Set display attributes.
-	    self.gp0_e1(0);
-	    self.gp0_e2(0);
-	    self.gp0_e3(0);
-	    self.gp0_e4(0);
-	    self.gp0_e5(0);
-	    self.gp0_e6(0);
+        // Set display attributes.
+        self.gp0_e1(0);
+        self.gp0_e2(0);
+        self.gp0_e3(0);
+        self.gp0_e4(0);
+        self.gp0_e5(0);
+        self.gp0_e6(0);
     }
 
     /// This function emulates GP1_01, which resets the command buffer.
@@ -288,8 +310,41 @@ impl PsxGpu {
 
         // Enable or disable display based on command word.
         let command = (command & 0x1) << 23;
-	    self.status_register &= 0xFF7FFFFF;
-	    self.status_register |= command;
+        self.status_register &= 0xFF7FFFFF;
+        self.status_register |= command;
+    }
+
+    /// This function sets the DMA direction / data request.
+    fn gp1_04(&mut self, command: u32) {
+
+        // Set direction in status register.
+        let command = (command & 0x3) << 29;
+        self.status_register &= 0x9FFFFFFF;
+        self.status_register |= command;
+    }
+
+    /// This function sets the start of the display area in VRAM.
+    fn gp1_05(&mut self, command: u32) {
+
+        // Set X half-word address (0-1023).
+        self.x_start = command & 0x3FF;
+        self.y_start = (command >> 10) & 0x1FF;
+    }
+
+    /// This function sets the horizontal display range.
+    fn gp1_06(&mut self, command: u32) {
+
+        // Set X1 and X2.
+        self.x1 = 0xFFF & command;
+        self.x2 = 0xFFF & (command >> 12);
+    }
+
+    /// This function sets the vertical display range.
+    fn gp1_07(&mut self, command: u32) {
+
+        // Set Y1 and Y2.
+        self.y1 = 0x3FF & command;
+        self.y2 = 0x3FF & (command >> 10);
     }
 }
 
