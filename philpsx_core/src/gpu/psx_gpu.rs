@@ -57,19 +57,26 @@ pub struct PsxGpu {
     // Drawing offset.
     drawing_offset: u32,
 
+    // GPUREAD latch value.
+    gpuread_latch_value: u32,
+    gpuread_latched: bool,
+
     // Cycle stores.
     cpu_cycles: i32,
     gpu_cycles: i32,
 
     // This allows us to dynamically create the odd/even
-    // line flag (bit 31) in the status register.
-    odd_or_even: i32,
+    // line flag (bit 31) in the status register. We don't
+    // appear to actually ever change this at all, so this
+    // is likely a bug in the original version that I'll
+    // need to dig into at some point.
+    odd_or_even: u32,
 
     // Variable caches to prevent constant recalculation and
     // improve performance.
-    horizontal_res: i32,
-    vertical_res: i32,
-    dot_factor: i32,
+    horizontal_res: u32,
+    vertical_res: u32,
+    dot_factor: u32,
     interlace_enabled: bool,
 
     // This lets us trigger only once per frame.
@@ -118,6 +125,10 @@ impl PsxGpu {
 
             // Setup drawing offset.
             drawing_offset: 0,
+
+            // Setup GPUREAD latch.
+            gpuread_latch_value: 0,
+            gpuread_latched: false,
 
             // Setup cycle store counts.
             cpu_cycles: 0,
@@ -257,10 +268,10 @@ impl PsxGpu {
     fn gp1_00(&mut self, command: u32) {
 
         // Clear fifo.
-        self.gp1_01(command);
+        self.gp1_01();
 
         // Reset interrupt flag in status register.
-        self.gp1_02(command);
+        self.gp1_02();
 
         // Turn display off.
         self.gp1_03(0x1);
@@ -346,6 +357,152 @@ impl PsxGpu {
         self.y1 = 0x3FF & command;
         self.y2 = 0x3FF & (command >> 10);
     }
+
+    /// This function sets the display mode.
+    fn gp1_08(&mut self, command: u32) {
+
+        // Mask out the relevant bits in status register.
+        self.status_register &= 0xFF80BFFF;
+
+        // Horizontal resolution 1.
+        let temp_horiz_1 = command & 0x3;
+        self.status_register |= (command & 0x3) << 17;
+
+        // Vertical resolution.
+        let temp_vert = (command & 0x4) >> 2;
+        self.status_register |= (command & 0x4) << 17;
+
+        // Video mode.
+        self.status_register |= (command & 0x8) << 17;
+
+        // Display area colour depth.
+        self.status_register |= (command & 0x10) << 17;
+
+        // Vertical interlace (also set cache value).
+        self.interlace_enabled = (command & 0x20) > 0;
+        self.status_register |= (command & 0x20) << 17;
+
+        // Horizontal resolution 2.
+        let temp_horiz_2 = (command & 0x40) >> 6;
+        self.status_register |= (command & 0x40) << 10;
+
+        // Reverse flag.
+        self.status_register |= (command & 0x80) << 7;
+
+        // Now set cache values for horizontal resolution and dot factor.
+        match temp_horiz_2 {
+
+            1 => {
+                self.horizontal_res = 368;
+                self.dot_factor = 7;
+            },
+
+            // Default but represents 0 as it's the only other possibility.
+            _ => {
+                match temp_horiz_1 {
+
+                    0 => {
+                        self.horizontal_res = 256;
+                        self.dot_factor = 10;
+                    },
+
+                    1 => {
+                        self.horizontal_res = 320;
+                        self.dot_factor = 8;
+                    },
+
+                    2 => {
+                        self.horizontal_res = 512;
+                        self.dot_factor = 5;
+                    },
+
+                    // Represents 3 as the only other possibility.
+                    _ => {
+                        self.horizontal_res = 640;
+                        self.dot_factor = 4;
+                    },
+                }
+            },
+        }
+
+        // Now set cache value for vertical resolution.
+        match temp_vert {
+
+            0 => {
+                self.vertical_res = 240;
+            },
+
+            // Represents 1 as the only other possibility.
+            _ => {
+                self.vertical_res = if self.interlace_enabled {
+                    480
+                } else {
+                    240
+                };
+            },
+        }
+    }
+
+    /// This function allows disabling of texturing by other commands.
+    fn gp1_09(&mut self, command: u32) {
+
+        // Mask bit 15 of status register.
+        self.status_register &= 0xFFFF7FFF;
+
+        // Merge in command bit.
+        self.status_register |= (command & 0x1) << 15;
+    }
+
+    /// This function allows GPU information to be read.
+    fn gp1_10(&mut self, command: u32) {
+
+        // Determine what to put in latch value.
+        match command & 0xF {
+
+            // Old value.
+            0 | 0x1 | 0x6 | 0x9..=0xF => {
+                self.gpuread_latched = true;
+            },
+
+            // Texture window.
+            0x2 => {
+                self.gpuread_latch_value = self.texture_window & 0xFFFFF;
+                self.gpuread_latched = true;
+            },
+
+            // Drawing area top-left.
+            0x3 => {
+                self.gpuread_latch_value = self.drawing_area_top_left & 0xFFFFF;
+                self.gpuread_latched = true;
+            },
+
+            // Drawing area bottom-right.
+            0x4 => {
+                self.gpuread_latch_value = self.drawing_area_bottom_right & 0xFFFFF;
+                self.gpuread_latched = true;
+            },
+
+            // Drawing offset.
+            0x5 => {
+                self.gpuread_latch_value = self.drawing_offset & 0x3FFFFF;
+                self.gpuread_latched = true;
+            },
+
+            // GPU type.
+            0x7 => {
+                self.gpuread_latch_value = 2;
+                self.gpuread_latched = true;
+            },
+
+            // Unknown (0).
+            0x8 => {
+                self.gpuread_latch_value = 0;
+                self.gpuread_latched = true;
+            },
+
+            _ => (),
+        }
+    }
 }
 
 /// Implementation functions to be called from anything that understands what
@@ -419,13 +576,13 @@ impl Gpu for PsxGpu {
     /// This function is used to determine how many GPU cycles
     /// will be left after a round of dotclock timer incrementation.
     fn how_many_dotclock_gpu_cycles_left(&self, gpu_cycles: i32) -> i32 {
-        gpu_cycles % self.dot_factor
+        gpu_cycles % (self.dot_factor as i32)
     }
 
     /// This function is used to determine how many dotclock
     /// timer increments are needed.
     fn how_many_dotclock_increments(&self, gpu_cycles: i32) -> i32 {
-        gpu_cycles / self.dot_factor
+        gpu_cycles / (self.dot_factor as i32)
     }
 
     /// This function is used to determine how many GPU cycles
