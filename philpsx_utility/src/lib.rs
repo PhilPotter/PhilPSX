@@ -53,6 +53,16 @@ pub trait LogicalRightShifter {
     fn logical_rshift(self, shift_by: i32) -> Self::Output;
 }
 
+/// This trait exists to allow us to swap endianness regardless of type, without
+/// worrying about sign-extension.
+pub trait EndiannessSwapper {
+
+    type Output;
+
+    /// This function should reverse the byte order of its input.
+    fn swap_endianness(self) -> Self::Output;
+}
+
 impl CustomInteger for CustomInt32 {
 
     type Output = i32;
@@ -115,6 +125,17 @@ impl LogicalRightShifter for CustomInt32 {
     #[inline(always)]
     fn logical_rshift(self, shift_by: i32) -> Self::Output {
         ((self as u32) >> shift_by) as Self::Output
+    }
+}
+
+impl EndiannessSwapper for CustomInt32 {
+
+    type Output = i32;
+
+    /// Swap endianness of i32 value.
+    #[inline(always)]
+    fn swap_endianness(self) -> Self::Output {
+        self << 24 | ((self << 8) & 0xFF0000) | ((self >> 8) & 0xFF00) | self.logical_rshift(24)
     }
 }
 
@@ -237,6 +258,17 @@ impl CustomInteger for CustomUInt32 {
     }
 }
 
+impl EndiannessSwapper for CustomUInt32 {
+
+    type Output = u32;
+
+    /// Swap endianness of u32 value.
+    #[inline(always)]
+    fn swap_endianness(self) -> Self::Output {
+        self << 24 | ((self << 8) & 0xFF0000) | ((self >> 8) & 0xFF00) | self >> 24
+    }
+}
+
 /// This just provides a helpful list of the different possible system bus holders, to be referenced
 /// when needed so that (for example) we can do DMA operations safely.
 #[derive(Copy, Clone, PartialEq)]
@@ -253,10 +285,7 @@ pub use std::cmp::min;
 #[cfg(test)]
 mod tests {
 
-    use super::{
-        CustomInteger,
-        LogicalRightShifter,
-    };
+    use super::{CustomInteger, EndiannessSwapper, LogicalRightShifter};
 
     #[test]
     fn logical_rshift_should_work_as_expected_for_i32() {
@@ -643,5 +672,32 @@ mod tests {
         let output = input.bit_is_set(30);
 
         assert!(!output);
+    }
+
+    #[test]
+    fn swap_enddianness_on_positive_i32() {
+
+        let input = 0x12345678_i32;
+        let output = input.swap_endianness();
+
+        assert_eq!(output, 0x78563412_i32);
+    }
+
+    #[test]
+    fn swap_enddianness_on_negative_i32() {
+
+        let input = 0x92345678_u32 as i32;
+        let output = input.swap_endianness();
+
+        assert_eq!(output, 0x78563492_i32);
+    }
+
+    #[test]
+    fn swap_enddianness_on_u32() {
+
+        let input = 0x87654321_u32;
+        let output = input.swap_endianness();
+
+        assert_eq!(output, 0x21436587_u32);
     }
 }

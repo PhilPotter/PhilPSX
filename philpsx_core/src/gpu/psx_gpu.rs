@@ -265,7 +265,7 @@ impl PsxGpu {
     }
 
     /// This function resets the GPU.
-    fn gp1_00(&mut self, command: u32) {
+    fn gp1_00(&mut self) {
 
         // Clear fifo.
         self.gp1_01();
@@ -595,5 +595,21 @@ impl Gpu for PsxGpu {
     /// timer increments are needed.
     fn how_many_hblank_increments(&self, gpu_cycles: i32) -> i32 {
         gpu_cycles / GPU_CYCLES_PER_SCANLINE
+    }
+
+    /// This function is used to submit GP0 commands.
+    fn submit_to_gp0(&mut self, bridge: &mut dyn GpuBridge, word: u32) {
+        
+        // Sync up to CPU.
+        self.execute_gpu_cycles(bridge);
+        
+        // Exit if DMA read is in progress.
+        if self.dma_read_in_progress != -1 {
+            return;
+        }
+        
+        // Switch endianness.
+        let command_byte = word & 0xFF;
+        
     }
 }

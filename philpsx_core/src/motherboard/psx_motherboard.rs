@@ -7,6 +7,7 @@ use std::{
     fs::File,
     io::Read,
 };
+use philpsx_utility::EndiannessSwapper;
 use crate::{
     motherboard::{
         Motherboard,
@@ -184,13 +185,13 @@ impl Motherboard for PsxMotherboard {
     /// This function determines if the scratchpad is enabled.
     fn scratchpad_enabled(&self) -> bool {
 
-        swap_endianness(self.cache_control_reg) & 0x88 == 0x88
+        self.cache_control_reg.swap_endianness() & 0x88 == 0x88
     }
 
     /// This function determines if the instruction cache is enabled.
     fn instruction_cache_enabled(&self) -> bool {
 
-        swap_endianness(self.cache_control_reg) & 0x800 == 0x800
+        self.cache_control_reg.swap_endianness() & 0x800 == 0x800
     }
 
     /// This function reads a byte from the system address space.
@@ -311,13 +312,4 @@ impl Motherboard for PsxMotherboard {
         self.gpu_interrupt_delay = delay as i64;
         self.gpu_interrupt_counter = 0;
     }
-}
-
-/// This utility function swaps the endianness of a register for us.
-#[inline(always)]
-fn swap_endianness(register_value: u32) -> u32 {
-    ((register_value << 24) & 0xFF000000) |
-        ((register_value << 8) & 0xFF0000) |
-        ((register_value >> 8) & 0xFF00) |
-        ((register_value >> 24) & 0xFF)
 }

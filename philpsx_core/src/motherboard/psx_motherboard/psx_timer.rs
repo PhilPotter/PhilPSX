@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // psx_timer.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use philpsx_utility::LogicalRightShifter;
+use philpsx_utility::EndiannessSwapper;
 use crate::{
     motherboard::{
         MotherboardBridge,
@@ -363,7 +363,7 @@ impl PsxTimerModule {
             motherboard.timer_module.timer_mode[timer] |= 0x400;
         }
 
-        swap_endianness(motherboard.timer_module.timer_counter_value[timer])
+        motherboard.timer_module.timer_counter_value[timer].swap_endianness()
     }
 
     /// Read from the specified timer's mode register.
@@ -391,7 +391,7 @@ impl PsxTimerModule {
             motherboard.timer_module.timer_mode[timer] &= 0xFFFFE7FF_u32 as i32;
         }
 
-        swap_endianness(ret_val)
+        ret_val.swap_endianness()
     }
 
     /// Read from the specified timer's target value register.
@@ -402,7 +402,7 @@ impl PsxTimerModule {
             self.timer_mode[timer] |= 0x400;
         }
 
-        swap_endianness(self.timer_target_value[timer])
+        self.timer_target_value[timer].swap_endianness()
     }
 
     /// Write to the specified timer's counter value register.
@@ -413,7 +413,7 @@ impl PsxTimerModule {
         value: i32
     ) {
         Self::resync(motherboard, bridge);
-        let value = swap_endianness(value);
+        let value = value.swap_endianness();
         motherboard.timer_module.timer_counter_value[timer] = 0xFFFF & value;
     }
 
@@ -425,7 +425,7 @@ impl PsxTimerModule {
         value: i32
     ) {
         Self::resync(motherboard, bridge);
-        let mut value = swap_endianness(value);
+        let mut value = value.swap_endianness();
 
         // Set bit 10 to turn off interrupt request.
         value |= 0x400;
@@ -454,13 +454,7 @@ impl PsxTimerModule {
         value: i32
     ) {
         Self::resync(motherboard, bridge);
-        let value = swap_endianness(value);
+        let value = value.swap_endianness();
         motherboard.timer_module.timer_target_value[timer] = 0xFFFF & value;
     }
-}
-
-/// This utility function swaps the endianness of a signed word for us.
-#[inline(always)]
-fn swap_endianness(word: i32) -> i32 {
-    (word << 24) | ((word & 0xFF00) << 8) | (word & 0xFF0000) >> 8 | word.logical_rshift(24)
 }
