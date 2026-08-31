@@ -504,6 +504,22 @@ impl PsxGpu {
             _ => (),
         }
     }
+
+    /// This function draws a textured three or four point polygon.
+    fn textured_polygon(
+        &mut self,
+        command: u32,
+        vertex1: u32,
+        tex_coord1_and_palette: u32,
+        vertex2: u32,
+        text_coord2_and_palette: u32,
+        vertex3: u32,
+        tex_coord3: u32,
+        vertex4: u32,
+        tex_coord4: u32
+    ) {
+        // Just a stub for now.
+    }
 }
 
 /// Implementation functions to be called from anything that understands what
@@ -923,7 +939,55 @@ impl Gpu for PsxGpu {
             // Command at index 0 in FIFO requires more parameters.
             else {
 
+                match self.fifo_buffer[0] >> 24 {
 
+                    // GP0(0x02): fill rectangle in VRAM.
+                    0x02 => {
+                        if self.commands_in_fifo < 3 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 3 {
+                                self.gp0_02(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x24): textured three-point polygon,
+                    // opaque, texture-blending.
+                    // GP0(0x25): textured three-point polygon,
+                    // opaque, raw-texture.
+                    // GP0(0x26): textured three-point polygon,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x27): textured three-point polygon,
+                    // semi-transparent, raw-texture.
+                    0x24 | 0x25 | 0x26 | 0x27 => {
+                        if self.commands_in_fifo < 7 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 7 {
+                                self.textured_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    self.fifo_buffer[4],
+                                    self.fifo_buffer[5],
+                                    self.fifo_buffer[6],
+                                    0,
+                                    0
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+
+                }
             }
         }
 
@@ -933,42 +997,7 @@ impl Gpu for PsxGpu {
 
 				default: // Command at index 0 in FIFO requires more parameters
 					switch (logical_rshift(gpu->fifoBuffer[0], 24) & 0xFF) {
-						case 0x02: // GP0(0x02): fill rectangle in VRAM
-							if (gpu->commandsInFifo < 3) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 3) {
-									GPU_GP0_02(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x24: // GP0(0x24): textured three-point polygon,
-								   // opaque, texture-blending
-						case 0x25: // GP0(0x25): textured three-point polygon,
-								   // opaque, raw-texture
-						case 0x26: // GP0(0x26): textured three-point polygon,
-								   // semi-transparent, texture-blending
-						case 0x27: // GP0(0x27): textured three-point polygon,
-								   // semi-transparent, raw-texture
-							if (gpu->commandsInFifo < 7) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 7) {
-									GPU_texturedPolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											gpu->fifoBuffer[4],
-											gpu->fifoBuffer[5],
-											gpu->fifoBuffer[6],
-											0, 0);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
+
 						case 0x2C: // GP0(0x2C): textured four-point polygon,
 								   // opaque, texture-blending
 						case 0x2D: // GP0(0x2D): textured four-point polygon,
