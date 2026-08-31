@@ -31,7 +31,7 @@ pub struct PsxGpu {
 
     // Command FIFO buffer for GP0 commands.
     fifo_buffer: [u32; FIFO_BUFFER_SLOTS],
-    commands_in_fifo: u32,
+    commands_in_fifo: usize,
 
     // Status register.
     status_register: u32,
@@ -662,332 +662,275 @@ impl Gpu for PsxGpu {
         }
         // No write in progress, deal with normally.
         else {
+            // Deal with command.
+            if self.commands_in_fifo == 0 {
 
+                // A lot of these blocks do the same thing, but they
+                // are itemised and grouped as they are to keep style
+                // roughly the same as in the C version, and because
+                // the groupings represent logical GPU functionality.
+                match command_byte {
+
+                    // Trigger interrupt.
+                    0x1F => self.gp0_1f(bridge),
+
+                    // NOP (do nothing).
+                    0x00 | 0x03 | 0x04 | 0x05 | 0x06 | 0x07 |
+                    0x08 | 0x09 | 0x0A | 0x0B | 0x0C | 0x0D |
+                    0x0E | 0x0F | 0x10 | 0x11 | 0x12 | 0x13 |
+                    0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19 |
+                    0x1A | 0x1B | 0x1C | 0x1D | 0x1E | 0xE0 |
+                    0xE7 | 0xE8 | 0xE9 | 0xEA | 0xEB | 0xEC |
+                    0xED | 0xEE | 0xEF => (),
+
+                    // Clear cache, but not clear (it actually
+                    // does nothing).
+                    0x01 => (),
+
+                    // GP0(0x02): fill rectangle in VRAM.
+                    0x02 => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x24): textured three-point polygon,
+                    // opaque, texture-blending.
+                    // GP0(0x25): textured three-point polygon,
+                    // opaque, raw-texture.
+                    // GP0(0x26): textured three-point polygon,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x27): textured three-point polygon,
+                    // semi-transparent, raw-texture.
+                    // GP0(0x2C): textured four-point polygon,
+                    // opaque, texture-blending.
+                    // GP0(0x2D): textured four-point polygon,
+                    // opaque, raw-texture.
+                    // GP0(0x2E): textured four-point polygon,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x2F): textured four-point polygon,
+                    // semi-transparent, raw-texture.
+                    0x24 | 0x25 | 0x26 | 0x27 | 0x2C | 0x2D |
+                    0x2E | 0x2F => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x34): shaded textured three-point
+                    // polygon, opaque, texture-blending.
+                    // GP0(0x35): undocumented, textured
+                    // three-point polygon, opaque, no blending.
+                    // GP0(0x36): shaded textured three-point
+                    // polygon, semi-transparent,
+                    // texture-blending.
+                    // GP0(0x37): undocumented, textured
+                    // three-point polygon, semi-transparent,
+                    // no blending.
+                    // GP0(0x3C): shaded textured four-point
+                    // polygon, opaque, texture-blending.
+                    // GP0(0x3D): undocumented, textured
+                    // four-point polygon, opaque, no blending.
+                    // GP0(0x3E): shaded textured four-point
+                    // polygon, semi-transparent,
+                    // texture-blending.
+                    // GP0(0x3F): undocumented, textured
+                    // four-point polygon, semi-transparent,
+                    // no blending.
+                    0x34 | 0x35 | 0x36 | 0x37 | 0x3C | 0x3D |
+                    0x3E | 0x3F => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x20): monochrome three-point polygon,
+                    // opaque.
+                    // GP0(0x21): undocumented command, same as
+                    // GP0(0x20).
+                    // GP0(0x22): monochrome three-point polygon,
+                    // semi-transparent.
+                    // GP0(0x23): undocumented command, same as
+                    // GP0(0x22).
+                    // GP0(0x28): monochrome four-point polygon,
+                    // opaque.
+                    // GP0(0x29): undocumented command, same as
+                    // GP0(0x28).
+                    // GP0(0x2A): monochrome four-point polygon,
+                    // semi-transparent.
+                    // GP0(0x2B): undocumented command, same as
+                    // GP0(0x2A).
+                    0x20 | 0x21 | 0x22 | 0x23 | 0x28 | 0x29 |
+                    0x2A | 0x2B => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x30): shaded three-point polygon,
+                    // opaque.
+                    // GP0(0x31): undocumented command, same as
+                    // GP0(0x30).
+                    // GP0(0x32): shaded three-point polygon,
+                    // semi-transparent.
+                    // GP0(0x33): undocumented command, same as
+                    // GP0(0x32).
+                    // GP0(0x38): shaded four-point polygon,
+                    // opaque.
+                    // GP0(0x39): undocumented command, same as
+                    // GP0(0x38).
+                    // GP0(0x3A): shaded four-point polygon,
+                    // semi-transparent.
+                    // GP0(0x3B): undocumented command, same as
+                    // GP0(0x3A).
+                    0x30 | 0x31 | 0x32 | 0x33 | 0x38 | 0x39 |
+                    0x3A | 0x3B => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x40): monochrome line, opaque.
+                    // GP0(0x42): monochrome line,
+                    // semi-transparent.
+                    // GP0(0x48): monochrome poly-line, opaque.
+                    // GP0(0x4A): monochrome poly-line,
+                    // semi-transparent.
+                    // GP0(0x50): shaded line, opaque.
+                    // GP0(0x52): shaded line, semi-transparent.
+                    // GP0(0x58): shaded poly-line, opaque.
+                    // GP0(0x5A): shaded poly-line,
+                    // semi-transparent.
+                    0x40 | 0x42 | 0x48 | 0x4A | 0x50 | 0x52 |
+                    0x58 | 0x5A => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x60): monochrome rectangle, variable
+                    // size, opaque.
+                    // GP0(0x62): monochrome rectangle, variable
+                    // size, semi-transparent.
+                    // GP0(0x68): monochrome rectangle, 1x1,
+                    // opaque.
+                    // GP0(0x6A): monochrome rectangle, 1x1,
+                    // semi-transparent.
+                    // GP0(0x70): monochrome rectangle, 8x8,
+                    // opaque.
+                    // GP0(0x72): monochrome rectangle, 8x8,
+                    // semi-transparent.
+                    // GP0(0x78): monochrome rectangle, 16x16,
+                    // opaque.
+                    // GP0(0x7A): monochrome rectangle, 16x16,
+                    // semi-transparent.
+                    0x60 | 0x62 | 0x68 | 0x6A | 0x70 | 0x72 |
+                    0x78 | 0x7A => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x64): textured rectangle, variable
+                    // size, opaque, texture-blending.
+                    // GP0(0x65): textured rectangle, variable
+                    // size, opaque, raw-texture.
+                    // GP0(0x66): textured rectangle, variable
+                    // size, semi-transparent, texture-blending.
+                    // GP0(0x67): textured rectangle, variable
+                    // size, semi-transparent, raw-texture.
+                    // GP0(0x6C): textured rectangle, 1x1
+                    // (nonsense), opaque, texture-blending.
+                    // GP0(0x6D): textured rectangle, 1x1
+                    // (nonsense), opaque, raw-texture.
+                    // GP0(0x6E): textured rectangle, 1x1
+                    // (nonsense), semi-transparent,
+                    // texture-blending.
+                    // GP0(0x6F): textured rectangle,
+                    // 1x1 (nonsense), semi-transparent,
+                    // raw-texture.
+                    // GP0(0x74): textured rectangle, 8x8,
+                    // opaque, texture-blending.
+                    // GP0(0x75): textured rectangle, 8x8,
+                    // opaque, raw-texture.
+                    // GP0(0x76): textured rectangle, 8x8,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x77): textured rectangle, 8x8,
+                    // semi-transparent, raw-texture.
+                    // GP0(0x7C): textured rectangle, 16x16,
+                    // opaque, texture-blending.
+                    // GP0(0x7D): textured rectangle, 16x16,
+                    // opaque, raw-texture.
+                    // GP0(0x7E): textured rectangle, 16x16,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x7F): textured rectangle, 16x16,
+                    // semi-transparent, raw-texture.
+                    0x64 | 0x65 | 0x66 | 0x67 | 0x6C | 0x6D |
+                    0x6E | 0x6F | 0x74 | 0x75 | 0x76 | 0x77 |
+                    0x7C | 0x7D | 0x7E | 0x7F => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0x80): copy rectangle (VRAM to VRAM).
+                    0x80 | 0x81 | 0x82 | 0x83 | 0x84 | 0x85 |
+                    0x86 | 0x87 | 0x88 | 0x89 | 0x8A | 0x8B |
+                    0x8C | 0x8D | 0x8E | 0x8F | 0x90 | 0x91 |
+                    0x92 | 0x93 | 0x94 | 0x95 | 0x96 | 0x97 |
+                    0x98 | 0x99 | 0x9A | 0x9B | 0x9C | 0x9D |
+                    0x9E | 0x9F => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0xA0): copy rectangle (CPU to VRAM).
+                    0xA0 | 0xA1 | 0xA2 | 0xA3 | 0xA4 | 0xA5 |
+                    0xA6 | 0xA7 | 0xA8 | 0xA9 | 0xAA | 0xAB |
+                    0xAC | 0xAD | 0xAE | 0xAF | 0xB0 | 0xB1 |
+                    0xB2 | 0xB3 | 0xB4 | 0xB5 | 0xB6 | 0xB7 |
+                    0xB8 | 0xB9 | 0xBA | 0xBB | 0xBC | 0xBD |
+                    0xBE | 0xBF => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0xC0): copy rectangle (VRAM to CPU).
+                    0xC0 | 0xC1 | 0xC2 | 0xC3 | 0xC4 | 0xC5 |
+                    0xC6 | 0xC7 | 0xC8 | 0xC9 | 0xCA | 0xCB |
+                    0xCC | 0xCD | 0xCE | 0xCF | 0xD0 | 0xD1 |
+                    0xD2 | 0xD3 | 0xD4 | 0xD5 | 0xD6 | 0xD7 |
+                    0xD8 | 0xD9 | 0xDA | 0xDB | 0xDC | 0xDD |
+                    0xDE | 0xDF => {
+                        self.fifo_buffer[self.commands_in_fifo] = word;
+                        self.commands_in_fifo += 1;
+                    },
+
+                    // GP0(0xE1): draw mode ("texpage") setting.
+                    0xE1 => self.gp0_e1(word),
+
+                    // GP0(0xE2): texture window setting.
+                    0xE2 => self.gp0_e2(word),
+
+                    // GP0(0xE3): set drawing area (top-left).
+                    0xE3 => self.gp0_e3(word),
+
+                    // GP0(0xE4): set drawing area (bottom-right).
+                    0xE4 => self.gp0_e4(word),
+
+                    // GP0(0xE5): set drawing offset.
+                    0xE5 => self.gp0_e5(word),
+
+                    // GP0(0xE6): set mask setting bits.
+                    0xE6 => self.gp0_e6(word),
+
+                    // Unmapped as of now:
+                    _ => log::warn!("GPU: GP0 submit unhandled: {:#010x}", word),
+                }
+            }
+            // Command at index 0 in FIFO requires more parameters.
+            else {
+
+
+            }
         }
 
         /*
 		case -1: // No write in progress, deal with normally
 			switch (gpu->commandsInFifo) {
-				case 0: // Deal with command
-					switch (commandByte) {
-						case 0x1F: // Trigger interrupt
-							GPU_GP0_1F(gpu);
-							break;
-						case 0x00:
-						case 0x03:
-						case 0x04:
-						case 0x05:
-						case 0x06:
-						case 0x07:
-						case 0x08:
-						case 0x09:
-						case 0x0A:
-						case 0x0B:
-						case 0x0C:
-						case 0x0D:
-						case 0x0E:
-						case 0x0F:
-						case 0x10:
-						case 0x11:
-						case 0x12:
-						case 0x13:
-						case 0x14:
-						case 0x15:
-						case 0x16:
-						case 0x17:
-						case 0x18:
-						case 0x19:
-						case 0x1A:
-						case 0x1B:
-						case 0x1C:
-						case 0x1D:
-						case 0x1E:
-						case 0xE0:
-						case 0xE7:
-						case 0xE8:
-						case 0xE9:
-						case 0xEA:
-						case 0xEB:
-						case 0xEC:
-						case 0xED:
-						case 0xEE:
-						case 0xEF: // NOP (do nothing)
-							break;
-						case 0x01: // Clear cache, but not clear
-								   // (it actually does nothing)
-							break;
-						case 0x02: // GP0(0x02): fill rectangle in VRAM
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x24: // GP0(0x24): textured three-point polygon,
-								   // opaque, texture-blending
-						case 0x25: // GP0(0x25): textured three-point polygon,
-								   // opaque, raw-texture
-						case 0x26: // GP0(0x26): textured three-point polygon,
-								   // semi-transparent, texture-blending
-						case 0x27: // GP0(0x27): textured three-point polygon,
-								   // semi-transparent, raw-texture
-						case 0x2C: // GP0(0x2C): textured four-point polygon,
-								   // opaque, texture-blending
-						case 0x2D: // GP0(0x2D): textured four-point polygon,
-								   // opaque, raw-texture
-						case 0x2E: // GP0(0x2E): textured four-point polygon,
-								   // semi-transparent, texture-blending
-						case 0x2F: // GP0(0x2F): textured four-point polygon,
-								   // semi-transparent, raw-texture
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x34: // GP0(0x34): shaded textured three-point
-								   // polygon, opaque, texture-blending
-						case 0x35: // GP0(0x35): undocumented, textured
-								   // three-point polygon, opaque, no blending
-						case 0x36: // GP0(0x36): shaded textured three-point
-								   // polygon, semi-transparent,
-								   // texture-blending
-						case 0x37: // GP0(0x37): undocumented, textured
-								   // three-point polygon, semi-transparent,
-								   // no blending
-						case 0x3C: // GP0(0x3C): shaded textured four-point
-								   // polygon, opaque, texture-blending
-						case 0x3D: // GP0(0x3D): undocumented, textured
-								   // four-point polygon, opaque, no blending
-						case 0x3E: // GP0(0x3E): shaded textured four-point
-								   // polygon, semi-transparent,
-								   // texture-blending
-						case 0x3F: // GP0(0x3F): undocumented, textured
-								   // four-point polygon, semi-transparent,
-								   // no blending
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x20: // GP0(0x20): monochrome three-point polygon,
-								   // opaque
-						case 0x21: // GP0(0x21): undocumented command, same as
-								   // GP0(0x20)
-						case 0x22: // GP0(0x22): monochrome three-point polygon,
-								   // semi-transparent
-						case 0x23: // GP0(0x23): undocumented command, same as
-								   // GP0(0x22)
-						case 0x28: // GP0(0x28): monochrome four-point polygon,
-								   // opaque
-						case 0x29: // GP0(0x29): undocumented command, same as
-								   // GP0(0x28)
-						case 0x2A: // GP0(0x2A): monochrome four-point polygon,
-								   // semi-transparent
-						case 0x2B: // GP0(0x2B): undocumented command, same as
-								   // GP0(0x2A)
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x30: // GP0(0x30): shaded three-point polygon,
-								   // opaque
-						case 0x31: // GP0(0x31): undocumented command, same as
-								   // GP0(0x30)
-						case 0x32: // GP0(0x32): shaded three-point polygon,
-								   // semi-transparent
-						case 0x33: // GP0(0x33): undocumented command, same as
-								   // GP0(0x32)
-						case 0x38: // GP0(0x38): shaded four-point polygon,
-								   // opaque
-						case 0x39: // GP0(0x39): undocumented command, same as
-								   // GP0(0x38)
-						case 0x3A: // GP0(0x3A): shaded four-point polygon,
-								   // semi-transparent
-						case 0x3B: // GP0(0x3B): undocumented command, same as
-								   // GP0(0x3A)
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x40: // GP0(0x40): monochrome line, opaque
-						case 0x42: // GP0(0x42): monochrome line,
-								   // semi-transparent
-						case 0x48: // GP0(0x48): monochrome poly-line, opaque
-						case 0x4A: // GP0(0x4A): monochrome poly-line,
-								   // semi-transparent
-						case 0x50: // GP0(0x50): shaded line, opaque
-						case 0x52: // GP0(0x52): shaded line, semi-transparent
-						case 0x58: // GP0(0x58): shaded poly-line, opaque
-						case 0x5A: // GP0(0x5A): shaded poly-line,
-								   // semi-transparent
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x60: // GP0(0x60): monochrome rectangle, variable
-								   // size, opaque
-						case 0x62: // GP0(0x62): monochrome rectangle, variable
-								   // size, semi-transparent
-						case 0x68: // GP0(0x68): monochrome rectangle, 1x1,
-								   // opaque
-						case 0x6A: // GP0(0x6A): monochrome rectangle, 1x1,
-								   // semi-transparent
-						case 0x70: // GP0(0x70): monochrome rectangle, 8x8,
-								   // opaque
-						case 0x72: // GP0(0x72): monochrome rectangle, 8x8,
-								   // semi-transparent
-						case 0x78: // GP0(0x78): monochrome rectangle, 16x16,
-								   // opaque
-						case 0x7A: // GP0(0x7A): monochrome rectangle, 16x16,
-								   // semi-transparent
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x64: // GP0(0x64): textured rectangle, variable
-								   // size, opaque, texture-blending
-						case 0x65: // GP0(0x65): textured rectangle, variable
-								   // size, opaque, raw-texture
-						case 0x66: // GP0(0x66): textured rectangle, variable
-								   // size, semi-transparent, texture-blending
-						case 0x67: // GP0(0x67): textured rectangle, variable
-								   // size, semi-transparent, raw-texture
-						case 0x6C: // GP0(0x6C): textured rectangle, 1x1
-							       // (nonsense), opaque, texture-blending
-						case 0x6D: // GP0(0x6D): textured rectangle, 1x1
-								   // (nonsense), opaque, raw-texture
-						case 0x6E: // GP0(0x6E): textured rectangle, 1x1
-								   // (nonsense), semi-transparent,
-								   // texture-blending
-						case 0x6F: // GP0(0x6F): textured rectangle,
-								   // 1x1 (nonsense), semi-transparent,
-								   // raw-texture
-						case 0x74: // GP0(0x74): textured rectangle, 8x8,
-								   // opaque, texture-blending
-						case 0x75: // GP0(0x75): textured rectangle, 8x8,
-								   // opaque, raw-texture
-						case 0x76: // GP0(0x76): textured rectangle, 8x8,
-								   // semi-transparent, texture-blending
-						case 0x77: // GP0(0x77): textured rectangle, 8x8,
-								   // semi-transparent, raw-texture
-						case 0x7C: // GP0(0x7C): textured rectangle, 16x16,
-								   // opaque, texture-blending
-						case 0x7D: // GP0(0x7D): textured rectangle, 16x16,
-								   // opaque, raw-texture
-						case 0x7E: // GP0(0x7E): textured rectangle, 16x16,
-								   // semi-transparent, texture-blending
-						case 0x7F: // GP0(0x7F): textured rectangle, 16x16,
-								   // semi-transparent, raw-texture
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0x80:
-						case 0x81:
-						case 0x82:
-						case 0x83:
-						case 0x84:
-						case 0x85:
-						case 0x86:
-						case 0x87:
-						case 0x88:
-						case 0x89:
-						case 0x8A:
-						case 0x8B:
-						case 0x8C:
-						case 0x8D:
-						case 0x8E:
-						case 0x8F:
-						case 0x90:
-						case 0x91:
-						case 0x92:
-						case 0x93:
-						case 0x94:
-						case 0x95:
-						case 0x96:
-						case 0x97:
-						case 0x98:
-						case 0x99:
-						case 0x9A:
-						case 0x9B:
-						case 0x9C:
-						case 0x9D:
-						case 0x9E:
-						case 0x9F: // GP0(0x80): copy rectangle (VRAM to VRAM)
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0xA0:
-						case 0xA1:
-						case 0xA2:
-						case 0xA3:
-						case 0xA4:
-						case 0xA5:
-						case 0xA6:
-						case 0xA7:
-						case 0xA8:
-						case 0xA9:
-						case 0xAA:
-						case 0xAB:
-						case 0xAC:
-						case 0xAD:
-						case 0xAE:
-						case 0xAF:
-						case 0xB0:
-						case 0xB1:
-						case 0xB2:
-						case 0xB3:
-						case 0xB4:
-						case 0xB5:
-						case 0xB6:
-						case 0xB7:
-						case 0xB8:
-						case 0xB9:
-						case 0xBA:
-						case 0xBB:
-						case 0xBC:
-						case 0xBD:
-						case 0xBE:
-						case 0xBF: // GP0(0xA0): copy rectangle (CPU to VRAM)
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0xC0:
-						case 0xC1:
-						case 0xC2:
-						case 0xC3:
-						case 0xC4:
-						case 0xC5:
-						case 0xC6:
-						case 0xC7:
-						case 0xC8:
-						case 0xC9:
-						case 0xCA:
-						case 0xCB:
-						case 0xCC:
-						case 0xCD:
-						case 0xCE:
-						case 0xCF:
-						case 0xD0:
-						case 0xD1:
-						case 0xD2:
-						case 0xD3:
-						case 0xD4:
-						case 0xD5:
-						case 0xD6:
-						case 0xD7:
-						case 0xD8:
-						case 0xD9:
-						case 0xDA:
-						case 0xDB:
-						case 0xDC:
-						case 0xDD:
-						case 0xDE:
-						case 0xDF: // GP0(0xC0): copy rectangle (VRAM to CPU)
-							gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-							break;
-						case 0xE1: // GP0(0xE1): draw mode ("texpage") setting
-							GPU_GP0_E1(gpu, word);
-							break;
-						case 0xE2: // GP0(0xE2): texture window setting
-							GPU_GP0_E2(gpu, word);
-							break;
-						case 0xE3: // GP0(0xE3): set drawing area (top-left)
-							GPU_GP0_E3(gpu, word);
-							break;
-						case 0xE4: // GP0(0xE4): set drawing area (bottom-right)
-							GPU_GP0_E4(gpu, word);
-							break;
-						case 0xE5: // GP0(0xE5): set drawing offset
-							GPU_GP0_E5(gpu, word);
-							break;
-						case 0xE6: // GP0(0xE6): set mask setting bits
-							GPU_GP0_E6(gpu, word);
-							break;
-						default:
-							fprintf(stderr, "PhilPSX: GPU: GP0 SUBMIT: %08X\n",
-									word);
-							break;
-					}
-					break;
+
 				default: // Command at index 0 in FIFO requires more parameters
 					switch (logical_rshift(gpu->fifoBuffer[0], 24) & 0xFF) {
 						case 0x02: // GP0(0x02): fill rectangle in VRAM
