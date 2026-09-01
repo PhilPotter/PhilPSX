@@ -506,6 +506,25 @@ impl PsxGpu {
     }
 
     /// This function draws a textured three or four point polygon.
+    fn shaded_textured_polygon(
+        &mut self,
+        command: u32,
+        vertex1: u32,
+        tex_coord1_and_palette: u32,
+        colour2: u32,
+        vertex2: u32,
+        tex_coord2_and_tex_page: u32,
+        colour3: u32,
+        vertex3: u32,
+        tex_coord3: u32,
+        colour4: u32,
+        vertex4: u32,
+        tex_coord4: u32
+    ) {
+        // Just a stub for now.
+    }
+
+    /// This function draws a textured three or four point polygon.
     fn textured_polygon(
         &mut self,
         command: u32,
@@ -986,7 +1005,98 @@ impl Gpu for PsxGpu {
                         }
                     },
 
+                    // GP0(0x2C): textured four-point polygon,
+                    // opaque, texture-blending.
+                    // GP0(0x2D): textured four-point polygon,
+                    // opaque, raw-texture.
+                    // GP0(0x2E): textured four-point polygon,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x2F): textured four-point polygon,
+                    // semi-transparent, raw-texture.
+                    0x2C | 0x2D | 0x2E | 0x2F => {
+                        if self.commands_in_fifo < 9 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 9 {
+                                self.textured_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    self.fifo_buffer[4],
+                                    self.fifo_buffer[5],
+                                    self.fifo_buffer[6],
+                                    self.fifo_buffer[7],
+                                    self.fifo_buffer[8]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
 
+                    // Shaded textured three-point polygon,
+                    // opaque, texture-blending.
+                    // Undocumented, textured three-point
+                    // polygon, opaque, no blending.
+                    // Shaded textured three-point polygon,
+                    // semi-transparent, texture-blending.
+                    // Undocumented, textured three-point
+                    // polygon, semi-transparent, no blending.
+                    0x34 | 0x35 | 0x36 | 0x37 => {
+                        if self.commands_in_fifo < 9 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 9 {
+                                self.shaded_textured_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    self.fifo_buffer[4],
+                                    self.fifo_buffer[5],
+                                    self.fifo_buffer[6],
+                                    self.fifo_buffer[7],
+                                    self.fifo_buffer[8],
+                                    0,
+                                    0,
+                                    0
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // Shaded textured four-point polygon,
+                    // opaque, texture-blending.
+                    // Undocumented, textured four-point polygon,
+                    // opaque, no blending.
+                    // Shaded textured four-point polygon,
+                    // semi-transparent, texture-blending.
+                    // Undocumented, textured four-point polygon,
+                    // semi-transparent, no blending.
+                    0x3C | 0x3D | 0x3E | 0x3F => {
+                        if self.commands_in_fifo < 12 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 12 {
+                                self.shaded_textured_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    self.fifo_buffer[4],
+                                    self.fifo_buffer[5],
+                                    self.fifo_buffer[6],
+                                    self.fifo_buffer[7],
+                                    self.fifo_buffer[8],
+                                    self.fifo_buffer[9],
+                                    self.fifo_buffer[10],
+                                    self.fifo_buffer[11]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
                 }
             }
         }
@@ -998,85 +1108,6 @@ impl Gpu for PsxGpu {
 				default: // Command at index 0 in FIFO requires more parameters
 					switch (logical_rshift(gpu->fifoBuffer[0], 24) & 0xFF) {
 
-						case 0x2C: // GP0(0x2C): textured four-point polygon,
-								   // opaque, texture-blending
-						case 0x2D: // GP0(0x2D): textured four-point polygon,
-								   // opaque, raw-texture
-						case 0x2E: // GP0(0x2E): textured four-point polygon,
-								   // semi-transparent, texture-blending
-						case 0x2F: // GP0(0x2F): textured four-point polygon,
-								   // semi-transparent, raw-texture
-							if (gpu->commandsInFifo < 9) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 9) {
-									GPU_texturedPolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											gpu->fifoBuffer[4],
-											gpu->fifoBuffer[5],
-											gpu->fifoBuffer[6],
-											gpu->fifoBuffer[7],
-											gpu->fifoBuffer[8]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x34: // Shaded textured three-point polygon,
-								   // opaque, texture-blending
-						case 0x35: // Undocumented, textured three-point
-								   // polygon, opaque, no blending
-						case 0x36: // Shaded textured three-point polygon,
-								   // semi-transparent, texture-blending
-						case 0x37: // Undocumented, textured three-point
-								   // polygon, semi-transparent, no blending
-							if (gpu->commandsInFifo < 9) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 9) {
-									GPU_shadedTexturedPolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											gpu->fifoBuffer[4],
-											gpu->fifoBuffer[5],
-											gpu->fifoBuffer[6],
-											gpu->fifoBuffer[7],
-											gpu->fifoBuffer[8],
-											0, 0, 0);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x3C: // Shaded textured four-point polygon,
-								   // opaque, texture-blending
-						case 0x3D: // Undocumented, textured four-point polygon,
-								   // opaque, no blending
-						case 0x3E: // Shaded textured four-point polygon,
-								   // semi-transparent, texture-blending
-						case 0x3F: // Undocumented, textured four-point polygon,
-								   // semi-transparent, no blending
-							if (gpu->commandsInFifo < 12) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 12) {
-									GPU_shadedTexturedPolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											gpu->fifoBuffer[4],
-											gpu->fifoBuffer[5],
-											gpu->fifoBuffer[6],
-											gpu->fifoBuffer[7],
-											gpu->fifoBuffer[8],
-											gpu->fifoBuffer[9],
-											gpu->fifoBuffer[10],
-											gpu->fifoBuffer[11]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
 						case 0x20: // GP0(0x20): monochrome three-point polygon,
 								   // opaque
 						case 0x21: // GP0(0x21): undocumented command, same as
