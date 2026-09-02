@@ -20,6 +20,9 @@ const FIFO_BUFFER_SLOTS: usize = 16;
 /// This struct models the GPU (graphics chip) of the PlayStation.
 pub struct PsxGpu {
 
+    // This vector stores line parameters for the line rendering commands.
+    line_parameters: Vec<u32>,
+
     // This lets us store values for DMA transfers.
     dma_buffer_index: i32,
     dma_needed_bytes: i32,
@@ -90,6 +93,9 @@ impl PsxGpu {
     /// Creates a new GPU object with the correct initial state.
     pub fn new() -> Self {
         PsxGpu {
+
+            // Setup line parameters vector.
+            line_parameters: vec![],
 
             // Setup DMA buffer.
             dma_buffer_index: -1,
@@ -503,6 +509,43 @@ impl PsxGpu {
 
             _ => (),
         }
+    }
+
+    /// This function renders all forms of line primitive supported by the
+    /// PlayStation hardware.
+    fn any_line(
+        &mut self,
+        command: u32,
+        params_list: &[u32]
+    ) {
+        // Just a stub for now.
+    }
+
+    /// This function draws a monochrome three or four point polygon.
+    fn monochrome_polygon(
+        &mut self,
+        command: u32,
+        vertex1: u32,
+        vertex2: u32,
+        vertex3: u32,
+        vertex4: u32
+    ) {
+        // Just a stub for now.
+    }
+
+    /// This function draws a shaded three or four point polygon.
+    fn shaded_polygon(
+        &mut self,
+        command: u32,
+        vertex1: u32,
+        colour2: u32,
+        vertex2: u32,
+        colour3: u32,
+        vertex3: u32,
+        colour4: u32,
+        vertex4: u32
+    ) {
+        // Just a stub for now.
     }
 
     /// This function draws a textured three or four point polygon.
@@ -1097,6 +1140,130 @@ impl Gpu for PsxGpu {
                             }
                         }
                     },
+
+                    // GP0(0x20): monochrome three-point polygon,
+                    // opaque.
+                    // GP0(0x21): undocumented command, same as
+                    // GP0(0x20).
+                    // GP0(0x22): monochrome three-point polygon,
+                    // semi-transparent.
+                    // GP0(0x23): undocumented command, same as
+                    // GP0(0x22).
+                    0x20 | 0x21 | 0x22 | 0x23 => {
+                        if self.commands_in_fifo < 4 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 4 {
+                                self.monochrome_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    0
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x28): monochrome four-point polygon,
+                    // opaque.
+                    // GP0(0x29): undocumented command, same as
+                    // GP0(0x28).
+                    // GP0(0x2A): monochrome four-point polygon,
+                    // semi-transparent.
+                    // GP0(0x2B): undocumented command, same as
+                    // GP0(0x2B).
+                    0x28 | 0x29 | 0x2A | 0x2B => {
+                        if self.commands_in_fifo < 5 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 5 {
+                                self.monochrome_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    self.fifo_buffer[4]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x30): shaded three-point polygon,
+                    // opaque.
+                    // GP0(0x31): undocumented command, same as
+                    // GP0(0x30).
+                    // GP0(0x32): shaded three-point polygon,
+                    // semi-transparent.
+                    // GP0(0x33): undocumented command, same as
+                    // GP0(0x32).
+                    0x30 | 0x31 | 0x32 | 0x33 => {
+                        if self.commands_in_fifo < 6 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 6 {
+                                self.shaded_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    self.fifo_buffer[4],
+                                    self.fifo_buffer[5],
+                                    0,
+                                    0
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x38): shaded four-point polygon,
+                    // opaque.
+                    // GP0(0x39): undocumented command, same as
+                    // GP0(0x38).
+                    // GP0(0x3A): shaded four-point polygon,
+                    // semi-transparent.
+                    // GP0(0x3B): undocumented command, same as
+                    // GP0(0x3A).
+                    0x38 | 0x39 | 0x3A | 0x3B => {
+                        if self.commands_in_fifo < 8 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 8 {
+                                self.shaded_polygon(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3],
+                                    self.fifo_buffer[4],
+                                    self.fifo_buffer[5],
+                                    self.fifo_buffer[6],
+                                    self.fifo_buffer[7]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x40): monochrome line, opaque.
+                    // GP0(0x42): monochrome line,
+                    // semi-transparent.
+                    0x40 | 0x42 => {
+                        if self.line_parameters.len()  < 4 {
+                            self.line_parameters.push(self.fifo_buffer[0] & 0xFFFFFF);
+                            self.line_parameters.push(word);
+                            if self.line_parameters.len() == 4 {
+                                self.any_line(
+                                    self.fifo_buffer[0],
+                                    &self.line_parameters
+                                );
+                                self.line_parameters.clear();
+                                self.gp1_01();
+                            }
+                        }
+                    },
                 }
             }
         }
@@ -1108,115 +1275,6 @@ impl Gpu for PsxGpu {
 				default: // Command at index 0 in FIFO requires more parameters
 					switch (logical_rshift(gpu->fifoBuffer[0], 24) & 0xFF) {
 
-						case 0x20: // GP0(0x20): monochrome three-point polygon,
-								   // opaque
-						case 0x21: // GP0(0x21): undocumented command, same as
-								   // GP0(0x20)
-						case 0x22: // GP0(0x22): monochrome three-point polygon,
-								   // semi-transparent
-						case 0x23: // GP0(0x23): undocumented command, same as
-								   // GP0(0x22)
-							if (gpu->commandsInFifo < 4) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 4) {
-									GPU_monochromePolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											0);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x28: // GP0(0x28): monochrome four-point polygon,
-								   // opaque
-						case 0x29: // GP0(0x29): undocumented command, same as
-								   // GP0(0x28)
-						case 0x2A: // GP0(0x2A): monochrome four-point polygon,
-								   // semi-transparent
-						case 0x2B: // GP0(0x2B): undocumented command, same as
-								   // GP0(0x2B)
-							if (gpu->commandsInFifo < 5) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 5) {
-									GPU_monochromePolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											gpu->fifoBuffer[4]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x30: // GP0(0x30): shaded three-point polygon,
-								   // opaque
-						case 0x31: // GP0(0x31): undocumented command, same as
-								   // GP0(0x30)
-						case 0x32: // GP0(0x32): shaded three-point polygon,
-								   // semi-transparent
-						case 0x33: // GP0(0x33): undocumented command, same as
-								   // GP0(0x32)
-							if (gpu->commandsInFifo < 6) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 6) {
-									GPU_shadedPolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											gpu->fifoBuffer[4],
-											gpu->fifoBuffer[5],
-											0, 0);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x38: // GP0(0x38): shaded four-point polygon,
-								   // opaque
-						case 0x39: // GP0(0x39): undocumented command, same as
-								   // GP0(0x38)
-						case 0x3A: // GP0(0x3A): shaded four-point polygon,
-								   // semi-transparent
-						case 0x3B: // GP0(0x3B): undocumented command, same as
-								   // GP0(0x3A)
-							if (gpu->commandsInFifo < 8) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 8) {
-									GPU_shadedPolygon(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3],
-											gpu->fifoBuffer[4],
-											gpu->fifoBuffer[5],
-											gpu->fifoBuffer[6],
-											gpu->fifoBuffer[7]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x40: // GP0(0x40): monochrome line, opaque
-						case 0x42: // GP0(0x42): monochrome line,
-								   // semi-transparent
-							if (ArrayList_getSize(gpu->lineParameters) < 4) {
-								ArrayList_addObject(gpu->lineParameters,
-										(void *)(intptr_t)(gpu->fifoBuffer[0]
-										& 0xFFFFFF));
-								ArrayList_addObject(gpu->lineParameters,
-										(void *)(intptr_t)word);
-								if (ArrayList_getSize(gpu->lineParameters)
-										== 4) {
-									GPU_anyLine(gpu,
-											gpu->fifoBuffer[0],
-											gpu->lineParameters);
-									ArrayList_wipeAllObjects(
-											gpu->lineParameters);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
 						case 0x50: // GP0(0x50): shaded line, opaque
 						case 0x52: // GP0(0x52): shaded line, semi-transparent
 							if (ArrayList_getSize(gpu->lineParameters) < 4) {
