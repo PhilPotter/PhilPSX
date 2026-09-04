@@ -185,7 +185,7 @@ impl PsxGpu {
         self.dma_buffer[index] = value;
     }
 
-    // Internal numbers GPn command functions are handled below.
+    // Internally numbered GPn command functions and drawing functions are handled below.
 
     /// This function fills a rectangle in the VRAM.
     fn gp0_02(&mut self, command: u32, destination: u32, dimensions: u32) {
@@ -512,11 +512,17 @@ impl PsxGpu {
     }
 
     /// This function renders all forms of line primitive supported by the
-    /// PlayStation hardware.
+    /// PlayStation hardware. The original C version took a pointer to the
+    /// list of line parameters. We can't do that here and then call it
+    /// from itself, as that would mean a reference to an object already
+    /// borrowed as mutable.
+    ///
+    /// The other options were copying the vector first (silly) or just
+    /// not passing it at all - the mutable reference already has access
+    /// to it so can just read it from inside the function body.
     fn any_line(
         &mut self,
-        command: u32,
-        params_list: &[u32]
+        command: u32
     ) {
         // Just a stub for now.
     }
@@ -529,6 +535,16 @@ impl PsxGpu {
         vertex2: u32,
         vertex3: u32,
         vertex4: u32
+    ) {
+        // Just a stub for now.
+    }
+
+    /// This function draws a monochrome rectangle, with various options.
+    fn monochrome_rectangle(
+        &mut self,
+        command: u32,
+        vertex: u32,
+        width_and_height: u32
     ) {
         // Just a stub for now.
     }
@@ -579,6 +595,17 @@ impl PsxGpu {
         tex_coord3: u32,
         vertex4: u32,
         tex_coord4: u32
+    ) {
+        // Just a stub for now.
+    }
+
+    /// This function draws a textured rectangle, with various options.
+    fn textured_rectangle(
+        &mut self,
+        command: u32,
+        vertex: u32,
+        tex_coord_and_palette: u32,
+        width_and_height: u32
     ) {
         // Just a stub for now.
     }
@@ -1255,412 +1282,326 @@ impl Gpu for PsxGpu {
                             self.line_parameters.push(self.fifo_buffer[0] & 0xFFFFFF);
                             self.line_parameters.push(word);
                             if self.line_parameters.len() == 4 {
-                                self.any_line(
-                                    self.fifo_buffer[0],
-                                    &self.line_parameters
-                                );
+                                self.any_line(self.fifo_buffer[0]);
                                 self.line_parameters.clear();
                                 self.gp1_01();
                             }
                         }
                     },
+
+                    // GP0(0x50): shaded line, opaque.
+                    // GP0(0x52): shaded line, semi-transparent.
+                    0x50 | 0x52 => {
+                        if self.line_parameters.len() < 4 {
+                            if self.line_parameters.len() == 0 {
+                                self.line_parameters.push(self.fifo_buffer[0] & 0xFFFFFF);
+                            }
+                            self.line_parameters.push(word);
+                            if self.line_parameters.len() == 4 {
+                                self.any_line(self.fifo_buffer[0]);
+                                self.line_parameters.clear();
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x48): monochrome poly-line, opaque.
+                    // GP0(0x4A): monochrome poly-line,
+                    // semi-transparent.
+                    0x48 | 0x4A => {
+                        // Variable number of components, so stop at
+                        // termination code.
+                        if word != 0x55555555 && word != 0x50005000 {
+                            self.line_parameters.push(self.fifo_buffer[0] & 0xFFFFFF);
+                            self.line_parameters.push(word);
+                        } else {
+                            self.any_line(self.fifo_buffer[0]);
+                            self.line_parameters.clear();
+                            self.gp1_01();
+                        }
+                    },
+
+                    // GP0(0x58): shaded poly-line, opaque.
+                    // GP0(0x5A): shaded poly-line,
+                    // semi-transparent.
+                    0x58 | 0x5A => {
+                        // Variable number of components, so stop at
+                        // termination code.
+                        if word != 0x55555555 && word != 0x50005000 {
+                            if self.line_parameters.len() == 0 {
+                                self.line_parameters.push(self.fifo_buffer[0] & 0xFFFFFF);
+                            }
+                            self.line_parameters.push(word);
+                        } else {
+                            self.any_line(self.fifo_buffer[0]);
+                            self.line_parameters.clear();
+                            self.gp1_01();
+                        }
+                    },
+
+                    // GP0(0x60): monochrome rectangle, variable
+                    // size, opaque.
+                    // GP0(0x62): monochrome rectangle, variable
+                    // size, semi-transparent.
+                    0x60 | 0x62 => {
+                        if self.commands_in_fifo < 3 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 3 {
+                                self.monochrome_rectangle(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x68): monochrome rectangle, 1x1,
+                    // opaque.
+                    // GP0(0x6A): monochrome rectangle, 1x1,
+                    // semi-transparent.
+                    // GP0(0x70): monochrome rectangle, 8x8,
+                    // opaque.
+                    // GP0(0x72): monochrome rectangle, 8x8,
+                    // semi-transparent.
+                    // GP0(0x78): monochrome rectangle, 16x16,
+                    // opaque.
+                    // GP0(0x7A): monochrome rectangle, 16x16,
+                    // semi-transparent.
+                    0x68 | 0x6A | 0x70 | 0x72 | 0x78 | 0x7A => {
+                        if self.commands_in_fifo < 2 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 2 {
+                                let rectangle_size = match self.fifo_buffer[0] >> 24 {
+
+                                    // 1x1 size.
+                                    0x68 | 0x6A => {
+                                        0x00010001
+                                    },
+
+                                    // 8x8 size.
+                                    0x70 | 0x72 => {
+                                        0x00080008
+                                    },
+
+                                    // 16x16 size.
+                                    0x78 | 0x7A => {
+                                        0x00100010
+                                    },
+
+                                    // Default (0).
+                                    _ => 0,
+                                };
+                                self.monochrome_rectangle(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    rectangle_size
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x64): textured rectangle, variable
+                    // size, opaque, texture-blending.
+                    // GP0(0x65): textured rectangle, variable
+                    // size, opaque, raw-texture.
+                    // GP0(0x66): textured rectangle, variable
+                    // size, semi-transparent, texture-blending.
+                    // GP0(0x67): textured rectangle, variable
+                    // size, semi-transparent, raw-texture.
+                    0x64 | 0x65 | 0x66 | 0x67 => {
+                        if self.commands_in_fifo < 4 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 4 {
+                                self.textured_rectangle(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x6C): textured rectangle, 1x1
+                    // (nonsense), opaque, texture-blending.
+                    // GP0(0x6D): textured rectangle, 1x1
+                    // (nonsense), opaque, raw-texture.
+                    // GP0(0x6E): textured rectangle, 1x1
+                    // (nonsense), semi-transparent, texture-blending.
+                    // GP0(0x6F): textured rectangle, 1x1
+                    // (nonsense), semi-transparent, raw-texture.
+                    // GP0(0x74): textured rectangle, 8x8,
+                    // opaque, texture-blending.
+                    // GP0(0x75): textured rectangle, 8x8,
+                    // opaque, raw-texture.
+                    // GP0(0x76): textured rectangle, 8x8,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x77): textured rectangle, 8x8,
+                    // semi-transparent, raw-texture.
+                    // GP0(0x7C): textured rectangle, 16x16,
+                    // opaque, texture-blending.
+                    // GP0(0x7D): textured rectangle, 16x16,
+                    // opaque, raw-texture.
+                    // GP0(0x7E): textured rectangle, 16x16,
+                    // semi-transparent, texture-blending.
+                    // GP0(0x7F): textured rectangle, 16x16,
+                    // semi-transparent, raw-texture.
+                    0x6C | 0x6D | 0x6E | 0x6F | 0x74 | 0x75 |
+                    0x76 | 0x77 | 0x7C | 0x7D | 0x7E | 0x7F => {
+                        if self.commands_in_fifo < 3 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 3 {
+                                let rectangle_size = match self.fifo_buffer[0] >> 24 {
+
+                                    // 1x1 size.
+                                    0x6C | 0x6D | 0x6E | 0x6F => {
+                                        0x00010001
+                                    },
+
+                                    // 8x8 size.
+                                    0x74 | 0x75 | 0x76 | 0x77 => {
+                                        0x00080008
+                                    },
+
+                                    // 16x16 size.
+                                    0x7C | 0x7D | 0x7E | 0x7F => {
+                                        0x00100010
+                                    },
+
+                                    // Default (0).
+                                    _ => 0,
+                                };
+                                self.textured_rectangle(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    rectangle_size
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0x80): copy rectangle (VRAM to VRAM).
+                    0x80 | 0x81 | 0x82 | 0x83 | 0x84 | 0x85 |
+                    0x86 | 0x87 | 0x88 | 0x89 | 0x8A | 0x8B |
+                    0x8C | 0x8D | 0x8E | 0x8F | 0x90 | 0x91 |
+                    0x92 | 0x93 | 0x94 | 0x95 | 0x96 | 0x97 |
+                    0x98 | 0x99 | 0x9A | 0x9B | 0x9C | 0x9D |
+                    0x9E | 0x9F => {
+                        if self.commands_in_fifo < 4 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 4 {
+                                self.gp0_80(
+                                    self.fifo_buffer[0],
+                                    self.fifo_buffer[1],
+                                    self.fifo_buffer[2],
+                                    self.fifo_buffer[3]
+                                );
+                                self.gp1_01();
+                            }
+                        }
+                    },
+
+                    // GP0(0xA0): copy rectangle (CPU to VRAM).
+                    0xA0 | 0xA1 | 0xA2 | 0xA3 | 0xA4 | 0xA5 |
+                    0xA6 | 0xA7 | 0xA8 | 0xA9 | 0xAA | 0xAB |
+                    0xAC | 0xAD | 0xAE | 0xAF | 0xB0 | 0xB1 |
+                    0xB2 | 0xB3 | 0xB4 | 0xB5 | 0xB6 | 0xB7 |
+                    0xB8 | 0xB9 | 0xBA | 0xBB | 0xBC | 0xBD |
+                    0xBE | 0xBF => {
+                        if self.commands_in_fifo < 3 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 3 {
+                                // Clear bit 28 (DMA ready) of status
+                                // register.
+                                self.status_register &= 0xEFFFFFFF;
+
+                                // Clear bit 26 (ready to receive command
+                                // word) of status register.
+                                self.status_register &= 0xFBFFFFFF;
+
+                                // Trigger DMA input.
+                                self.dma_write_in_progress = 0xA0;
+                                self.dma_buffer_index = 0;
+                                self.dma_width_in_pixels = (self.fifo_buffer[2] & 0xFFFF) as i32;
+                                self.dma_width_in_pixels = ((self.dma_width_in_pixels - 1) & 0x3FF) + 1;
+                                self.dma_height_in_pixels = ((self.fifo_buffer[2] >> 16) & 0xFFFF) as i32;
+                                self.dma_height_in_pixels = ((self.dma_height_in_pixels - 1) & 0x1FF) + 1;
+                                self.dma_width_in_pixels = if self.dma_width_in_pixels == 0 {
+                                    0x400
+                                } else {
+                                    self.dma_width_in_pixels
+                                };
+                                self.dma_height_in_pixels = if self.dma_height_in_pixels == 0 {
+                                    0x200
+                                } else {
+                                    self.dma_height_in_pixels
+                                };
+                                self.dma_needed_bytes = self.dma_width_in_pixels * self.dma_height_in_pixels;
+                                self.dma_needed_bytes *= 4;
+                            }
+                        }
+                    },
+
+                    // GP0(0xC0): copy rectangle (VRAM to CPU).
+                    0xC0 | 0xC1 | 0xC2 | 0xC3 | 0xC4 | 0xC5 |
+                    0xC6 | 0xC7 | 0xC8 | 0xC9 | 0xCA | 0xCB |
+                    0xCC | 0xCD | 0xCE | 0xCF | 0xD0 | 0xD1 |
+                    0xD2 | 0xD3 | 0xD4 | 0xD5 | 0xD6 | 0xD7 |
+                    0xD8 | 0xD9 | 0xDA | 0xDB | 0xDC | 0xDD |
+                    0xDE | 0xDF => {
+                        if self.commands_in_fifo < 3 {
+                            self.fifo_buffer[self.commands_in_fifo] = word;
+                            self.commands_in_fifo += 1;
+                            if self.commands_in_fifo == 3 {
+                                // Clear bit 28 (DMA ready) of status
+                                // register.
+                                self.status_register &= 0xEFFFFFFF;
+
+                                // Set bit 27 (ready to send VRAM to CPU).
+                                self.status_register |= 0x08000000;
+
+                                // Clear bit 26 (ready to receive command
+                                // word) of status register.
+                                self.status_register &= 0xFBFFFFFF;
+
+                                // Trigger DMA output.
+                                self.dma_read_in_progress = 0xC0;
+                                self.dma_buffer_index = 0;
+                                self.dma_width_in_pixels = (self.fifo_buffer[2] & 0xFFFF) as i32;
+                                self.dma_width_in_pixels = ((self.dma_width_in_pixels - 1) & 0x3FF) + 1;
+                                self.dma_height_in_pixels = ((self.fifo_buffer[2] >> 16) & 0xFFFF) as i32;
+                                self.dma_height_in_pixels = ((self.dma_height_in_pixels - 1) & 0x1FF) + 1;
+                                self.dma_width_in_pixels = if self.dma_width_in_pixels == 0 {
+                                    0x400
+                                } else {
+                                    self.dma_width_in_pixels
+                                };
+                                self.dma_height_in_pixels = if self.dma_height_in_pixels == 0 {
+                                    0x200
+                                } else {
+                                    self.dma_height_in_pixels
+                                };
+                                self.dma_needed_bytes = self.dma_width_in_pixels * self.dma_height_in_pixels;
+                                self.dma_needed_bytes *= 4;
+                            }
+                        }
+                    },
+
+                    _ => (),
                 }
             }
         }
-
-        /*
-		case -1: // No write in progress, deal with normally
-			switch (gpu->commandsInFifo) {
-
-				default: // Command at index 0 in FIFO requires more parameters
-					switch (logical_rshift(gpu->fifoBuffer[0], 24) & 0xFF) {
-
-						case 0x50: // GP0(0x50): shaded line, opaque
-						case 0x52: // GP0(0x52): shaded line, semi-transparent
-							if (ArrayList_getSize(gpu->lineParameters) < 4) {
-								if (ArrayList_getSize(gpu->lineParameters)
-										== 0) {
-									ArrayList_addObject(gpu->lineParameters,
-											(void *)(intptr_t)(
-											gpu->fifoBuffer[0] & 0xFFFFFF));
-								}
-								ArrayList_addObject(gpu->lineParameters,
-										(void *)(intptr_t)word);
-								if (ArrayList_getSize(gpu->lineParameters)
-										== 4) {
-									GPU_anyLine(gpu,
-											gpu->fifoBuffer[0],
-											gpu->lineParameters);
-									ArrayList_wipeAllObjects(
-											gpu->lineParameters);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x48: // GP0(0x48): monochrome poly-line, opaque
-						case 0x4A: // GP0(0x4A): monochrome poly-line,
-								   // semi-transparent
-							// Variable number of components, so stop at
-							// termination code
-							if (word != 0x55555555 && word != 0x50005000) {
-								ArrayList_addObject(gpu->lineParameters,
-										(void *)(intptr_t)(gpu->fifoBuffer[0]
-										& 0xFFFFFF));
-								ArrayList_addObject(gpu->lineParameters,
-										(void *)(intptr_t)word);
-							} else {
-								GPU_anyLine(gpu,
-										gpu->fifoBuffer[0],
-										gpu->lineParameters);
-								ArrayList_wipeAllObjects(gpu->lineParameters);
-								GPU_GP1_01(gpu, 0);
-							}
-							break;
-						case 0x58: // GP0(0x58): shaded poly-line, opaque
-						case 0x5A: // GP0(0x5A): shaded poly-line,
-								   // semi-transparent
-							// Variable number of components, so stop at
-							// termination code
-							if (word != 0x55555555 && word != 0x50005000) {
-								if (ArrayList_getSize(gpu->lineParameters)
-										== 0) {
-									ArrayList_addObject(gpu->lineParameters,
-											(void *)(intptr_t)(
-											gpu->fifoBuffer[0] & 0xFFFFFF));
-								}
-								ArrayList_addObject(gpu->lineParameters,
-										(void *)(intptr_t)word);
-							} else {
-								GPU_anyLine(gpu,
-										gpu->fifoBuffer[0],
-										gpu->lineParameters);
-								ArrayList_wipeAllObjects(gpu->lineParameters);
-								GPU_GP1_01(gpu, 0);
-							}
-							break;
-						case 0x60: // GP0(0x60): monochrome rectangle, variable
-								   // size, opaque
-						case 0x62: // GP0(0x62): monochrome rectangle, variable
-								   // size, semi-transparent
-							if (gpu->commandsInFifo < 3) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 3) {
-									GPU_monochromeRectangle(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x68: // GP0(0x68): monochrome rectangle, 1x1,
-								   // opaque
-						case 0x6A: // GP0(0x6A): monochrome rectangle, 1x1,
-								   // semi-transparent
-						case 0x70: // GP0(0x70): monochrome rectangle, 8x8,
-								   // opaque
-						case 0x72: // GP0(0x72): monochrome rectangle, 8x8,
-								   // semi-transparent
-						case 0x78: // GP0(0x78): monochrome rectangle, 16x16,
-								   // opaque
-						case 0x7A: // GP0(0x7A): monochrome rectangle, 16x16,
-								   // semi-transparent
-							if (gpu->commandsInFifo < 2) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 2) {
-									int32_t rectangleSize = 0;
-									switch (logical_rshift(
-											gpu->fifoBuffer[0], 24) & 0xFF) {
-										case 0x68:
-										case 0x6A: // 1x1 size
-											rectangleSize = 0x00010001;
-											break;
-										case 0x70:
-										case 0x72: // 8x8 size
-											rectangleSize = 0x00080008;
-											break;
-										case 0x78:
-										case 0x7A: // 16x16 size
-											rectangleSize = 0x00100010;
-											break;
-									}
-									GPU_monochromeRectangle(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											rectangleSize);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x64: // GP0(0x64): textured rectangle, variable
-								   // size, opaque, texture-blending
-						case 0x65: // GP0(0x65): textured rectangle, variable
-								   // size, opaque, raw-texture
-						case 0x66: // GP0(0x66): textured rectangle, variable
-								   // size, semi-transparent, texture-blending
-						case 0x67: // GP0(0x67): textured rectangle, variable
-								   // size, semi-transparent, raw-texture
-							if (gpu->commandsInFifo < 4) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 4) {
-									GPU_texturedRectangle(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x6C: // GP0(0x6C): textured rectangle, 1x1
-								   // (nonsense), opaque, texture-blending
-						case 0x6D: // GP0(0x6D): textured rectangle, 1x1
-								   // (nonsense), opaque, raw-texture
-						case 0x6E: // GP0(0x6E): textured rectangle, 1x1
-								   // (nonsense), semi-transparent, texture-blending
-						case 0x6F: // GP0(0x6F): textured rectangle, 1x1
-								   // (nonsense), semi-transparent, raw-texture
-						case 0x74: // GP0(0x74): textured rectangle, 8x8,
-								   // opaque, texture-blending
-						case 0x75: // GP0(0x75): textured rectangle, 8x8,
-								   // opaque, raw-texture
-						case 0x76: // GP0(0x76): textured rectangle, 8x8,
-								   // semi-transparent, texture-blending
-						case 0x77: // GP0(0x77): textured rectangle, 8x8,
-								   // semi-transparent, raw-texture
-						case 0x7C: // GP0(0x7C): textured rectangle, 16x16,
-								   // opaque, texture-blending
-						case 0x7D: // GP0(0x7D): textured rectangle, 16x16,
-								   // opaque, raw-texture
-						case 0x7E: // GP0(0x7E): textured rectangle, 16x16,
-								   // semi-transparent, texture-blending
-						case 0x7F: // GP0(0x7F): textured rectangle, 16x16,
-								   // semi-transparent, raw-texture
-							if (gpu->commandsInFifo < 3) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 3) {
-									int32_t rectangleSize = 0;
-									switch (logical_rshift(
-											gpu->fifoBuffer[0], 24) & 0xFF) {
-										case 0x6C:
-										case 0x6D:
-										case 0x6E:
-										case 0x6F: // 1x1 size
-											rectangleSize = 0x00010001;
-											break;
-										case 0x74:
-										case 0x75:
-										case 0x76:
-										case 0x77: // 8x8 size
-											rectangleSize = 0x00080008;
-											break;
-										case 0x7C:
-										case 0x7D:
-										case 0x7E:
-										case 0x7F: // 16x16 size
-											rectangleSize = 0x00100010;
-											break;
-									}
-									GPU_texturedRectangle(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											rectangleSize);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0x80:
-						case 0x81:
-						case 0x82:
-						case 0x83:
-						case 0x84:
-						case 0x85:
-						case 0x86:
-						case 0x87:
-						case 0x88:
-						case 0x89:
-						case 0x8A:
-						case 0x8B:
-						case 0x8C:
-						case 0x8D:
-						case 0x8E:
-						case 0x8F:
-						case 0x90:
-						case 0x91:
-						case 0x92:
-						case 0x93:
-						case 0x94:
-						case 0x95:
-						case 0x96:
-						case 0x97:
-						case 0x98:
-						case 0x99:
-						case 0x9A:
-						case 0x9B:
-						case 0x9C:
-						case 0x9D:
-						case 0x9E:
-						case 0x9F: // GP0(0x80): copy rectangle (VRAM to VRAM)
-							if (gpu->commandsInFifo < 4) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 4) {
-									GPU_GP0_80(gpu,
-											gpu->fifoBuffer[0],
-											gpu->fifoBuffer[1],
-											gpu->fifoBuffer[2],
-											gpu->fifoBuffer[3]);
-									GPU_GP1_01(gpu, 0);
-								}
-							}
-							break;
-						case 0xA0:
-						case 0xA1:
-						case 0xA2:
-						case 0xA3:
-						case 0xA4:
-						case 0xA5:
-						case 0xA6:
-						case 0xA7:
-						case 0xA8:
-						case 0xA9:
-						case 0xAA:
-						case 0xAB:
-						case 0xAC:
-						case 0xAD:
-						case 0xAE:
-						case 0xAF:
-						case 0xB0:
-						case 0xB1:
-						case 0xB2:
-						case 0xB3:
-						case 0xB4:
-						case 0xB5:
-						case 0xB6:
-						case 0xB7:
-						case 0xB8:
-						case 0xB9:
-						case 0xBA:
-						case 0xBB:
-						case 0xBC:
-						case 0xBD:
-						case 0xBE:
-						case 0xBF: // GP0(0xA0): copy rectangle (CPU to VRAM)
-							if (gpu->commandsInFifo < 3) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 3) {
-									// Clear bit 28 (DMA ready) of status
-									// register
-									gpu->statusRegister &= 0xEFFFFFFF;
-
-									// Clear bit 26 (ready to receive command
-									// word) of status register
-									gpu->statusRegister &= 0xFBFFFFFF;
-
-									// Trigger DMA input
-									gpu->dmaWriteInProgress = 0xA0;
-									gpu->dmaBufferIndex = 0;
-									gpu->dmaWidthInPixels =
-											gpu->fifoBuffer[2] & 0xFFFF;
-									gpu->dmaWidthInPixels =
-											((gpu->dmaWidthInPixels - 1)
-											& 0x3FF) + 1;
-									gpu->dmaHeightInPixels = logical_rshift(
-											gpu->fifoBuffer[2],
-											16) & 0xFFFF;
-									gpu->dmaHeightInPixels =
-											((gpu->dmaHeightInPixels - 1)
-											& 0x1FF) + 1;
-									gpu->dmaWidthInPixels =
-											(gpu->dmaWidthInPixels == 0) ?
-											0x400 : gpu->dmaWidthInPixels;
-									gpu->dmaHeightInPixels =
-											(gpu->dmaHeightInPixels == 0) ?
-											0x200 : gpu->dmaHeightInPixels;
-									gpu->dmaNeededBytes =
-											gpu->dmaWidthInPixels *
-											gpu->dmaHeightInPixels;
-									gpu->dmaNeededBytes *= 4;
-								}
-							}
-							break;
-						case 0xC0:
-						case 0xC1:
-						case 0xC2:
-						case 0xC3:
-						case 0xC4:
-						case 0xC5:
-						case 0xC6:
-						case 0xC7:
-						case 0xC8:
-						case 0xC9:
-						case 0xCA:
-						case 0xCB:
-						case 0xCC:
-						case 0xCD:
-						case 0xCE:
-						case 0xCF:
-						case 0xD0:
-						case 0xD1:
-						case 0xD2:
-						case 0xD3:
-						case 0xD4:
-						case 0xD5:
-						case 0xD6:
-						case 0xD7:
-						case 0xD8:
-						case 0xD9:
-						case 0xDA:
-						case 0xDB:
-						case 0xDC:
-						case 0xDD:
-						case 0xDE:
-						case 0xDF: // GP0(0xC0): copy rectangle (VRAM to CPU)
-							if (gpu->commandsInFifo < 3) {
-								gpu->fifoBuffer[gpu->commandsInFifo++] = word;
-								if (gpu->commandsInFifo == 3) {
-									// Clear bit 28 (DMA ready) of status
-									// register
-									gpu->statusRegister &= 0xEFFFFFFF;
-
-									// Set bit 27 (ready to send VRAM to CPU)
-									gpu->statusRegister |= 0x08000000;
-
-									// Clear bit 26 (ready to receive command
-									// word) of status register
-									gpu->statusRegister &= 0xFBFFFFFF;
-
-									// Trigger DMA output
-									gpu->dmaReadInProgress = 0xC0;
-									gpu->dmaBufferIndex = 0;
-									gpu->dmaWidthInPixels =
-											gpu->fifoBuffer[2] & 0xFFFF;
-									gpu->dmaWidthInPixels =
-											((gpu->dmaWidthInPixels - 1)
-											& 0x3FF) + 1;
-									gpu->dmaHeightInPixels = logical_rshift(
-											gpu->fifoBuffer[2], 16) & 0xFFFF;
-									gpu->dmaHeightInPixels =
-											((gpu->dmaHeightInPixels - 1)
-											& 0x1FF) + 1;
-									gpu->dmaWidthInPixels =
-											(gpu->dmaWidthInPixels == 0) ?
-											0x400 : gpu->dmaWidthInPixels;
-									gpu->dmaHeightInPixels =
-											(gpu->dmaHeightInPixels == 0) ?
-											0x200 : gpu->dmaHeightInPixels;
-									gpu->dmaNeededBytes =
-											gpu->dmaWidthInPixels *
-											gpu->dmaHeightInPixels;
-									gpu->dmaNeededBytes *= 4;
-								}
-							}
-							break;
-					}
-					break;
-			}
-			break;
-	}
-         */
     }
 }
