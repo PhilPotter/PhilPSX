@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 // motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
+use philpsx_utility::SystemBusHolder;
+
 /// This module contains the default motherboard implementation. There
 /// may be others in future.
 pub mod psx_motherboard;
@@ -52,11 +54,28 @@ pub trait Motherboard {
     
     /// The GPU must call this to set the GPU interrupt delay.
     fn set_gpu_interrupt_delay(&mut self, delay: i32);
+
+    /// The DMA arbiter must call this to set the DMA interrupt delay.
+    fn set_dma_interrupt_delay(&mut self, delay: i32);
+
+    /// The component caller must call this to set the system bus holder.
+    fn set_system_bus_holder(
+        &mut self,
+        bridge: &mut dyn MotherboardBridge,
+        holder: SystemBusHolder
+    );
 }
 
 /// This trait provides an implementation-opaque way of the motherboard
 /// calling methods from elsewhere in the system via a 'bridge'.
 pub trait MotherboardBridge {
+
+    /// The motherboard must call this to set the CPU's system bus holder value.
+    fn cpu_set_system_bus_holder(
+        &mut self,
+        motherboard: &mut dyn Motherboard,
+        holder: SystemBusHolder
+    );
 
     /// The motherboard must call this to set the CD-ROM drive's interrupt flag register.
     fn cdrom_set_interrupt_number(&mut self, motherboard: &mut dyn Motherboard, interrupt_num: u8);

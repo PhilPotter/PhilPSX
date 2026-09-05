@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 // r3051.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
-use super::{Cpu, CpuBridge};
+use crate::{
+    cpu::{Cpu, CpuBridge},
+};
 use philpsx_utility::{
     CustomInteger,
     SystemBusHolder,
@@ -465,7 +467,7 @@ impl R3051 {
             } else {
 
                 // Refill cache then set wordVal.
-                if self.get_system_bus_holder(bridge) != SystemBusHolder::CPU {
+                if self.get_system_bus_holder() != SystemBusHolder::CPU {
 
                     // Stall for one cycle as BIU is being used by
                     // another component.
@@ -485,7 +487,7 @@ impl R3051 {
         } else {
 
             // Read word straight from system, stalling if being used.
-            if self.get_system_bus_holder(bridge) != SystemBusHolder::CPU {
+            if self.get_system_bus_holder() != SystemBusHolder::CPU {
 
                 // Stall for one cycle as BIU is being used by another component.
                 return None;
@@ -2720,19 +2722,12 @@ impl R3051 {
 impl Cpu for R3051 {
 
     /// Set the system bus holder.
-    fn set_system_bus_holder(
-        &mut self,
-        _bridge: &mut dyn CpuBridge,
-        holder: SystemBusHolder
-    ) {
+    fn set_system_bus_holder(&mut self, holder: SystemBusHolder) {
         self.system_bus_holder = holder;
     }
 
     /// Get the system bus holder.
-    fn get_system_bus_holder(
-        &mut self,
-        _bridge: &mut dyn CpuBridge
-    ) -> SystemBusHolder {
+    fn get_system_bus_holder(&mut self) -> SystemBusHolder {
         self.system_bus_holder
     }
 

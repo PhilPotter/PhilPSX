@@ -16,3 +16,6 @@ pub mod cdrom_drive;
 
 /// This module contains GPU bridging functionality.
 pub mod gpu;
+
+/// This module contains DMA arbiter bridging functionality.
+pub mod dma;

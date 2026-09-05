@@ -16,17 +16,10 @@ pub mod r3051;
 pub trait Cpu {
 
     /// Implementations must use this to set the system bus holder.
-    fn set_system_bus_holder(
-        &mut self,
-        bridge: &mut dyn CpuBridge,
-        holder: SystemBusHolder
-    );
+    fn set_system_bus_holder(&mut self, holder: SystemBusHolder);
 
     /// Implementations must use this to retrieve the system bus holder.
-    fn get_system_bus_holder(
-        &mut self,
-        bridge: &mut dyn CpuBridge
-    ) -> SystemBusHolder;
+    fn get_system_bus_holder(&mut self) -> SystemBusHolder;
 
     /// Implementations must use this to move the whole processor on by
     /// one block of instructions.

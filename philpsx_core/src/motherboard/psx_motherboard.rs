@@ -7,7 +7,7 @@ use std::{
     fs::File,
     io::Read,
 };
-use philpsx_utility::EndiannessSwapper;
+use philpsx_utility::{EndiannessSwapper, SystemBusHolder};
 use crate::{
     motherboard::{
         Motherboard,
@@ -311,5 +311,20 @@ impl Motherboard for PsxMotherboard {
     fn set_gpu_interrupt_delay(&mut self, delay: i32) {
         self.gpu_interrupt_delay = delay as i64;
         self.gpu_interrupt_counter = 0;
+    }
+
+    /// This function is used to set the DMA interrupt delay.
+    fn set_dma_interrupt_delay(&mut self, delay: i32) {
+        self.dma_interrupt_delay = delay as i64;
+        self.dma_interrupt_counter = 0;
+    }
+
+    /// This function is used to set the system bus holder.
+    fn set_system_bus_holder(
+        &mut self,
+        bridge: &mut dyn MotherboardBridge,
+        holder: SystemBusHolder
+    ) {
+        bridge.cpu_set_system_bus_holder(self, holder);
     }
 }

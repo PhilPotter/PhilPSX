@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 // motherboard.rs - Copyright Phillip Potter, 2026, under GPLv3 only.
 
+use philpsx_utility::SystemBusHolder;
 use crate::{
     bridges::{
         cdrom_drive::CdromDriveBridgeImpl,
@@ -29,6 +30,10 @@ pub struct MotherboardBridgeImpl<'a> {
 
 /// Mapping functions for the bridge.
 impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
+
+    fn cpu_set_system_bus_holder(&mut self, _: &mut dyn Motherboard, holder: SystemBusHolder) {
+        self.cpu.set_system_bus_holder(holder);
+    }
 
     fn cdrom_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8) {
         self.cdrom_drive.set_interrupt_number(interrupt_num);
