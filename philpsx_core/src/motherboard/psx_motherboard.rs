@@ -327,4 +327,10 @@ impl Motherboard for PsxMotherboard {
     ) {
         bridge.cpu_set_system_bus_holder(self, holder);
     }
+
+    /// This function calls the CPU to convert a virtual address
+    /// to a physical address.
+    fn virtual_to_physical(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u32 {
+        bridge.cpu_virtual_to_physical(self, address)
+    }
 }

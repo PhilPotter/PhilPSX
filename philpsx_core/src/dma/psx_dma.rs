@@ -6,18 +6,16 @@ use crate::{
     dma::{DmaArbiter, DmaArbiterBridge},
 };
 
+/// Channel values.
 const CHANNEL_COUNT: usize = 7;
+const MDEC_IN: usize = 0;
+const MDEC_OUT: usize = 1;
+const GPU: usize = 2;
+const CDROM: usize = 3;
+const SPU: usize = 4;
+const PIO: usize = 5;
+const OTC: usize = 6;
 
-#[repr(usize)]
-enum DmaChannel {
-    MDEC_IN = 0,
-    MDEC_OUT = 1,
-    GPU = 2,
-    CDROM = 3,
-    SPU = 4,
-    PIO = 5,
-    OTC = 6,
-}
 
 /// This struct models orchestration of DMA operations inside the PlayStation.
 pub struct PsxDmaArbiter {
@@ -169,7 +167,37 @@ impl PsxDmaArbiter {
 
     /// This function handles GPU DMA transfers.
     fn handle_gpu(&mut self, bridge: &mut dyn DmaArbiterBridge) -> i32 {
-        0
+
+        // Get DMA base address and correct endianness.
+        let mut base_address = self.channel_registers[GPU * 3];
+        base_address = base_address.swap_endianness();
+        base_address = bridge.virtual_to_physical(self, base_address);
+
+        // Get block control and correct endianness.
+        let mut block_control = self.channel_registers[GPU * 3 + 1];
+        block_control = block_control.swap_endianness();
+
+        // Get channel control register and correct endianness.
+        let mut channel_control = self.channel_registers[GPU * 3 + 2];
+        channel_control = channel_control.swap_endianness();
+
+        // Act according to specified mode.
+        let dma_cycles = match (channel_control & 0x600) >> 9 {
+
+            1 => {
+                0
+            },
+
+            2 => {
+                0
+            },
+
+            _ => {
+                panic!("DMA: This transfer mode is not implemented for GPU DMA");
+            },
+        };
+
+        dma_cycles
     }
 
     /// This function handles CD-ROM DMA transfers - it assumes a sync mode of 0.

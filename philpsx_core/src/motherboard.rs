@@ -64,6 +64,10 @@ pub trait Motherboard {
         bridge: &mut dyn MotherboardBridge,
         holder: SystemBusHolder
     );
+
+    /// The component caller must call this to convert a virtual address
+    /// to a physical address.
+    fn virtual_to_physical(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u32;
 }
 
 /// This trait provides an implementation-opaque way of the motherboard
@@ -76,6 +80,10 @@ pub trait MotherboardBridge {
         motherboard: &mut dyn Motherboard,
         holder: SystemBusHolder
     );
+
+    /// The motherboard must call this to convert a virtual
+    /// address to a physical address.
+    fn cpu_virtual_to_physical(&mut self, motherboard: &mut dyn Motherboard, address: u32) -> u32;
 
     /// The motherboard must call this to set the CD-ROM drive's interrupt flag register.
     fn cdrom_set_interrupt_number(&mut self, motherboard: &mut dyn Motherboard, interrupt_num: u8);

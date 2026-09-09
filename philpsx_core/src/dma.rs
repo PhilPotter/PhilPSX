@@ -21,4 +21,7 @@ pub trait DmaArbiterBridge {
 
     /// The DMA arbiter must call this to set the system bus holder.
     fn set_system_bus_holder(&mut self, dma: &mut dyn DmaArbiter, holder: SystemBusHolder);
+
+    /// The DMA arbiter must call this to convert a virtual address to a physical address.
+    fn virtual_to_physical(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u32;
 }

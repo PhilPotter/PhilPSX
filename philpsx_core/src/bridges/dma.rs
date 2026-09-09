@@ -27,14 +27,18 @@ pub struct DmaArbiterBridgeImpl<'a> {
 /// Mapping functions for the bridge.
 impl<'a> DmaArbiterBridge for DmaArbiterBridgeImpl<'a> {
 
-    fn set_dma_interrupt_delay(&mut self, dma: &mut dyn DmaArbiter, delay: i32) {
-        let (motherboard, _) = self.get_motherboard_and_bridge(dma);
-        motherboard.set_dma_interrupt_delay(delay);
+    fn set_dma_interrupt_delay(&mut self, _: &mut dyn DmaArbiter, delay: i32) {
+        self.motherboard.set_dma_interrupt_delay(delay);
     }
 
     fn set_system_bus_holder(&mut self, dma: &mut dyn DmaArbiter, holder: SystemBusHolder) {
         let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
         motherboard.set_system_bus_holder(&mut bridge, holder);
+    }
+
+    fn virtual_to_physical(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u32 {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.virtual_to_physical(&mut bridge, address)
     }
 }
 

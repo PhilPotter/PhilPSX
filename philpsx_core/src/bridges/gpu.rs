@@ -26,9 +26,8 @@ pub struct GpuBridgeImpl<'a> {
 /// Mapping functions for the bridge.
 impl<'a> GpuBridge for GpuBridgeImpl<'a> {
 
-    fn set_gpu_interrupt_delay(&mut self, gpu: &mut dyn Gpu, delay: i32) {
-        let (motherboard, _) = self.get_motherboard_and_bridge(gpu);
-        motherboard.set_gpu_interrupt_delay(delay);
+    fn set_gpu_interrupt_delay(&mut self, _: &mut dyn Gpu, delay: i32) {
+        self.motherboard.set_gpu_interrupt_delay(delay);
     }
 }
 

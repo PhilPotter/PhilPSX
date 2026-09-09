@@ -26,19 +26,16 @@ pub struct CdromDriveBridgeImpl<'a> {
 /// Mapping functions for the bridge.
 impl<'a> CdromDriveBridge for CdromDriveBridgeImpl<'a> {
 
-    fn set_cdrom_interrupt_enabled(&mut self, cdrom_drive: &mut dyn CdromDrive, enabled: bool) {
-        let (motherboard, _) = self.get_motherboard_and_bridge(cdrom_drive);
-        motherboard.set_cdrom_interrupt_enabled(enabled);
+    fn set_cdrom_interrupt_enabled(&mut self, _: &mut dyn CdromDrive, enabled: bool) {
+        self.motherboard.set_cdrom_interrupt_enabled(enabled);
     }
 
-    fn set_cdrom_interrupt_delay(&mut self, cdrom_drive: &mut dyn CdromDrive, delay: i32) {
-        let (motherboard, _) = self.get_motherboard_and_bridge(cdrom_drive);
-        motherboard.set_cdrom_interrupt_delay(delay);
+    fn set_cdrom_interrupt_delay(&mut self, _: &mut dyn CdromDrive, delay: i32) {
+        self.motherboard.set_cdrom_interrupt_delay(delay);
     }
 
-    fn set_cdrom_interrupt_number(&mut self, cdrom_drive: &mut dyn CdromDrive, number: u8) {
-        let (motherboard, _) = self.get_motherboard_and_bridge(cdrom_drive);
-        motherboard.set_cdrom_interrupt_number(number);
+    fn set_cdrom_interrupt_number(&mut self, _: &mut dyn CdromDrive, number: u8) {
+        self.motherboard.set_cdrom_interrupt_number(number);
     }
 }
 

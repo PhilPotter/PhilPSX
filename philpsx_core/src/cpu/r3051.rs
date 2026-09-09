@@ -2823,6 +2823,11 @@ impl Cpu for R3051 {
 
         ret_val
     }
+
+    /// Convert a virtual address to a physical one, by utilising CP0's existing code.
+    fn virtual_to_physical(&self, address: u32) -> u32 {
+        self.sccp.virtual_to_physical(address)
+    }
 }
 
 /// This enum is used to specify the width we want to use (byte/half word/word).

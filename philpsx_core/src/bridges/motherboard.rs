@@ -35,6 +35,10 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         self.cpu.set_system_bus_holder(holder);
     }
 
+    fn cpu_virtual_to_physical(&mut self, _: &mut dyn Motherboard, address: u32) -> u32 {
+        self.cpu.virtual_to_physical(address)
+    }
+
     fn cdrom_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8) {
         self.cdrom_drive.set_interrupt_number(interrupt_num);
     }

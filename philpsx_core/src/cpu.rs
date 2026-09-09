@@ -27,6 +27,10 @@ pub trait Cpu {
         &mut self,
         bridge: &mut dyn CpuBridge
     ) -> i64;
+
+    /// Implementations must use this to convert a virtual address
+    /// to a physical address.
+    fn virtual_to_physical(&self, address: u32) -> u32;
 }
 
 /// This trait provides an implementation-opaque way of the CPU
