@@ -44,6 +44,12 @@ pub trait Gpu {
 
     /// Implementations must use this to submit GP1 commands.
     fn submit_to_gp1(&mut self, bridge: &mut dyn GpuBridge, word: u32);
+
+    /// Implementations must use this to retrieve GPU command responses.
+    fn read_response(&mut self, bridge: &mut dyn GpuBridge) -> u32;
+
+    /// Implementations must use this to retrieve the GPU status register.
+    fn read_status(&mut self, bridge: &mut dyn GpuBridge) -> u32;
 }
 
 /// This trait provides an implementation-opaque way of the GPU

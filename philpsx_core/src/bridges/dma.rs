@@ -40,6 +40,26 @@ impl<'a> DmaArbiterBridge for DmaArbiterBridgeImpl<'a> {
         let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
         motherboard.virtual_to_physical(&mut bridge, address)
     }
+
+    fn read_word(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u32 {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.read_word(&mut bridge, address)
+    }
+
+    fn write_word(&mut self, dma: &mut dyn DmaArbiter, address: u32, value: u32) {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.write_word(&mut bridge, address, value);
+    }
+
+    fn gpu_submit_to_gp0(&mut self, dma: &mut dyn DmaArbiter, word: u32) {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.gpu_submit_to_gp0(&mut bridge, word);
+    }
+
+    fn gpu_read_response(&mut self, dma: &mut dyn DmaArbiter) -> u32 {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.gpu_read_response(&mut bridge)
+    }
 }
 
 /// This implementation exists just to create the bridge.

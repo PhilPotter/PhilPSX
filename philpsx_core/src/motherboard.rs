@@ -29,13 +29,13 @@ pub trait Motherboard {
     /// The CPU must call this to read a byte from the system address space.
     fn read_byte(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u8;
 
-    /// The CPU must call this to read a word from the system address space.
+    /// The caller must call this to read a word from the system address space.
     fn read_word(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u32;
 
     /// The CPU must call this to write a byte to the system address space.
     fn write_byte(&mut self, bridge: &mut dyn MotherboardBridge, address: u32, value: u8);
 
-    /// The CPU must call this to write a word to the system address space.
+    /// The caller must call this to write a word to the system address space.
     fn write_word(&mut self, bridge: &mut dyn MotherboardBridge, address: u32, value: u32);
 
     /// The CPU must call this to increment interrupt counters and trigger
@@ -68,6 +68,12 @@ pub trait Motherboard {
     /// The component caller must call this to convert a virtual address
     /// to a physical address.
     fn virtual_to_physical(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u32;
+
+    /// The component caller must call this to submit GP0 commands to the GPU.
+    fn gpu_submit_to_gp0(&mut self, bridge: &mut dyn MotherboardBridge, word: u32);
+
+    /// The component caller must call this to read GPU responses.
+    fn gpu_read_response(&mut self, bridge: &mut dyn MotherboardBridge) -> u32;
 }
 
 /// This trait provides an implementation-opaque way of the motherboard
@@ -133,6 +139,12 @@ pub trait MotherboardBridge {
         motherboard: &mut dyn Motherboard,
         gpu_cycles: i32
     ) -> i32;
+
+    /// The motherboard must call this to submit GP0 commands to the GPU.
+    fn gpu_submit_to_gp0(&mut self, motherboard: &mut dyn Motherboard, word: u32);
+
+    /// The motherboard must call this to read GPU responses.
+    fn gpu_read_response(&mut self, motherboard: &mut dyn Motherboard) -> u32;
 
     /// The motherboard must call this to append a cycle count to the controllers implementation's count.
     fn controllers_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);

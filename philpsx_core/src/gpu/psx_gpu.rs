@@ -1654,4 +1654,131 @@ impl Gpu for PsxGpu {
             _ => log::warn!("GPU: GP1 submit unhandled: {:#010x}", word),
         }
     }
+
+    /// This function is used to retrieve GPU command responses.
+    fn read_response(&mut self, bridge: &mut dyn GpuBridge) -> u32 {
+
+        // Sync up to the CPU.
+        self.execute_gpu_cycles(bridge);
+
+        if self.dma_read_in_progress == -1 {
+            // No read in progress, deal with normally.
+            let mut ret_val = 0;
+
+            if self.gpuread_latched {
+                ret_val = self.gpuread_latch_value;
+            }
+
+            // Reverse endianness as we are dealing with a register value.
+            ret_val.swap_endianness()
+        } else {
+            // Read in progress, handle appropriately.
+            let mut ret_val = 0;
+
+            if self.dma_buffer_index == 0 {
+                if self.dma_read_in_progress == 0xC0 {
+                    // GP0(0xC0): copy rectangle (VRAM to CPU).
+                    self.gp0_c0(self.fifo_buffer[0], self.fifo_buffer[1], self.fifo_buffer[2]);
+                    self.gp1_01();
+                }
+            }
+
+            // Read first pixel into return value.
+
+            // Get pixel index first.
+            let mut temp_row_index = self.dma_buffer_index / (self.dma_width_in_pixels * 4);
+            temp_row_index = self.dma_height_in_pixels - 1 - temp_row_index;
+            let mut temp_row_pixel_offset = self.dma_buffer_index % (self.dma_width_in_pixels * 4);
+            let mut pixel_index =
+                ((temp_row_index * self.dma_width_in_pixels * 4) + temp_row_pixel_offset) as usize;
+
+            // Organise bytes into original structure.
+            ret_val = ((self.read_dma_buffer(pixel_index + 3) as u32) & 0x1) << 31;
+            ret_val |= ((self.read_dma_buffer(pixel_index + 2) as u32) & 0x1F) << 26;
+            ret_val |= ((self.read_dma_buffer(pixel_index + 1) as u32) & 0x1F) << 21;
+            ret_val |= ((self.read_dma_buffer(pixel_index) as u32) & 0x1F) << 16;
+            ret_val = ((ret_val & 0xFF000000) >> 8) | ((ret_val & 0xFF0000) << 8);
+
+            // Increment dma_buffer_index by 4.
+            self.dma_buffer_index += 4;
+
+            // Read second pixel if there is one to read.
+            if self.dma_buffer_index != self.dma_needed_bytes {
+                // Get second pixel.
+                temp_row_index = self.dma_buffer_index / (self.dma_width_in_pixels * 4);
+                temp_row_index = self.dma_height_in_pixels - 1 - temp_row_index;
+                temp_row_pixel_offset = self.dma_buffer_index % (self.dma_width_in_pixels * 4);
+                pixel_index =
+                    ((temp_row_index * self.dma_width_in_pixels * 4) + temp_row_pixel_offset) as usize;
+
+                // Organise bytes into original structure.
+                ret_val |= ((self.read_dma_buffer(pixel_index + 3) as u32) & 0x1) << 15;
+                ret_val |= ((self.read_dma_buffer(pixel_index + 2) as u32) & 0x1F) << 10;
+                ret_val |= ((self.read_dma_buffer(pixel_index + 1) as u32) & 0x1F) << 5;
+                ret_val |= (self.read_dma_buffer(pixel_index) as u32) & 0x1F;
+                ret_val |= (ret_val & 0xFFFF0000) | ((ret_val & 0xFF) >> 8) | ((ret_val & 0xFF) << 8);
+                self.dma_buffer_index += 4;
+            }
+
+            if self.dma_buffer_index == self.dma_needed_bytes {
+                self.dma_read_in_progress = -1;
+
+                // Set bit 26 (ready to receive command word) of status register.
+                self.status_register |= 0x04000000;
+
+                // Clear bit 27 (VRAM to CPU ready) of status register.
+                self.status_register &= 0xF7FFFFFF;
+
+                // Set bit 28 (DMA ready) of status register.
+                self.status_register |= 0x10000000;
+            }
+
+            // Endianness has been manually handled here, due to our pixel values crossing
+            // byte boundaries. No need to swap therefore.
+            ret_val
+        }
+    }
+
+    /// This function is used to retrieve the GPU status register.
+    fn read_status(&mut self, bridge: &mut dyn GpuBridge) -> u32 {
+
+        // Sync up to the CPU.
+        self.execute_gpu_cycles(bridge);
+
+        // Store status register to temp variable, then correctly set bit 25.
+        let mut temp_status = self.status_register & 0x7DFFFFFF;
+
+        // Check DMA direction setting.
+        let mut merge_val = match (temp_status >> 29) & 0x3 {
+
+            0 => 0,
+
+            1 => (if self.commands_in_fifo == 16 { 0 } else { 1 }) << 25,
+
+            2 => (temp_status >> 3) & 0x2000000,
+
+            3 => (temp_status >> 2) & 0x2000000,
+
+            _ => 0,
+        };
+
+        // Return correct interlace flag in bit 31.
+        if (temp_status & 0x400000) == 0x400000 {
+
+            // If in vblank we leave bit 31 as 0.
+            if !self.is_in_vblank() {
+                if (temp_status & 0x80000) == 0x80000 {
+                    // 480-line mode, bit only changes once per frame.
+                    merge_val |= self.odd_or_even << 31;
+                } else {
+                    // 240-line mode, bit changes once per scanline.
+                    merge_val |= (((self.gpu_cycles / GPU_CYCLES_PER_SCANLINE) % 2) << 31) as u32;
+                }
+            }
+        }
+
+        temp_status |= merge_val;
+
+        temp_status.swap_endianness()
+    }
 }

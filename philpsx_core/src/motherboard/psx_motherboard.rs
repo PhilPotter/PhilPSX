@@ -333,4 +333,14 @@ impl Motherboard for PsxMotherboard {
     fn virtual_to_physical(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u32 {
         bridge.cpu_virtual_to_physical(self, address)
     }
+
+    /// This function submits GP0 commands to the GPU.
+    fn gpu_submit_to_gp0(&mut self, bridge: &mut dyn MotherboardBridge, word: u32) {
+        bridge.gpu_submit_to_gp0(self, word);
+    }
+
+    /// This function reads GPU responses.
+    fn gpu_read_response(&mut self, bridge: &mut dyn MotherboardBridge) -> u32 {
+        bridge.gpu_read_response(self)
+    }
 }

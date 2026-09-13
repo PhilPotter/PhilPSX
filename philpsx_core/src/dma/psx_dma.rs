@@ -182,22 +182,104 @@ impl PsxDmaArbiter {
         channel_control = channel_control.swap_endianness();
 
         // Act according to specified mode.
-        let dma_cycles = match (channel_control & 0x600) >> 9 {
+        match (channel_control & 0x600) >> 9 {
 
             1 => {
-                0
+                // Store base address to temp variable.
+                let mut temp_address = base_address;
+
+                // Get block size in words.
+                let mut block_size = 0xFFFF & block_control;
+                if block_size == 0 {
+                    block_size = 0x10000;
+                }
+
+                // Get number of blocks.
+                let mut num_of_blocks = 0xFFFF & (block_control >> 16);
+                if num_of_blocks == 0 {
+                    num_of_blocks = 0x10000;
+                }
+
+                // Calculate total number of words and cycles.
+                let num_of_words = block_size * num_of_blocks;
+
+                // Read from or write to GPU depending on channel control register.
+                let write_to_gpu = channel_control & 0x1 == 0x1;
+                let backward = (channel_control >> 1) & 0x1 == 0x1;
+                if write_to_gpu {
+                    // Write to GPU from RAM.
+                    for _ in 0..num_of_words {
+                        let word = bridge.read_word(self, temp_address);
+                        bridge.gpu_submit_to_gp0(self, word);
+
+                        if backward {
+                            temp_address -= 4;
+                        } else {
+                            temp_address += 4;
+                        }
+                    }
+                } else {
+                    // Read from GPU to RAM.
+                    for _ in 0..num_of_words {
+                        let word = bridge.gpu_read_response(self);
+                        bridge.write_word(self, temp_address, word);
+
+                        if backward {
+                            temp_address -= 4;
+                        } else {
+                            temp_address += 4;
+                        }
+                    }
+                }
+
+                // Set BA to 0 directly in register (little-endian) for speed.
+                self.channel_registers[GPU * 3 + 1] &= 0xFFFF0000;
+
+                // Return the number of DMA cycles.
+                num_of_words as i32
             },
 
             2 => {
-                0
+                // Iterate over linked list, sending commands to GPU GP0.
+                let mut next_address = base_address;
+                let mut cycle_count = 0;
+                loop {
+                    // Store as current address.
+                    let current_address = next_address;
+
+                    // Read word into next_address, update base address register
+                    // and correct endianness.
+                    next_address = bridge.read_word(self, next_address);
+                    self.channel_registers[GPU * 3] = next_address & 0xFFFFFF00;
+                    next_address = next_address.swap_endianness();
+
+                    // Get number of words we need and mask them from next_address.
+                    let num_of_words = (next_address & 0xFF000000) >> 24;
+                    next_address &= 0xFFFFFF;
+
+                    // Iterate current block and send commands.
+                    for i in 1..=num_of_words {
+                        let word = bridge.read_word(self, current_address + i * 4);
+                        bridge.gpu_submit_to_gp0(self, word);
+                        cycle_count += 1;
+                    }
+
+                    // This was originally a do-while loop in the C version, so
+                    // invert this check at the end of the loop body and break on
+                    // true.
+                    if next_address == 0xFFFFFF {
+                        break;
+                    }
+                }
+
+                // Return the number of DMA cycles.
+                cycle_count
             },
 
             _ => {
                 panic!("DMA: This transfer mode is not implemented for GPU DMA");
             },
-        };
-
-        dma_cycles
+        }
     }
 
     /// This function handles CD-ROM DMA transfers - it assumes a sync mode of 0.

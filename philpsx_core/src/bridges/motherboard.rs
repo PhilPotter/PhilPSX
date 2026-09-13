@@ -80,6 +80,16 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         self.gpu.how_many_hblank_increments(gpu_cycles)
     }
 
+    fn gpu_submit_to_gp0(&mut self, motherboard: &mut dyn Motherboard, word: u32) {
+        let (gpu, mut bridge) = self.get_gpu_and_bridge(motherboard);
+        gpu.submit_to_gp0(&mut bridge, word);
+    }
+
+    fn gpu_read_response(&mut self, motherboard: &mut dyn Motherboard) -> u32 {
+        let (gpu, mut bridge) = self.get_gpu_and_bridge(motherboard);
+        gpu.read_response(&mut bridge)
+    }
+
     fn controllers_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
         self.controllers.append_sync_cycles(cycles);
     }

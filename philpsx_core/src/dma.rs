@@ -24,4 +24,16 @@ pub trait DmaArbiterBridge {
 
     /// The DMA arbiter must call this to convert a virtual address to a physical address.
     fn virtual_to_physical(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u32;
+
+    /// The DMA arbiter must call this to read a word from the system address space.
+    fn read_word(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u32;
+
+    /// The DMA arbiter must call this to write a word to the system address space.
+    fn write_word(&mut self, dma: &mut dyn DmaArbiter, address: u32, value: u32);
+
+    /// The DMA arbiter must use this to submit GP0 commands to the GPU.
+    fn gpu_submit_to_gp0(&mut self, dma: &mut dyn DmaArbiter, word: u32);
+
+    /// The DMA arbiter must use this to read GPU responses.
+    fn gpu_read_response(&mut self, dma: &mut dyn DmaArbiter) -> u32;
 }
