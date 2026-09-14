@@ -18,8 +18,8 @@ pub trait CdromDrive {
     fn chunk_copy(
         &mut self,
         destination: &mut [u8],
-        start_index: i32,
-        length: i32
+        start_index: u32,
+        length: u32
     );
 
     /// Implementations must load the CD from the image file referenced by the

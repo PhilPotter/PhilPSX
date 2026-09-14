@@ -291,6 +291,22 @@ impl Motherboard for PsxMotherboard {
         self.interrupt_cycles = 0;
     }
 
+    /// This function returns a mutable reference to main memory.
+    fn get_ram_reference(&mut self) -> &mut [u8] {
+        &mut self.ram
+    }
+
+    /// This function triggers a chunk copy from the CD-ROM drive
+    /// to main memory.
+    fn cdrom_drive_chunk_copy(
+        &mut self,
+        bridge: &mut dyn MotherboardBridge,
+        starting_byte_address: u32,
+        num_of_bytes: u32
+    ) {
+        bridge.cdrom_drive_chunk_copy(self, starting_byte_address, num_of_bytes);
+    }
+
     /// This function is used to specify if the CD-ROM drive interrupt is actually enabled.
     fn set_cdrom_interrupt_enabled(&mut self, enabled: bool) {
         self.cdrom_interrupt_enabled = enabled;

@@ -39,6 +39,19 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         self.cpu.virtual_to_physical(address)
     }
 
+    fn cdrom_drive_chunk_copy(
+        &mut self,
+        motherboard: &mut dyn Motherboard,
+        starting_byte_address: u32,
+        num_of_bytes: u32
+    ) {
+        self.cdrom_drive.chunk_copy(
+            motherboard.get_ram_reference(),
+            starting_byte_address,
+            num_of_bytes
+        );
+    }
+
     fn cdrom_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8) {
         self.cdrom_drive.set_interrupt_number(interrupt_num);
     }

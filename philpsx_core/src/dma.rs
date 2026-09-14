@@ -16,6 +16,15 @@ pub trait DmaArbiter {
 /// calling methods from elsewhere in the system via a 'bridge'.
 pub trait DmaArbiterBridge {
 
+    /// The DMA arbiter must call this to invoke a chunk copy from the
+    /// CD-ROM drive to main memory.
+    fn cdrom_drive_chunk_copy(
+        &mut self,
+        dma: &mut dyn DmaArbiter,
+        starting_byte_address: u32,
+        num_of_bytes: u32
+    );
+
     /// The DMA arbiter must call this to set the DMA interrupt delay.
     fn set_dma_interrupt_delay(&mut self, dma: &mut dyn DmaArbiter, delay: i32);
 
@@ -28,8 +37,14 @@ pub trait DmaArbiterBridge {
     /// The DMA arbiter must call this to read a word from the system address space.
     fn read_word(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u32;
 
+    /// The DMA arbiter must call this to read a byte from the system address space.
+    fn read_byte(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u8;
+
     /// The DMA arbiter must call this to write a word to the system address space.
     fn write_word(&mut self, dma: &mut dyn DmaArbiter, address: u32, value: u32);
+
+    /// The DMA arbiter must call this to write a byte to the system address space.
+    fn write_byte(&mut self, dma: &mut dyn DmaArbiter, address: u32, value: u8);
 
     /// The DMA arbiter must use this to submit GP0 commands to the GPU.
     fn gpu_submit_to_gp0(&mut self, dma: &mut dyn DmaArbiter, word: u32);

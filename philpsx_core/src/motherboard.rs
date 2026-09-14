@@ -42,6 +42,19 @@ pub trait Motherboard {
     /// timer updates and GPU updates to be done.
     fn increment_interrupt_counters(&mut self, bridge: &mut dyn MotherboardBridge);
 
+    /// The component caller must call this to get a mutable reference
+    /// to main memory.
+    fn get_ram_reference(&mut self) -> &mut [u8];
+
+    /// The component caller must call this to invoke a chunk copy from the
+    /// CD-ROM drive to main memory.
+    fn cdrom_drive_chunk_copy(
+        &mut self,
+        bridge: &mut dyn MotherboardBridge,
+        starting_byte_address: u32,
+        num_of_bytes: u32
+    );
+
     /// The CD-ROM drive must call this to specify if its interrupt is actually enabled.
     fn set_cdrom_interrupt_enabled(&mut self, enabled: bool);
 
@@ -90,6 +103,15 @@ pub trait MotherboardBridge {
     /// The motherboard must call this to convert a virtual
     /// address to a physical address.
     fn cpu_virtual_to_physical(&mut self, motherboard: &mut dyn Motherboard, address: u32) -> u32;
+
+    /// The motherboard must call this to invoke a chunk copy from the
+    /// CD-ROM drive to main memory.
+    fn cdrom_drive_chunk_copy(
+        &mut self,
+        motherboard: &mut dyn Motherboard,
+        starting_byte_address: u32,
+        num_of_bytes: u32
+    );
 
     /// The motherboard must call this to set the CD-ROM drive's interrupt flag register.
     fn cdrom_set_interrupt_number(&mut self, motherboard: &mut dyn Motherboard, interrupt_num: u8);

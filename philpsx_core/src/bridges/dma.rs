@@ -27,6 +27,16 @@ pub struct DmaArbiterBridgeImpl<'a> {
 /// Mapping functions for the bridge.
 impl<'a> DmaArbiterBridge for DmaArbiterBridgeImpl<'a> {
 
+    fn cdrom_drive_chunk_copy(
+        &mut self,
+        dma: &mut dyn DmaArbiter,
+        starting_byte_address: u32,
+        num_of_bytes: u32
+    ) {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.cdrom_drive_chunk_copy(&mut bridge, starting_byte_address, num_of_bytes);
+    }
+
     fn set_dma_interrupt_delay(&mut self, _: &mut dyn DmaArbiter, delay: i32) {
         self.motherboard.set_dma_interrupt_delay(delay);
     }
@@ -46,9 +56,19 @@ impl<'a> DmaArbiterBridge for DmaArbiterBridgeImpl<'a> {
         motherboard.read_word(&mut bridge, address)
     }
 
+    fn read_byte(&mut self, dma: &mut dyn DmaArbiter, address: u32) -> u8 {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.read_byte(&mut bridge, address)
+    }
+
     fn write_word(&mut self, dma: &mut dyn DmaArbiter, address: u32, value: u32) {
         let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
         motherboard.write_word(&mut bridge, address, value);
+    }
+
+    fn write_byte(&mut self, dma: &mut dyn DmaArbiter, address: u32, value: u8) {
+        let (motherboard, mut bridge) = self.get_motherboard_and_bridge(dma);
+        motherboard.write_byte(&mut bridge, address, value);
     }
 
     fn gpu_submit_to_gp0(&mut self, dma: &mut dyn DmaArbiter, word: u32) {

@@ -284,7 +284,64 @@ impl PsxDmaArbiter {
 
     /// This function handles CD-ROM DMA transfers - it assumes a sync mode of 0.
     fn handle_cdrom(&mut self, bridge: &mut dyn DmaArbiterBridge) -> i32 {
-        0
+
+        // Get DMA base address and correct endianness.
+        let mut base_address = self.channel_registers[CDROM * 3];
+        base_address = base_address.swap_endianness();
+        base_address = bridge.virtual_to_physical(self, base_address);
+
+        // Get number of words and correct endianness.
+        let mut num_of_words = self.channel_registers[CDROM + 1];
+        num_of_words = num_of_words.swap_endianness();
+        num_of_words &= 0xFFFF;
+        if num_of_words == 0 {
+            num_of_words = 0x10000;
+        }
+
+        // Calculate time to run system for (40 clocks per word for CDROM).
+        let dma_cycles = 40 * (num_of_words as i32);
+
+        // Perform CD-ROM transfer.
+        let mut starting_byte = base_address;
+        let ending_byte = (starting_byte + num_of_words * 4) - 1;
+        let num_of_bytes = num_of_words * 4;
+
+        // If DMA transfer is destined for RAM, than take shortcut and
+        // transfer whole lot.
+        if (starting_byte & 0xFFE00000) == 0 {
+            // Starts in RAM.
+            if (ending_byte & 0xFFE00000) == 0 {
+                // Ends in RAM, transfer whole lot in one go.
+                bridge.cdrom_drive_chunk_copy(
+                    self,
+                    starting_byte,
+                    num_of_bytes
+                );
+            } else {
+                // Doesn't end in RAM, handle normally.
+                for i in 0..num_of_bytes {
+                    let byte = bridge.read_byte(self, 0x1F801802);
+                    bridge.write_byte(self, starting_byte, byte);
+                    starting_byte += 1;
+                }
+            }
+        } else {
+            // Doesn't start in RAM, handle normally.
+            for i in 0..num_of_bytes {
+                let byte = bridge.read_byte(self, 0x1F801802);
+                bridge.write_byte(self, starting_byte, byte);
+                starting_byte += 1;
+            }
+        }
+
+        // Decrement BC if chopping enabled (detect in little-endian
+        // mode for speed).
+        if (self.channel_registers[CDROM * 3 + 2] & 0x10000) == 0x10000 {
+            // Set BC (again in little-endian mode for speed) to 0.
+            self.channel_registers[CDROM * 3 + 1] &= 0xFFFF;
+        }
+
+        dma_cycles
     }
 
     /// This function handles OTC DMA transfers - it assumes a sync mode of 0.

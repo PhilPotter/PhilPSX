@@ -39,17 +39,17 @@ pub struct PsxCdromDrive {
 
     // This stores parameters for commands.
     parameter_fifo: [u8; 16],
-    parameter_count: i32,
+    parameter_count: u32,
 
     // This stores command responses.
     response_fifo: [u8; 16],
-    response_count: i32,
-    response_index: i32,
+    response_count: u32,
+    response_index: u32,
 
     // This stores data from the CD.
     data_fifo: Vec<u8>,
-    data_count: i32,
-    data_index: i32,
+    data_count: u32,
+    data_index: u32,
 
     // This references the actual CD.
     cd: Box<dyn Cdrom>,
@@ -83,11 +83,11 @@ pub struct PsxCdromDrive {
     allow_cdda_read: bool,
 
     // This tells us if a response has been received.
-    response_received: i32,
+    response_received: u32,
 
     // This stores the setloc position as a byte index, and whether
     // this sector has been read.
-    setloc_position: i64,
+    setloc_position: u64,
     setloc_processed: bool,
 
     // This handles the read retry in ReadN.
@@ -230,7 +230,7 @@ impl PsxCdromDrive {
 
         // Get byte position of the above.
         self.setloc_position =
-            (frames * 2352) + (seconds * 176400) + (minutes * 10584000);
+            ((frames * 2352) + (seconds * 176400) + (minutes * 10584000)) as u64;
         self.setloc_processed = false;
 
         // Deal with response code etc.
@@ -692,8 +692,8 @@ impl CdromDrive for PsxCdromDrive {
     fn chunk_copy(
         &mut self,
         mut destination: &mut [u8],
-        start_index: i32,
-        mut length: i32
+        start_index: u32,
+        mut length: u32
     ) {
 
         // Setup the destination buffer and data fifo to the correct offsets.
@@ -709,7 +709,7 @@ impl CdromDrive for PsxCdromDrive {
 
             // Now copy the rest as specified.
             destination = &mut destination[copyable_amount..];
-            length -= copyable_amount as i32;
+            length -= copyable_amount as u32;
             self.data_index = self.data_count;
             let fill_value = if self.whole_sector {
                 self.data_fifo[0x920]
