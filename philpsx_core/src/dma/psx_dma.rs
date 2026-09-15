@@ -346,7 +346,44 @@ impl PsxDmaArbiter {
 
     /// This function handles OTC DMA transfers - it assumes a sync mode of 0.
     fn handle_otc(&mut self, bridge: &mut dyn DmaArbiterBridge) -> i32 {
-        0
+
+        // Get DMA base and correct endianness.
+        let mut base_address = self.channel_registers[OTC * 3];
+        base_address = base_address.swap_endianness();
+        base_address = bridge.virtual_to_physical(self, base_address);
+
+        // Get number of words and correct endianness.
+        let mut num_of_words = self.channel_registers[OTC * 3 + 1];
+        num_of_words = num_of_words.swap_endianness();
+        num_of_words &= 0xFFFF;
+        if num_of_words == 0 {
+            num_of_words = 0x10000;
+        }
+
+        // Calculate time to run system for (1 clock per word for OTC).
+        let dma_cycles = num_of_words as i32;
+
+        // Perform OTC transfer.
+        let mut current_word = base_address;
+        let mut destination_word = current_word - 4;
+        destination_word = destination_word.swap_endianness();
+
+        for _ in 0..num_of_words-1 {
+            bridge.write_word(self, current_word, destination_word);
+            current_word -= 4;
+            destination_word = current_word - 4;
+            destination_word = destination_word.swap_endianness();
+        }
+        bridge.write_word(self, current_word, 0xFFFFFF00);
+
+        // Decrement BC if chopping enabled (detect in little-endian
+        // mode for speed).
+        if (self.channel_registers[OTC * 3 + 2] & 0x10000) == 0x10000 {
+            // Set BC (again in little-endian mode for speed) to 0.
+            self.channel_registers[OTC * 3 + 1] &= 0xFFFF;
+        }
+
+        dma_cycles
     }
 }
 
