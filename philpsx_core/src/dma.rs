@@ -10,6 +10,18 @@ pub mod psx_dma;
 /// This trait provides an implementation-opaque way of calling DMA arbiter
 /// methods from elsewhere in the system.
 pub trait DmaArbiter {
+
+    /// Implementations must use this to read words from the DmaArbiter.
+    fn read_word(&mut self, address: u32) -> u32;
+
+    /// Implementations must use this to read bytes from the DmaArbiter.
+    fn read_byte(&mut self, address: u32) -> u8;
+
+    /// Implementations must use this to write words to the DmaArbiter.
+    fn write_word(&mut self, bridge: &mut dyn DmaArbiterBridge, address: u32, value: u32);
+
+    /// Implementations must use this to write bytes to the DmaArbiter.
+    fn write_byte(&mut self, bridge: &mut dyn DmaArbiterBridge, address: u32, value: u8);
 }
 
 /// This trait provides an implementation-opaque way of the DMA arbiter

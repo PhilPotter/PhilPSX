@@ -390,4 +390,110 @@ impl PsxDmaArbiter {
 /// Implementation functions to be called from anything that understands what
 /// a DMA arbiter object is.
 impl DmaArbiter for PsxDmaArbiter {
+
+    /// This function reads words from the DmaArbiter.
+    fn read_word(&mut self, address: u32) -> u32 {
+
+        // Determine last byte of address.
+        let address_byte = address & 0xFF;
+
+        // Handle return value.
+        match address_byte {
+
+            // DMA0 (MDECin).
+            0x80 => self.channel_registers[MDEC_IN * 3],
+            0x84 => self.channel_registers[MDEC_IN * 3 + 1],
+            0x88 => self.channel_registers[MDEC_IN * 3 + 2],
+
+            // DMA1 (MDECout).
+            0x90 => self.channel_registers[MDEC_OUT * 3],
+            0x94 => self.channel_registers[MDEC_OUT * 3 + 1],
+            0x98 => self.channel_registers[MDEC_OUT * 3 + 2],
+
+            // DMA2 (GPU).
+            0xA0 => self.channel_registers[GPU * 3],
+            0xA4 => self.channel_registers[GPU * 3 + 1],
+            0xA8 => self.channel_registers[GPU * 3 + 2],
+
+            // DMA3 (CDROM).
+            0xB0 => self.channel_registers[CDROM * 3],
+            0xB4 => self.channel_registers[CDROM * 3 + 1],
+            0xB8 => self.channel_registers[CDROM * 3 + 2],
+
+            // DMA4 (SPU).
+            0xC0 => self.channel_registers[SPU * 3],
+            0xC4 => self.channel_registers[SPU * 3 + 1],
+            0xC8 => self.channel_registers[SPU * 3 + 2],
+
+            // DMA5 (PIO).
+            0xD0 => self.channel_registers[PIO * 3],
+            0xD4 => self.channel_registers[PIO * 3 + 1],
+            0xD8 => self.channel_registers[PIO * 3 + 2],
+
+            // DMA6 (OTC).
+            0xE0 => self.channel_registers[OTC * 3],
+            0xE4 => self.channel_registers[OTC * 3 + 1],
+            0xE8 => {
+                // Impose additional restrictions on DMA6
+                self.channel_registers[OTC * 3 + 2] | 0x02000000
+            },
+
+            // Global registers.
+            0xF0 => self.dma_control_register,
+            0xF4 => {
+                let mut ret_val = self.dma_control_register;
+                ret_val = ret_val.swap_endianness();
+                let temp_int = (ret_val & 0x800000) |
+                    ((ret_val & 0x7F0000) & ((ret_val & 0x7F000000) >> 8));
+                if (ret_val & 0x8000) == 0x8000 || temp_int != 0 {
+                    ret_val |= 0x80000000;
+                } else {
+                    ret_val &= 0x7FFFFFFF;
+                }
+                ret_val.swap_endianness()
+            },
+
+            // Default to give exhaustive match.
+            _ => 0,
+        }
+    }
+
+    /// This function reads bytes from the DmaArbiter.
+    fn read_byte(&mut self, address: u32) -> u8 {
+
+        // Get word address and byte index.
+        let word_address = address & 0xFFFFFFFC;
+        let byte_index = address & 0x3;
+
+        // Read original word.
+        let temp_word = self.read_word(word_address);
+
+        // Return correct byte of word.
+        (temp_word >> ((!byte_index & 0x3) * 8)) as u8
+    }
+
+    /// This function writes words to the DmaArbiter.
+    fn write_word(&mut self, bridge: &mut dyn DmaArbiterBridge, address: u32, value: u32) {
+
+    }
+
+    /// This function writes bytes to the DmaArbiter.
+    fn write_byte(&mut self, bridge: &mut dyn DmaArbiterBridge, address: u32, value: u8) {
+
+        // Get word address and byte index.
+        let word_address = address & 0xFFFFFFFC;
+        let byte_index = address & 0x3;
+
+        // Read original word.
+        let mut temp_word = self.read_word(word_address);
+
+        // Mask out byte we are writing.
+        temp_word &= !(0xFF << ((!byte_index & 0x3) * 8));
+
+        // Merge in our byte.
+        temp_word |= (value as u32) << ((!byte_index & 0x3) * 8);
+
+        // Write word back.
+        self.write_word(bridge, word_address, temp_word);
+    }
 }
