@@ -434,7 +434,7 @@ impl DmaArbiter for PsxDmaArbiter {
             0xE0 => self.channel_registers[OTC * 3],
             0xE4 => self.channel_registers[OTC * 3 + 1],
             0xE8 => {
-                // Impose additional restrictions on DMA6
+                // Impose additional restrictions on DMA6.
                 self.channel_registers[OTC * 3 + 2] | 0x02000000
             },
 
@@ -473,8 +473,106 @@ impl DmaArbiter for PsxDmaArbiter {
     }
 
     /// This function writes words to the DmaArbiter.
-    fn write_word(&mut self, bridge: &mut dyn DmaArbiterBridge, address: u32, value: u32) {
+    fn write_word(&mut self, bridge: &mut dyn DmaArbiterBridge, address: u32, mut value: u32) {
 
+        // Determine last byte of address.
+        let address_byte = address & 0xFF;
+
+        // Store word in correct place.
+        match address_byte {
+
+            // DMA0 (MDECin).
+            0x80 => self.channel_registers[MDEC_IN * 3] = value,
+            0x84 => self.channel_registers[MDEC_IN * 3 + 1] = value,
+            0x88 => {
+                self.channel_registers[MDEC_IN * 3 + 2] = value;
+                self.handle_dma_transactions(bridge);
+            },
+
+            // DMA1 (MDECout).
+            0x90 => self.channel_registers[MDEC_OUT * 3] = value,
+            0x94 => self.channel_registers[MDEC_OUT * 3 + 1] = value,
+            0x98 => {
+                self.channel_registers[MDEC_OUT * 3 + 2] = value;
+                self.handle_dma_transactions(bridge);
+            },
+
+            // DMA2 (GPU).
+            0xA0 => self.channel_registers[GPU * 3] = value,
+            0xA4 => self.channel_registers[GPU * 3 + 1] = value,
+            0xA8 => {
+                self.channel_registers[GPU * 3 + 2] = value;
+                self.handle_dma_transactions(bridge);
+            },
+
+            // DMA3 (CDROM).
+            0xB0 => self.channel_registers[CDROM * 3] = value,
+            0xB4 => self.channel_registers[CDROM * 3 + 1] = value,
+            0xB8 => {
+                self.channel_registers[CDROM * 3 + 2] = value;
+                self.handle_dma_transactions(bridge);
+            },
+
+            // DMA4 (SPU).
+            0xC0 => self.channel_registers[SPU * 3] = value,
+            0xC4 => self.channel_registers[SPU * 3 + 1] = value,
+            0xC8 => {
+                self.channel_registers[SPU * 3 + 2] = value;
+                self.handle_dma_transactions(bridge);
+            },
+
+            // DMA5 (PIO).
+            0xD0 => self.channel_registers[PIO * 3] = value,
+            0xD4 => self.channel_registers[PIO * 3 + 1] = value,
+            0xD8 => {
+                self.channel_registers[PIO * 3 + 2] = value;
+                self.handle_dma_transactions(bridge);
+            },
+
+            // DMA6 (OTC).
+            0xE0 => self.channel_registers[OTC * 3] = value,
+            0xE4 => self.channel_registers[OTC * 3 + 1] = value,
+            0xE8 => {
+                // Impose additional restrictions on writable bits.
+                value = value.swap_endianness();
+                let mut existing_word = self.channel_registers[OTC * 3 + 2].swap_endianness();
+
+                // Mask writable bits out of original and set bit 1.
+                existing_word &= 0xAEFFFFFF;
+                existing_word |= 0x2;
+
+                // Mask non-writable bits out of word and merge into original.
+                value &= 0x51000000;
+                existing_word |= value;
+
+                // Write back.
+                existing_word = existing_word.swap_endianness();
+                self.channel_registers[OTC * 3 + 2] = existing_word;
+                self.handle_dma_transactions(bridge);
+            },
+
+            // Global registers.
+            0xF0 => self.dma_control_register = value,
+            0xF4 => {
+                // Swap endianness.
+                value = value.swap_endianness();
+                self.dma_interrupt_register = self.dma_interrupt_register.swap_endianness();
+
+                // First deal with non-flag bits.
+                self.dma_interrupt_register &= 0x7F000000;
+                self.dma_interrupt_register |= value & 0x00FFFFFF;
+
+                // Now reset flags if necessary.
+                value = !value & 0x7F000000;
+                self.dma_interrupt_register = (self.dma_interrupt_register & value) |
+                    (self.dma_interrupt_register & 0x00FFFFFF);
+
+                // Swap endianness back.
+                self.dma_interrupt_register = self.dma_interrupt_register.swap_endianness();
+            },
+
+            _ => (),
+        }
     }
 
     /// This function writes bytes to the DmaArbiter.
