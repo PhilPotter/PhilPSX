@@ -99,6 +99,14 @@ pub trait MotherboardBridge {
     /// The motherboard must call this to read a controller byte.
     fn controllers_read_byte(&mut self, motherboard: &mut dyn Motherboard, address: u8) -> u8;
 
+    /// The motherboard must call this to write a controller byte.
+    fn controllers_write_byte(
+        &mut self,
+        motherboard: &mut dyn Motherboard,
+        address: u8,
+        value: u8
+    );
+
     /// The motherboard must call this to set the CPU's system bus holder value.
     fn cpu_set_system_bus_holder(
         &mut self,
@@ -131,11 +139,32 @@ pub trait MotherboardBridge {
     /// The motherboard must call this to read the CD-ROM drive's 0x1F801803 value.
     fn cdrom_drive_read_1803(&mut self, motherboard: &mut dyn Motherboard) -> u8;
 
+    /// The motherboard must call this to write to the CD-ROM drive's 0x1F801800 value.
+    fn cdrom_drive_write_1800(&mut self, motherboard: &mut dyn Motherboard, value: u8);
+
+    /// The motherboard must call this to write to the CD-ROM drive's 0x1F801801 value.
+    fn cdrom_drive_write_1801(&mut self, motherboard: &mut dyn Motherboard, value: u8);
+
+    /// The motherboard must call this to write to the CD-ROM drive's 0x1F801802 value.
+    fn cdrom_drive_write_1802(&mut self, motherboard: &mut dyn Motherboard, value: u8);
+
+    /// The motherboard must call this to write to the CD-ROM drive's 0x1F801803 value.
+    fn cdrom_drive_write_1803(&mut self, motherboard: &mut dyn Motherboard, value: u8);
+
     /// The motherboard must call this to set the CD-ROM drive's interrupt flag register.
     fn cdrom_drive_set_interrupt_number(&mut self, motherboard: &mut dyn Motherboard, interrupt_num: u8);
 
     /// The motherboard must call this to read a byte from the DMA arbiter.
     fn dma_read_byte(&mut self, motherboard: &mut dyn Motherboard, address: u32) -> u8;
+
+    /// The motherboard must call this to read a word from the DMA arbiter.
+    fn dma_read_word(&mut self, motherboard: &mut dyn Motherboard, address: u32) -> u32;
+
+    /// The motherboard must call this to write a byte to the DMA arbiter.
+    fn dma_write_byte(&mut self, motherboard: &mut dyn Motherboard, address: u32, value: u8);
+
+    /// The motherboard must call this to write a word to the DMA arbiter.
+    fn dma_write_word(&mut self, motherboard: &mut dyn Motherboard, address: u32, value: u32);
 
     /// The motherboard must call this to append a cycle count to the GPU's count.
     fn gpu_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
@@ -186,6 +215,9 @@ pub trait MotherboardBridge {
     /// The motherboard must call this to submit GP0 commands to the GPU.
     fn gpu_submit_to_gp0(&mut self, motherboard: &mut dyn Motherboard, word: u32);
 
+    /// The motherboard must call this to submit GP1 commands to the GPU.
+    fn gpu_submit_to_gp1(&mut self, motherboard: &mut dyn Motherboard, word: u32);
+
     /// The motherboard must call this to read GPU responses.
     fn gpu_read_response(&mut self, motherboard: &mut dyn Motherboard) -> u32;
 
@@ -194,4 +226,7 @@ pub trait MotherboardBridge {
 
     /// The motherboard must call this to read SPU bytes.
     fn spu_read_byte(&mut self, motherboard: &mut dyn Motherboard, address: u32) -> u8;
+
+    /// The motherboard must call this to write SPU bytes.
+    fn spu_write_byte(&mut self, motherboard: &mut dyn Motherboard, address: u32, value: u8);
 }

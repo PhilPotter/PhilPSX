@@ -40,6 +40,15 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         self.controllers.read_byte(address)
     }
 
+    fn controllers_write_byte(
+        &mut self,
+        _: &mut dyn Motherboard,
+        address: u8,
+        value: u8
+    ) {
+        self.controllers.write_byte(address, value);
+    }
+
     fn cpu_set_system_bus_holder(&mut self, _: &mut dyn Motherboard, holder: SystemBusHolder) {
         self.cpu.set_system_bus_holder(holder);
     }
@@ -77,12 +86,44 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         self.cdrom_drive.read_1803()
     }
 
+    fn cdrom_drive_write_1800(&mut self, _: &mut dyn Motherboard, value: u8) {
+        self.cdrom_drive.write_1800(value);
+    }
+
+    fn cdrom_drive_write_1801(&mut self, motherboard: &mut dyn Motherboard, value: u8) {
+        let (cdrom, mut bridge) = self.get_cdrom_and_bridge(motherboard);
+        cdrom.write_1801(&mut bridge, value);
+    }
+
+    fn cdrom_drive_write_1802(&mut self, _: &mut dyn Motherboard, value: u8) {
+        self.cdrom_drive.write_1802(value);
+    }
+
+    fn cdrom_drive_write_1803(&mut self, motherboard: &mut dyn Motherboard, value: u8) {
+        let (cdrom, mut bridge) = self.get_cdrom_and_bridge(motherboard);
+        cdrom.write_1803(&mut bridge, value);
+    }
+
     fn cdrom_drive_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8) {
         self.cdrom_drive.set_interrupt_number(interrupt_num);
     }
 
     fn dma_read_byte(&mut self, _: &mut dyn Motherboard, address: u32) -> u8 {
         self.dma.read_byte(address)
+    }
+
+    fn dma_read_word(&mut self, _: &mut dyn Motherboard, address: u32) -> u32 {
+        self.dma.read_word(address)
+    }
+
+    fn dma_write_byte(&mut self, motherboard: &mut dyn Motherboard, address: u32, value: u8) {
+        let (dma, mut bridge) = self.get_dma_and_bridge(motherboard);
+        dma.write_byte(&mut bridge, address, value);
+    }
+
+    fn dma_write_word(&mut self, motherboard: &mut dyn Motherboard, address: u32, value: u32) {
+        let (dma, mut bridge) = self.get_dma_and_bridge(motherboard);
+        dma.write_word(&mut bridge, address, value);
     }
 
     fn gpu_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
@@ -127,6 +168,11 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         gpu.submit_to_gp0(&mut bridge, word);
     }
 
+    fn gpu_submit_to_gp1(&mut self, motherboard: &mut dyn Motherboard, word: u32) {
+        let (gpu, mut bridge) = self.get_gpu_and_bridge(motherboard);
+        gpu.submit_to_gp1(&mut bridge, word);
+    }
+
     fn gpu_read_response(&mut self, motherboard: &mut dyn Motherboard) -> u32 {
         let (gpu, mut bridge) = self.get_gpu_and_bridge(motherboard);
         gpu.read_response(&mut bridge)
@@ -139,6 +185,10 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
 
     fn spu_read_byte(&mut self, _: &mut dyn Motherboard, address: u32) -> u8 {
         self.spu.read_byte(address)
+    }
+
+    fn spu_write_byte(&mut self, _: &mut dyn Motherboard, address: u32, value: u8) {
+        self.spu.write_byte(address, value);
     }
 }
 
