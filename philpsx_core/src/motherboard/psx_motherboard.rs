@@ -7,7 +7,7 @@ use std::{
     fs::File,
     io::Read,
 };
-use philpsx_utility::{EndiannessSwapper, SystemBusHolder};
+use philpsx_utility::{EndiannessSwapper, LogicalRightShifter, SystemBusHolder};
 use crate::{
     motherboard::{
         Motherboard,
@@ -196,7 +196,251 @@ impl Motherboard for PsxMotherboard {
 
     /// This function reads a byte from the system address space.
     fn read_byte(&mut self, bridge: &mut dyn MotherboardBridge, address: u32) -> u8 {
-        0
+
+        // Shift value and index, should we need them.
+        let bits_1_0_index = address & 0x3;
+        let shift = 24 - ((bits_1_0_index & 0x3) * 8);
+
+        match address {
+
+            // RAM.
+            0..0x200000 => self.ram[address as usize],
+
+            // BIOS ROM.
+            0x1FC00000..0x1FC80000 => self.bios[(address - 0x1FC00000) as usize],
+
+            // Everything else.
+            _ => {
+                match address {
+
+                    // Expansion Region 1 - do nothing for now.
+                    0x1F000000..0x1F800000 => 0,
+
+                    // Scratchpad - read from data cache scratchpad if enabled.
+                    0x1F800000..0x1F800400 => if self.scratchpad_enabled() {
+                        self.scratchpad[(address - 0x1F800000) as usize]
+                    } else {
+                        0
+                    },
+
+                    // I/O ports.
+                    0x1F801000..0x1F802000 => {
+
+                        match address {
+
+                            // Expansion 1 base address.
+                            0x1F801000..0x1F801004 => {
+                                (self.expansion1_base_address >> shift) as u8
+                            },
+
+                            // Expansion 2 base address.
+                            0x1F801004..0x1F801008 => {
+                                (self.expansion2_base_address >> shift) as u8
+                            },
+
+                            // Expansion 1 delay size.
+                            0x1F801008..0x1F80100C => {
+                                (self.expansion1_delay_size >> shift) as u8
+                            },
+
+                            // Expansion 3 delay size.
+                            0x1F80100C..0x1F801010 => {
+                                (self.expansion3_delay_size >> shift) as u8
+                            },
+
+                            // BIOS ROM delay size.
+                            0x1F801010..0x1F801014 => {
+                                (self.bios_rom_delay_size >> shift) as u8
+                            },
+
+                            // SPU delay size.
+                            0x1F801014..0x1F801018 => {
+                                (self.spu_delay_size >> shift) as u8
+                            },
+
+                            // CD-ROM delay size.
+                            0x1F801018..0x1F80101C => {
+                                (self.cdrom_delay_size >> shift) as u8
+                            },
+
+                            // Expansion 2 delay size.
+                            0x1F80101C..0x1F801020 => {
+                                (self.expansion2_delay_size >> shift) as u8
+                            },
+
+                            // Common delay.
+                            0x1F801020..0x1F801024 => {
+                                (self.common_delay >> shift) as u8
+                            },
+
+                            // Controller I/O.
+                            0x1F801040..0x1F801050 => {
+                                bridge.controllers_read_byte(self, address as u8)
+                            },
+
+                            // RAM size.
+                            0x1F801060..0x1F801064 => {
+                                (self.ram_size >> shift) as u8
+                            },
+
+                            // Interrupt status register.
+                            0x1F801070..0x1F801074 => {
+                                (self.interrupt_status_reg >> shift) as u8
+                            },
+
+                            // Interrupt mask register.
+                            0x1F801074..0x1F801078 => {
+                                (self.interrupt_mask_reg >> shift) as u8
+                            },
+
+                            // DMA read.
+                            0x1F801080..0x1F801100 => {
+                                bridge.dma_read_byte(self, address)
+                            },
+
+                            // Timer 0 counter value.
+                            0x1F801100..0x1F801104 => {
+                                PsxTimerModule::read_counter_value(
+                                    self,
+                                    bridge,
+                                    0
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 0 mode value.
+                            0x1F801104..0x1F801108 => {
+                                PsxTimerModule::read_mode(
+                                    self,
+                                    bridge,
+                                    0,
+                                    false
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 0 target value.
+                            0x1F801108..0x1F80110C => {
+                                self.timer_module.read_target_value(
+                                    0
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 1 counter value.
+                            0x1F801110..0x1F801114 => {
+                                PsxTimerModule::read_counter_value(
+                                    self,
+                                    bridge,
+                                    1
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 1 mode value.
+                            0x1F801114..0x1F801118 => {
+                                PsxTimerModule::read_mode(
+                                    self,
+                                    bridge,
+                                    1,
+                                    false
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 1 target value.
+                            0x1F801118..0x1F80111C => {
+                                self.timer_module.read_target_value(
+                                    1
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 2 counter value.
+                            0x1F801120..0x1F801124 => {
+                                PsxTimerModule::read_counter_value(
+                                    self,
+                                    bridge,
+                                    2
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 2 mode value.
+                            0x1F801124..0x1F801128 => {
+                                PsxTimerModule::read_mode(
+                                    self,
+                                    bridge,
+                                    2,
+                                    false
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // Timer 2 target value.
+                            0x1F801128..0x1F80112C => {
+                                self.timer_module.read_target_value(
+                                    2
+                                ).logical_rshift(shift as i32) as u8
+                            },
+
+                            // CD-ROM.
+                            0x1F801800..0x1F801804 => {
+                                match bits_1_0_index {
+                                    0 => bridge.cdrom_drive_read_1800(self),
+                                    1 => bridge.cdrom_drive_read_1801(self),
+                                    2 => bridge.cdrom_drive_read_1802(self),
+                                    3 => bridge.cdrom_drive_read_1803(self),
+                                    _ => 0,
+                                }
+                            },
+
+                            // GPU response.
+                            0x1F801810..0x1F801814 => {
+                                (bridge.gpu_read_response(self) >> shift) as u8
+                            },
+
+                            // GPU status.
+                            0x1F801814..0x1F801818 => {
+                                (bridge.gpu_read_status(self) >> shift) as u8
+                            },
+
+                            // SPU read.
+                            0x1F801C00..0x1F802000 => {
+                                // Fake SPU read.
+                                let adjusted_address = address - 0x1F801C00;
+                                bridge.spu_read_byte(self, adjusted_address)
+                            },
+
+                            _ => 0,
+                        }
+                    },
+
+                    // Expansion region 2 (I/O ports).
+                    0x1F802000..0x1F803000 => {
+                        // Read from BIOS post register.
+                        if address == 0x1F802041 {
+                            self.bios_post
+                        } else {
+                            0
+                        }
+                    },
+
+                    // Expansion region 3 (multipurpose).
+                    0x1FA00000..0x1FC00000 => {
+                        // Do nothing for now.
+                        0
+                    },
+
+                    // I/O ports (cache control).
+                    0xFFFE0000..0xFFFE0200 => {
+                        match address {
+
+                            // Cache control register.
+                            0xFFFE0130..0xFFFE0134 => {
+                                (self.cache_control_reg >> shift) as u8
+                            },
+
+                            _ => 0,
+                        }
+                    },
+
+                    _ => 0,
+                }
+            },
+        }
     }
 
     /// This function reads a word from the system address space.
@@ -260,7 +504,7 @@ impl Motherboard for PsxMotherboard {
 
             // Also set interrupt number in CD-ROM interrupt flag register.
             let cdrom_interrupt_number = self.cdrom_interrupt_number;
-            bridge.cdrom_set_interrupt_number(self, cdrom_interrupt_number);
+            bridge.cdrom_drive_set_interrupt_number(self, cdrom_interrupt_number);
         }
 
         // Handle Timer 0.

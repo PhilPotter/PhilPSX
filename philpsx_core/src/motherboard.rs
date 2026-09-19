@@ -93,6 +93,12 @@ pub trait Motherboard {
 /// calling methods from elsewhere in the system via a 'bridge'.
 pub trait MotherboardBridge {
 
+    /// The motherboard must call this to append a cycle count to the controllers implementation's count.
+    fn controllers_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
+
+    /// The motherboard must call this to read a controller byte.
+    fn controllers_read_byte(&mut self, motherboard: &mut dyn Motherboard, address: u8) -> u8;
+
     /// The motherboard must call this to set the CPU's system bus holder value.
     fn cpu_set_system_bus_holder(
         &mut self,
@@ -113,8 +119,23 @@ pub trait MotherboardBridge {
         num_of_bytes: u32
     );
 
+    /// The motherboard must call this to read the CD-ROM drive's 0x1F801800 value.
+    fn cdrom_drive_read_1800(&mut self, motherboard: &mut dyn Motherboard) -> u8;
+
+    /// The motherboard must call this to read the CD-ROM drive's 0x1F801801 value.
+    fn cdrom_drive_read_1801(&mut self, motherboard: &mut dyn Motherboard) -> u8;
+
+    /// The motherboard must call this to read the CD-ROM drive's 0x1F801802 value.
+    fn cdrom_drive_read_1802(&mut self, motherboard: &mut dyn Motherboard) -> u8;
+
+    /// The motherboard must call this to read the CD-ROM drive's 0x1F801803 value.
+    fn cdrom_drive_read_1803(&mut self, motherboard: &mut dyn Motherboard) -> u8;
+
     /// The motherboard must call this to set the CD-ROM drive's interrupt flag register.
-    fn cdrom_set_interrupt_number(&mut self, motherboard: &mut dyn Motherboard, interrupt_num: u8);
+    fn cdrom_drive_set_interrupt_number(&mut self, motherboard: &mut dyn Motherboard, interrupt_num: u8);
+
+    /// The motherboard must call this to read a byte from the DMA arbiter.
+    fn dma_read_byte(&mut self, motherboard: &mut dyn Motherboard, address: u32) -> u8;
 
     /// The motherboard must call this to append a cycle count to the GPU's count.
     fn gpu_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
@@ -168,6 +189,9 @@ pub trait MotherboardBridge {
     /// The motherboard must call this to read GPU responses.
     fn gpu_read_response(&mut self, motherboard: &mut dyn Motherboard) -> u32;
 
-    /// The motherboard must call this to append a cycle count to the controllers implementation's count.
-    fn controllers_append_sync_cycles(&mut self, motherboard: &mut dyn Motherboard, cycles: i32);
+    /// The motherboard must call this to read GPU statuses.
+    fn gpu_read_status(&mut self, motherboard: &mut dyn Motherboard) -> u32;
+
+    /// The motherboard must call this to read SPU bytes.
+    fn spu_read_byte(&mut self, motherboard: &mut dyn Motherboard, address: u32) -> u8;
 }

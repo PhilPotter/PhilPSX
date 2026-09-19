@@ -5,6 +5,7 @@ use philpsx_utility::SystemBusHolder;
 use crate::{
     bridges::{
         cdrom_drive::CdromDriveBridgeImpl,
+        dma::DmaArbiterBridgeImpl,
         gpu::GpuBridgeImpl,
     },
     cdrom_drive::{CdromDrive, CdromDriveBridge},
@@ -14,7 +15,7 @@ use crate::{
     motherboard::{Motherboard, MotherboardBridge},
     spu::Spu,
     gpu::Gpu,
-    dma::DmaArbiter,
+    dma::{DmaArbiter, DmaArbiterBridge},
 };
 
 /// This struct contains internal references for all other
@@ -30,6 +31,14 @@ pub struct MotherboardBridgeImpl<'a> {
 
 /// Mapping functions for the bridge.
 impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
+
+    fn controllers_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
+        self.controllers.append_sync_cycles(cycles);
+    }
+
+    fn controllers_read_byte(&mut self, _: &mut dyn Motherboard, address: u8) -> u8 {
+        self.controllers.read_byte(address)
+    }
 
     fn cpu_set_system_bus_holder(&mut self, _: &mut dyn Motherboard, holder: SystemBusHolder) {
         self.cpu.set_system_bus_holder(holder);
@@ -52,8 +61,28 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         );
     }
 
-    fn cdrom_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8) {
+    fn cdrom_drive_read_1800(&mut self, _: &mut dyn Motherboard) -> u8 {
+        self.cdrom_drive.read_1800()
+    }
+
+    fn cdrom_drive_read_1801(&mut self, _: &mut dyn Motherboard) -> u8 {
+        self.cdrom_drive.read_1801()
+    }
+
+    fn cdrom_drive_read_1802(&mut self, _: &mut dyn Motherboard) -> u8 {
+        self.cdrom_drive.read_1802()
+    }
+
+    fn cdrom_drive_read_1803(&mut self, _: &mut dyn Motherboard) -> u8 {
+        self.cdrom_drive.read_1803()
+    }
+
+    fn cdrom_drive_set_interrupt_number(&mut self, _: &mut dyn Motherboard, interrupt_num: u8) {
         self.cdrom_drive.set_interrupt_number(interrupt_num);
+    }
+
+    fn dma_read_byte(&mut self, _: &mut dyn Motherboard, address: u32) -> u8 {
+        self.dma.read_byte(address)
     }
 
     fn gpu_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
@@ -103,8 +132,13 @@ impl<'a> MotherboardBridge for MotherboardBridgeImpl<'a> {
         gpu.read_response(&mut bridge)
     }
 
-    fn controllers_append_sync_cycles(&mut self, _: &mut dyn Motherboard, cycles: i32) {
-        self.controllers.append_sync_cycles(cycles);
+    fn gpu_read_status(&mut self, motherboard: &mut dyn Motherboard) -> u32 {
+        let (gpu, mut bridge) = self.get_gpu_and_bridge(motherboard);
+        gpu.read_status(&mut bridge)
+    }
+
+    fn spu_read_byte(&mut self, _: &mut dyn Motherboard, address: u32) -> u8 {
+        self.spu.read_byte(address)
     }
 }
 
@@ -146,6 +180,24 @@ impl<'a, 'b> MotherboardBridgeImpl<'a> {
             self.dma,
         );
         (self.cdrom_drive, cdrom_drive_bridge)
+    }
+
+    /// Creates a DMA arbiter bridge from this bridge, and also returns a
+    /// DMA arbiter reference too, meaning we can call functions on the
+    /// DMA arbiter that require a bridge, and pass this new object to them.
+    fn get_dma_and_bridge(
+        &'b mut self,
+        motherboard: &'b mut dyn Motherboard
+    ) -> (&'b mut dyn DmaArbiter, impl DmaArbiterBridge) {
+        let dma_bridge = DmaArbiterBridgeImpl::new(
+            self.cdrom_drive,
+            self.controllers,
+            self.cpu,
+            self.gpu,
+            motherboard,
+            self.spu,
+        );
+        (self.dma, dma_bridge)
     }
 
     /// Creates a GPU drive bridge from this bridge, and also returns a
