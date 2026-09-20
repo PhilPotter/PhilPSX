@@ -436,7 +436,7 @@ impl R3051 {
     ) -> Option<u32> {
 
         // Check for dodgy address.
-        if self.sccp.is_address_allowed(address) || self.program_counter % 4 != 0 {
+        if !self.sccp.is_address_allowed(address) || self.program_counter % 4 != 0 {
 
             // Trigger exception.
             self.exception.bad_address = address;
