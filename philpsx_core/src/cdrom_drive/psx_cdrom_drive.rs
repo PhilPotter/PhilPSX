@@ -284,7 +284,7 @@ impl PsxCdromDrive {
                         // reconsidering this later when I actually optimise/
                         // make this fast.
                         Err(error) => panic!(
-                            "CD-ROM Drive: Unable to read byte from CD at {:#08X}: {}", start_address, error
+                            "CD-ROM Drive: Unable to read byte from CD at {:#010X}: {}", start_address, error
                         ),
                     };
 
@@ -654,7 +654,7 @@ impl PsxCdromDrive {
                 0x1E => self.command_readtoc(bridge, second_response),
 
                 // Unimplemented command.
-                _ => log::error!("CD-ROM Drive: Unimplemented command: {:#02X}", command_num),
+                _ => log::error!("CD-ROM Drive: Unimplemented command: {:#010X}", command_num),
             };
         }
         else {

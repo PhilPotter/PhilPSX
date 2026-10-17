@@ -1022,7 +1022,7 @@ impl Gpu for PsxGpu {
                     0xE6 => self.gp0_e6(word),
 
                     // Unmapped as of now:
-                    _ => log::warn!("GPU: GP0 submit unhandled: {:#08X}", word),
+                    _ => log::warn!("GPU: GP0 submit unhandled: {:#010X}", word),
                 }
             }
             // Command at index 0 in FIFO requires more parameters.
@@ -1600,7 +1600,7 @@ impl Gpu for PsxGpu {
                     },
 
                     // Unmapped as of now:
-                    _ => log::warn!("GPU: GP0 submit unhandled: {:#08X}", word),
+                    _ => log::warn!("GPU: GP0 submit unhandled: {:#010X}", word),
                 }
             }
         }
@@ -1651,7 +1651,7 @@ impl Gpu for PsxGpu {
             0xDC | 0xDD | 0xDE | 0xDF => self.gp1_10(word),
 
             // Unmapped as of now:
-            _ => log::warn!("GPU: GP1 submit unhandled: {:#08X}", word),
+            _ => log::warn!("GPU: GP1 submit unhandled: {:#010X}", word),
         }
     }
 
