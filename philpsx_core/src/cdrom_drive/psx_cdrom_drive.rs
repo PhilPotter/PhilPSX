@@ -284,7 +284,7 @@ impl PsxCdromDrive {
                         // reconsidering this later when I actually optimise/
                         // make this fast.
                         Err(error) => panic!(
-                            "CD-ROM Drive: Unable to read byte from CD at {:#8X}: {}", start_address, error
+                            "CD-ROM Drive: Unable to read byte from CD at {:#08X}: {}", start_address, error
                         ),
                     };
 
